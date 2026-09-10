@@ -1,5 +1,15 @@
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
+import { useCommand } from '../hooks/useCommand';
+import { SegmentedControl } from './SegmentedControl';
+
+/* Quiet mode throttles the outdoor fan/compressor, so it lives with the unit. */
+const QUIET_LEVELS = [
+  { value: 0, label: 'Off' },
+  { value: 1, label: 'L1' },
+  { value: 2, label: 'L2' },
+  { value: 3, label: 'L3' },
+];
 
 interface OutdoorCardProps {
   state: HeishamonState;
@@ -56,6 +66,9 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
   const fan1 = numVal(state, 'main/Fan1_Motor_Speed');
   const fan2 = numVal(state, 'main/Fan2_Motor_Speed');
   const defrosting = state['main/Defrosting_State']?.value === '1';
+  const quietLevel = numVal(state, 'main/Quiet_Mode_Level');
+
+  const { send, pending, error, success } = useCommand();
 
   const tempColor = outsideTemp === null ? 'var(--text-muted)'
     : outsideTemp < 0 ? '#38bdf8'
@@ -143,6 +156,25 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
             </span>
           </div>
         </div>
+
+        <div className="divider" />
+
+        <SegmentedControl
+          label="🤫 Quiet mode"
+          options={QUIET_LEVELS}
+          value={quietLevel === null ? null : Math.round(quietLevel)}
+          onSelect={(v) => send('commands/SetQuietMode', v,
+            v === 0 ? 'Quiet mode off' : `Quiet level ${v}`)}
+          pending={pending}
+          idPrefix="btn-quiet"
+          hint="higher level = quieter, lower output"
+        />
+
+        {(error || success) && (
+          <div className={`control-msg ${error ? 'error' : 'ok'}`}>
+            {error ? `⚠ ${error}` : `✓ ${success}`}
+          </div>
+        )}
       </div>
     </div>
   );

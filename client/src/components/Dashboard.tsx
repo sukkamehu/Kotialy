@@ -7,7 +7,6 @@ import { BufferTankCard } from './BufferTankCard';
 import { PowerCard } from './PowerCard';
 import { OutdoorCard } from './OutdoorCard';
 import { ThreeWayValveCard } from './ThreeWayValveCard';
-import { ControlPanel } from './ControlPanel';
 import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
 import { NordpoolPanel } from './NordpoolPanel';
@@ -87,16 +86,15 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
               <PowerCard state={state} />
             </div>
 
-            {/* Row 2: Outdoor + Valve + Controls */}
+            {/* Row 2: Outdoor + Valve — each card carries its own controls */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 280px 280px',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
               gap: 20,
               marginBottom: 20,
             }}>
               <OutdoorCard state={state} />
               <ThreeWayValveCard state={state} />
-              <ControlPanel state={state} />
             </div>
 
             {/* Row 3: History chart (full width) */}

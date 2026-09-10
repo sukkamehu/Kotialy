@@ -59,6 +59,7 @@ export function DHWCard({ state }: DHWCardProps) {
   const target = numVal(state, 'main/DHW_Target_Temp');
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
   const heaterEnabled = state['main/DHW_Heater_State']?.value === '1';
+  const forceHeater = state['main/Force_Heater_State']?.value === '1';
 
   // Power – prefer XTOP, fallback to TOP
   const dhwProdXtop = numVal(state, 'extra/DHW_Power_Production');
@@ -73,6 +74,11 @@ export function DHWCard({ state }: DHWCardProps) {
   function toggleForceDHW() {
     send('commands/SetForceDHW', forceDHW ? 0 : 1,
       forceDHW ? 'Boost stopped' : 'Boost started');
+  }
+
+  function toggleForceHeater() {
+    send('commands/SetForceHeater', forceHeater ? 0 : 1,
+      forceHeater ? 'Backup heater off' : 'Backup heater forced on');
   }
 
   function setDHWTarget(v: number) {
@@ -164,9 +170,18 @@ export function DHWCard({ state }: DHWCardProps) {
         {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Backup heater: {heaterEnabled ? '✓ Enabled' : 'Disabled'}
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Backup heater {heaterEnabled ? 'enabled' : 'disabled'}
             </span>
+            <button
+              className={`btn btn-sm ${forceHeater ? 'btn-danger' : 'btn-ghost'}`}
+              onClick={toggleForceHeater}
+              disabled={pending}
+              id="btn-force-heater"
+              title="Force the electric backup heater"
+            >
+              {forceHeater ? '🔥 Forced' : 'Force heater'}
+            </button>
           </div>
           <button
             className={`btn btn-sm ${forceDHW ? 'btn-danger' : 'btn-ghost'}`}

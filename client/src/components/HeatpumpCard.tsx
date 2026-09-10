@@ -1,5 +1,25 @@
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
+import { useCommand } from '../hooks/useCommand';
+import { SegmentedControl, ToggleRow } from './SegmentedControl';
+
+const OPERATING_MODES = [
+  { value: 0, label: 'Heat' },
+  { value: 1, label: 'Cool' },
+  { value: 2, label: 'Auto' },
+  { value: 3, label: 'DHW' },
+  { value: 4, label: 'Heat+DHW' },
+  { value: 5, label: 'Cool+DHW' },
+  { value: 6, label: 'Auto+DHW' },
+];
+
+/* Powerful mode is sent as a slot index; each step is 30 minutes. */
+const POWERFUL_TIMES = [
+  { value: 0, label: 'Off' },
+  { value: 1, label: '30m' },
+  { value: 2, label: '60m' },
+  { value: 3, label: '90m' },
+];
 
 interface HeatpumpCardProps {
   state: HeishamonState;
@@ -101,6 +121,14 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
   const opHours = numVal(state, 'main/Operations_Hours');
   const opCount = numVal(state, 'main/Operations_Counter');
 
+  const operatingMode = numVal(state, 'main/Operating_Mode_State');
+  const powerfulTime = numVal(state, 'main/Powerful_Mode_Time');
+  const holidayOn = (numVal(state, 'main/Holiday_Mode_State') ?? 0) > 0;
+  const internalHeater = state['main/Internal_Heater_State']?.value === '1';
+  const externalHeater = state['main/External_Heater_State']?.value === '1';
+
+  const { send, pending, error, success } = useCommand();
+
   return (
     <div className="card" style={{
       borderColor: isOn ? 'rgba(245,158,11,0.3)' : 'var(--border)',
@@ -114,9 +142,16 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
             ❄️ Defrost
           </span>
         )}
-        <div className={`badge ${isOn ? 'badge-on' : 'badge-off'}`} style={{ marginLeft: defrost ? 4 : 'auto' }}>
-          {isOn ? '● On' : '○ Off'}
-        </div>
+        <button
+          className={`btn btn-sm ${isOn ? 'btn-primary' : 'btn-ghost'}`}
+          style={{ marginLeft: defrost ? 4 : 'auto' }}
+          onClick={() => send('commands/SetHeatpump', isOn ? 0 : 1, isOn ? 'Heat pump off' : 'Heat pump on')}
+          disabled={pending}
+          id="btn-heatpump-power"
+          title="Turn the heat pump on or off"
+        >
+          {pending ? '…' : isOn ? '● On' : '○ Off'}
+        </button>
       </div>
       <div className="card-body">
         {/* Compressor + Temps */}
@@ -173,6 +208,57 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
               {opCount !== null ? Math.round(opCount) : '—'}
             </span>
           </div>
+        </div>
+
+        <div className="divider" />
+
+        {/* Controls */}
+        <div className="section-label" style={{ marginBottom: 10 }}>Controls</div>
+
+        <SegmentedControl
+          label="🔄 Operating mode"
+          options={OPERATING_MODES}
+          value={operatingMode === null ? null : Math.round(operatingMode)}
+          onSelect={(v) => send('commands/SetOperationMode', v,
+            `Mode: ${OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`)}
+          pending={pending}
+          idPrefix="btn-mode"
+        />
+
+        <SegmentedControl
+          label="⚡ Powerful mode"
+          options={POWERFUL_TIMES}
+          value={powerfulTime === null ? null : Math.round(powerfulTime)}
+          onSelect={(v) => send('commands/SetPowerfulMode', v,
+            v === 0 ? 'Powerful off' : `Powerful for ${v * 30} min`)}
+          pending={pending}
+          idPrefix="btn-powerful"
+        />
+
+        <ToggleRow
+          label="🏖️ Holiday mode"
+          description="Away setting — lowers demand"
+          on={holidayOn}
+          onToggle={() => send('commands/SetHolidayMode', holidayOn ? 0 : 1,
+            holidayOn ? 'Holiday off' : 'Holiday on')}
+          pending={pending}
+          idPrefix="btn-holiday"
+        />
+
+        {(error || success) && (
+          <div className={`control-msg ${error ? 'error' : 'ok'}`}>
+            {error ? `⚠ ${error}` : `✓ ${success}`}
+          </div>
+        )}
+
+        {/* Backup heater activity */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+          <span style={{ fontSize: 11, color: internalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
+            {internalHeater ? '● ' : '○ '}Internal heater
+          </span>
+          <span style={{ fontSize: 11, color: externalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
+            {externalHeater ? '● ' : '○ '}External heater
+          </span>
         </div>
       </div>
     </div>
