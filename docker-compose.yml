@@ -1,0 +1,56 @@
+services:
+  mqtt:
+    build: ./mqtt
+    restart: unless-stopped
+    environment:
+      HEISHAMON_MQTT_USERNAME: ${HEISHAMON_MQTT_USERNAME:?set in .env}
+      HEISHAMON_MQTT_PASSWORD: ${HEISHAMON_MQTT_PASSWORD:?set in .env}
+      APP_MQTT_USERNAME: ${APP_MQTT_USERNAME:?set in .env}
+      APP_MQTT_PASSWORD: ${APP_MQTT_PASSWORD:?set in .env}
+      ZIGBEE2MQTT_MQTT_USERNAME: ${ZIGBEE2MQTT_MQTT_USERNAME:?set in .env}
+      ZIGBEE2MQTT_MQTT_PASSWORD: ${ZIGBEE2MQTT_MQTT_PASSWORD:?set in .env}
+    ports:
+      - "1883:1883"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - mqtt-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$$APP_MQTT_USERNAME\" -P \"$$APP_MQTT_PASSWORD\" -t '$$SYS/broker/version' -C 1 -W 5"]
+      interval: 10s
+      timeout: 8s
+      retries: 5
+      start_period: 5s
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      DB_PATH: /app/data/kotialy.db
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_BASE_TOPIC: ${MQTT_BASE_TOPIC:-panasonic_heat_pump}
+      MQTT_USERNAME: ${APP_MQTT_USERNAME:?set in .env}
+      MQTT_PASSWORD: ${APP_MQTT_PASSWORD:?set in .env}
+      ZIGBEE_MQTT_HOST: mqtt
+      ZIGBEE_MQTT_PORT: 1883
+      ZIGBEE_BASE_TOPIC: ${ZIGBEE_BASE_TOPIC:-zigbee2mqtt}
+      ZIGBEE_MQTT_USERNAME: ${APP_MQTT_USERNAME:?set in .env}
+      ZIGBEE_MQTT_PASSWORD: ${APP_MQTT_PASSWORD:?set in .env}
+    volumes:
+      - server-data:/app/data
+    depends_on:
+      mqtt:
+        condition: service_healthy
+
+  dashboard:
+    build: ./client
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - server
+
+volumes:
+  mqtt-data:
+  server-data:

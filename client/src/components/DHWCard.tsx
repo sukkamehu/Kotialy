@@ -1,0 +1,174 @@
+import { useState } from 'react';
+import type { HeishamonState } from '../types/heishamon';
+import { numVal } from '../types/heishamon';
+
+interface DHWCardProps {
+  state: HeishamonState;
+}
+
+function TankSvg({ temp, target, maxTemp = 65, minTemp = 20 }: {
+  temp: number | null; target: number | null; maxTemp?: number; minTemp?: number;
+}) {
+  const fillPct = temp !== null
+    ? Math.max(5, Math.min(95, ((temp - minTemp) / (maxTemp - minTemp)) * 100))
+    : 5;
+
+  const waterColor = temp !== null && temp > 55
+    ? '#f59e0b'
+    : temp !== null && temp > 45
+    ? '#fb923c'
+    : '#22d3ee';
+
+  const waterGlow = temp !== null && temp > 45 ? 'rgba(245,158,11,0.3)' : 'rgba(34,211,238,0.2)';
+
+  return (
+    <svg width="56" height="90" viewBox="0 0 56 90" fill="none" style={{ flexShrink: 0 }}>
+      {/* Tank outline */}
+      <rect x="6" y="8" width="44" height="72" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+      {/* Water fill */}
+      <clipPath id="tank-clip">
+        <rect x="7.5" y="9.5" width="41" height="69" rx="7" />
+      </clipPath>
+      <g clipPath="url(#tank-clip)">
+        <rect
+          x="7.5"
+          y={9.5 + 69 * (1 - fillPct / 100)}
+          width="41"
+          height={69 * fillPct / 100}
+          fill={waterColor}
+          opacity="0.25"
+          style={{ transition: 'all 1s ease', filter: `drop-shadow(0 0 6px ${waterGlow})` }}
+        />
+      </g>
+      {/* Target line */}
+      {target !== null && (() => {
+        const targetPct = Math.max(5, Math.min(95, ((target - minTemp) / (maxTemp - minTemp)) * 100));
+        const y = 9.5 + 69 * (1 - targetPct / 100);
+        return <line x1="7.5" y1={y} x2="48.5" y2={y} stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeDasharray="3,2" />;
+      })()}
+      {/* Tank caps */}
+      <rect x="16" y="2" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+      <rect x="16" y="80" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+    </svg>
+  );
+}
+
+export function DHWCard({ state }: DHWCardProps) {
+  const temp = numVal(state, 'main/DHW_Temp');
+  const target = numVal(state, 'main/DHW_Target_Temp');
+  const forceDHW = state['main/Force_DHW_State']?.value === '1';
+  const heaterEnabled = state['main/DHW_Heater_State']?.value === '1';
+
+  // Power – prefer XTOP, fallback to TOP
+  const dhwProdXtop = numVal(state, 'extra/DHW_Power_Production');
+  const dhwConsXtop = numVal(state, 'extra/DHW_Power_Consumption');
+  const dhwProd = dhwProdXtop ?? numVal(state, 'main/DHW_Power_Production');
+  const dhwCons = dhwConsXtop ?? numVal(state, 'main/DHW_Power_Consumption');
+
+  const cop = dhwCons && dhwCons > 0 && dhwProd ? (dhwProd / dhwCons).toFixed(2) : null;
+
+  const [sending, setSending] = useState(false);
+
+  async function toggleForceDHW() {
+    setSending(true);
+    try {
+      await fetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setTopic: 'commands/SetForceDHW', value: forceDHW ? 0 : 1 }),
+      });
+    } finally {
+      setTimeout(() => setSending(false), 1000);
+    }
+  }
+
+  const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
+    temp !== null && temp > 45 ? 'var(--heat-secondary)' : 'var(--cool-primary)';
+
+  return (
+    <div className="card" style={{
+      borderColor: forceDHW ? 'rgba(245,158,11,0.4)' : 'var(--border)',
+      boxShadow: forceDHW ? '0 0 20px rgba(245,158,11,0.1)' : undefined,
+    }}>
+      <div className="card-header">
+        <span className="card-icon">🚿</span>
+        <span className="card-title">Hot Water Tank</span>
+        {forceDHW && (
+          <div className="badge badge-heat" style={{ marginLeft: 'auto' }}>⚡ Boost</div>
+        )}
+      </div>
+      <div className="card-body">
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
+          <TankSvg temp={temp} target={target} />
+          <div style={{ flex: 1 }}>
+            <div className="metric" style={{ marginBottom: 8 }}>
+              <span className="metric-label">Temperature</span>
+              <span className="metric-value" style={{ fontSize: 32, color: tempColor }}>
+                {temp !== null ? temp.toFixed(1) : '—'}
+                <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>
+              </span>
+            </div>
+            {target !== null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Target:</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  {target.toFixed(0)}°C
+                </span>
+                {temp !== null && target !== null && (
+                  <span style={{ fontSize: 11, color: temp >= target ? 'var(--online)' : 'var(--warning)' }}>
+                    {temp >= target ? '✓ Reached' : `${(target - temp).toFixed(1)}° to go`}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="divider" />
+
+        {/* Power */}
+        <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
+          <div className="metric metric-sm">
+            <span className="metric-label">Production</span>
+            <span className="metric-value" style={{ color: 'var(--dhw-primary)' }}>
+              {dhwProd !== null ? Math.round(dhwProd) : '—'}
+              <span className="metric-unit">W</span>
+            </span>
+          </div>
+          <div className="metric metric-sm">
+            <span className="metric-label">Consumption</span>
+            <span className="metric-value">
+              {dhwCons !== null ? Math.round(dhwCons) : '—'}
+              <span className="metric-unit">W</span>
+            </span>
+          </div>
+          <div className="metric metric-sm">
+            <span className="metric-label">COP</span>
+            <span className="metric-value" style={{ color: 'var(--dhw-primary)' }}>
+              {cop ?? '—'}
+            </span>
+          </div>
+        </div>
+
+        <div className="divider" />
+
+        {/* Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Backup heater: {heaterEnabled ? '✓ Enabled' : 'Disabled'}
+            </span>
+          </div>
+          <button
+            className={`btn btn-sm ${forceDHW ? 'btn-danger' : 'btn-ghost'}`}
+            onClick={toggleForceDHW}
+            disabled={sending}
+            id="btn-force-dhw"
+          >
+            {sending ? '...' : forceDHW ? '⏹ Stop Boost' : '⚡ Force DHW'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

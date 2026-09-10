@@ -1,0 +1,16 @@
+# Heishamon needs to publish measurements and receive command topics.
+user heishamon
+topic readwrite panasonic_heat_pump/#
+
+# The Kotiäly bridge may monitor all supported integrations and issue only
+# explicit Heishamon commands. $SYS/broker/version read is needed by the
+# container healthcheck.
+user kotialy
+topic read panasonic_heat_pump/#
+topic write panasonic_heat_pump/commands/#
+topic read zigbee2mqtt/#
+topic read $SYS/broker/version
+
+# Optional Zigbee2MQTT instance using the same self-hosted broker.
+user zigbee2mqtt
+topic readwrite zigbee2mqtt/#

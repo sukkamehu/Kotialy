@@ -1,0 +1,24 @@
+{
+  "name": "kotialy-server",
+  "version": "1.0.0",
+  "description": "Kotiäly backend - MQTT bridge, API, WebSocket",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mqtt": "^5.5.0",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@9.6.0": true,
+    "fsevents@2.3.3": true
+  }
+}
