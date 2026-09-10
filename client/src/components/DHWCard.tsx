@@ -1,6 +1,7 @@
-import { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
+import { useCommand } from '../hooks/useCommand';
+import { SetpointControl } from './SetpointControl';
 
 interface DHWCardProps {
   state: HeishamonState;
@@ -67,19 +68,15 @@ export function DHWCard({ state }: DHWCardProps) {
 
   const cop = dhwCons && dhwCons > 0 && dhwProd ? (dhwProd / dhwCons).toFixed(2) : null;
 
-  const [sending, setSending] = useState(false);
+  const { send, pending, error, success } = useCommand();
 
-  async function toggleForceDHW() {
-    setSending(true);
-    try {
-      await fetch('/api/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ setTopic: 'commands/SetForceDHW', value: forceDHW ? 0 : 1 }),
-      });
-    } finally {
-      setTimeout(() => setSending(false), 1000);
-    }
+  function toggleForceDHW() {
+    send('commands/SetForceDHW', forceDHW ? 0 : 1,
+      forceDHW ? 'Boost stopped' : 'Boost started');
+  }
+
+  function setDHWTarget(v: number) {
+    send('commands/SetDHWTemp', v, `Target set to ${v}°C`);
   }
 
   const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
@@ -108,23 +105,35 @@ export function DHWCard({ state }: DHWCardProps) {
                 <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>
               </span>
             </div>
-            {target !== null && (
+            {target !== null && temp !== null && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Target:</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  {target.toFixed(0)}°C
+                <span style={{ fontSize: 11, color: temp >= target ? 'var(--online)' : 'var(--warning)' }}>
+                  {temp >= target ? '✓ Target reached' : `${(target - temp).toFixed(1)}° to go`}
                 </span>
-                {temp !== null && target !== null && (
-                  <span style={{ fontSize: 11, color: temp >= target ? 'var(--online)' : 'var(--warning)' }}>
-                    {temp >= target ? '✓ Reached' : `${(target - temp).toFixed(1)}° to go`}
-                  </span>
-                )}
               </div>
             )}
           </div>
         </div>
 
         <div className="divider" />
+
+        {/* Setpoint */}
+        <div style={{ marginTop: 12 }}>
+          <SetpointControl
+            label="Hot water target"
+            value={target}
+            min={40}
+            max={75}
+            step={1}
+            accentColor="var(--dhw-primary)"
+            pending={pending}
+            onCommit={setDHWTarget}
+            idPrefix="dhw-target"
+            hint="legionella cycle needs ≥60°C"
+          />
+        </div>
+
+        <div className="divider" style={{ marginTop: 16 }} />
 
         {/* Power */}
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
@@ -162,12 +171,18 @@ export function DHWCard({ state }: DHWCardProps) {
           <button
             className={`btn btn-sm ${forceDHW ? 'btn-danger' : 'btn-ghost'}`}
             onClick={toggleForceDHW}
-            disabled={sending}
+            disabled={pending}
             id="btn-force-dhw"
           >
-            {sending ? '...' : forceDHW ? '⏹ Stop Boost' : '⚡ Force DHW'}
+            {pending ? '...' : forceDHW ? '⏹ Stop Boost' : '⚡ Force DHW'}
           </button>
         </div>
+
+        {(error || success) && (
+          <div className={`control-msg ${error ? 'error' : 'ok'}`}>
+            {error ? `⚠ ${error}` : `✓ ${success}`}
+          </div>
+        )}
       </div>
     </div>
   );

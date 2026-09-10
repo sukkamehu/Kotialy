@@ -26,7 +26,10 @@ export function useHistory(topic: string, hours = 24): UseHistoryReturn {
     setError(null);
 
     fetch(`/api/history?topic=${encodeURIComponent(topic)}&hours=${hours}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`History request failed (${r.status})`);
+        return r.json();
+      })
       .then((res) => {
         if (!cancelled) setData(res.data ?? []);
       })

@@ -45,7 +45,7 @@ function DeviceCardShell({ device, accentColor, children, alert }: {
   children: React.ReactNode;
   alert?: boolean;
 }) {
-  const updatedAt = Object.values(device.properties).reduce(
+  const updatedAt = Object.values(device.properties ?? {}).reduce(
     (max, p) => Math.max(max, p.updated_at || 0), 0
   );
 
@@ -226,7 +226,7 @@ function WaterLeakCard({ device }: { device: ZigbeeDeviceInfo }) {
 
 // ─── Generic fallback ──────────────────────────────────────────────────────────
 function GenericCard({ device }: { device: ZigbeeDeviceInfo }) {
-  const props = Object.entries(device.properties)
+  const props = Object.entries(device.properties ?? {})
     .filter(([k]) => !['battery', 'linkquality', '_availability', 'voltage'].includes(k))
     .slice(0, 4);
 
@@ -326,11 +326,11 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
       </div>
 
       {/* Not connected / no devices */}
-      {!connected && !hasDevices && (
+      {!hasDevices && (
         <div className="card" style={{ padding: 32, textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📡</div>
           <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            Connecting to Zigbee gateway...
+            {connected ? 'No Zigbee devices discovered yet' : 'Connecting to Zigbee gateway...'}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             Waiting for MQTT from 192.168.68.51 · Topic: zigbee2mqtt/#

@@ -41,6 +41,12 @@
   --offline: #ef4444;
   --warning: #f59e0b;
 
+  /* Semantic aliases used by the price/weather panels */
+  --primary: var(--cool-primary);
+  --success: var(--online);
+  --danger: var(--offline);
+  --bg: var(--bg-surface);
+
   /* Text */
   --text-primary: rgba(255, 255, 255, 0.95);
   --text-secondary: rgba(255, 255, 255, 0.6);
@@ -146,7 +152,23 @@ h1, h2, h3, h4 {
   padding: var(--space-5);
 }
 
+/*
+ * Some panels (price, weather) render straight into .card without the
+ * header/body pair. Pad those directly so their content is not flush
+ * against the card edge.
+ */
+.card:not(:has(> .card-header)) {
+  padding: var(--space-5);
+}
+
 /* ─── Metric ─────────────────────────────────────────────────── */
+.metric-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
 .metric {
   display: flex;
   flex-direction: column;
@@ -363,6 +385,64 @@ h1, h2, h3, h4 {
   padding: 4px var(--space-3);
   font-size: 12px;
 }
+
+/* ─── Setpoint slider ────────────────────────────────────────── */
+.setpoint-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 100px;
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.setpoint-slider:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.setpoint-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+}
+
+.setpoint-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+
+.setpoint-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+}
+
+.setpoint-slider:focus-visible {
+  outline: 2px solid var(--cool-primary);
+  outline-offset: 4px;
+}
+
+/* Inline feedback under a control */
+.control-msg {
+  font-size: 11px;
+  margin-top: 8px;
+  min-height: 14px;
+}
+
+.control-msg.error { color: var(--offline); }
+.control-msg.ok { color: var(--dhw-primary); }
 
 /* ─── Toggle ─────────────────────────────────────────────────── */
 .toggle-group {

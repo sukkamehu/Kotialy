@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { getFullState, getTopicHistory, getMultiTopicHistory } = require('../db');
-const { TOPICS, CHART_TOPICS } = require('../topics');
+const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
 const mqttClient = require('../mqtt-client');
 const zigbeeClient = require('../zigbee-client');
 const nordpoolClient = require('../nordpool-client');
@@ -14,30 +14,8 @@ const weatherClient = require('../weather-client');
  * Returns the full current state snapshot.
  */
 router.get('/state', (req, res) => {
-  const raw = getFullState();
-
-  // Enrich with metadata
-  const enriched = {};
-  for (const [topic, data] of Object.entries(raw)) {
-    const meta = TOPICS[topic];
-    let displayValue = data.value;
-
-    if (meta?.type === 'enum' && meta.map) {
-      displayValue = meta.map[parseInt(data.value)] ?? data.value;
-    }
-
-    enriched[topic] = {
-      ...data,
-      label: meta?.label || topic.split('/').pop(),
-      unit: meta?.unit || '',
-      category: meta?.category || 'misc',
-      type: meta?.type || 'string',
-      displayValue,
-    };
-  }
-
   res.json({
-    state: enriched,
+    state: enrichState(getFullState()),
     mqtt: {
       connected: mqttClient.isConnected(),
       lastReceivedAt: mqttClient.getLastReceivedAt(),
@@ -113,17 +91,31 @@ router.post('/command', express.json(), (req, res) => {
   }
 
   // Validate against allowed writable topics
-  const allowed = Object.values(TOPICS)
-    .filter((t) => t.writable && t.setTopic)
-    .map((t) => t.setTopic);
+  const writable = Object.values(TOPICS).filter((t) => t.writable && t.setTopic);
+  const meta = writable.find((t) => t.setTopic === setTopic);
 
-  if (!allowed.includes(setTopic)) {
-    return res.status(403).json({ error: 'Topic not writable', allowed });
+  if (!meta) {
+    return res.status(403).json({
+      error: 'Topic not writable',
+      allowed: writable.map((t) => t.setTopic),
+    });
+  }
+
+  // Range-check before anything reaches the heat pump.
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return res.status(400).json({ error: 'value must be a number' });
+  }
+  if (meta.min !== undefined && num < meta.min) {
+    return res.status(400).json({ error: `value below minimum (${meta.min})` });
+  }
+  if (meta.max !== undefined && num > meta.max) {
+    return res.status(400).json({ error: `value above maximum (${meta.max})` });
   }
 
   try {
-    mqttClient.publish(setTopic, value);
-    res.json({ ok: true, setTopic, value });
+    mqttClient.publish(setTopic, num);
+    res.json({ ok: true, setTopic, value: num });
   } catch (err) {
     res.status(503).json({ error: err.message });
   }
@@ -212,32 +204,12 @@ router.get('/weather/daily', (req, res) => {
  * Returns the discovered Zigbee device registry with their latest state values.
  */
 router.get('/zigbee/devices', (req, res) => {
-  const registry = zigbeeClient.getDeviceRegistry();
-  const fullState = getFullState();
-
-  // Enrich each device with its latest sensor values from DB
-  const enriched = {};
-  for (const [name, device] of Object.entries(registry)) {
-    const prefix = `zigbee/${name}/`;
-    const props = {};
-    for (const [topic, data] of Object.entries(fullState)) {
-      if (topic.startsWith(prefix)) {
-        const prop = topic.slice(prefix.length);
-        props[prop] = { value: data.value, updated_at: data.updated_at };
-      }
-    }
-    // Also check availability
-    const avail = fullState[`zigbee/${name}/_availability`];
-    enriched[name] = {
-      ...device,
-      properties: props,
-      online: avail ? avail.value === '1' : null,
-    };
-  }
+  // getDeviceRegistry() already attaches each device's properties + availability
+  const devices = zigbeeClient.getDeviceRegistry();
 
   res.json({
-    devices: enriched,
-    count: Object.keys(enriched).length,
+    devices,
+    count: Object.keys(devices).length,
     zigbeeConnected: zigbeeClient.isConnected(),
     ts: Date.now(),
   });

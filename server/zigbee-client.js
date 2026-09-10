@@ -12,7 +12,7 @@
 const mqtt = require('mqtt');
 require('dotenv').config();
 
-const { updateState, maybeAppendHistory } = require('./db');
+const { updateState, maybeAppendHistory, getFullState } = require('./db');
 
 const ZIGBEE_HOST = process.env.ZIGBEE_MQTT_HOST || 'localhost';
 const ZIGBEE_PORT = parseInt(process.env.ZIGBEE_MQTT_PORT || '1883');
@@ -163,7 +163,7 @@ function handleDeviceRegistry(payload) {
   if (wsBroadcastFn) {
     wsBroadcastFn({
       type: 'zigbee_devices',
-      devices: deviceRegistry,
+      devices: getDeviceRegistry(),
       ts: Date.now(),
     });
   }
@@ -260,8 +260,42 @@ function init(wsBroadcast) {
   });
 }
 
+/**
+ * Return the device registry enriched with each device's latest property
+ * values and availability from the DB.
+ *
+ * The raw registry only holds discovery metadata. Clients render device
+ * properties, so every consumer (WS snapshot, WS broadcast, REST) must get
+ * the enriched shape or `device.properties` is undefined on the frontend.
+ */
 function getDeviceRegistry() {
-  return deviceRegistry;
+  const fullState = getFullState();
+  const enriched = {};
+
+  for (const [name, device] of Object.entries(deviceRegistry)) {
+    const prefix = `zigbee/${name}/`;
+    const properties = {};
+
+    for (const [topic, data] of Object.entries(fullState)) {
+      if (topic.startsWith(prefix)) {
+        properties[topic.slice(prefix.length)] = {
+          value: data.value,
+          updated_at: data.updated_at,
+        };
+      }
+    }
+
+    const avail = properties._availability;
+    delete properties._availability;
+
+    enriched[name] = {
+      ...device,
+      properties,
+      online: avail ? avail.value === '1' : null,
+    };
+  }
+
+  return enriched;
 }
 
 function isConnected() {

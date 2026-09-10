@@ -62,6 +62,8 @@ export function WeatherPanel() {
       });
     } catch (err) {
       console.error('Weather fetch failed', err);
+      // Clear the loading flag too, or the panel is stuck on "Loading..."
+      setData((prev) => ({ ...prev, loading: false }));
     }
   };
 

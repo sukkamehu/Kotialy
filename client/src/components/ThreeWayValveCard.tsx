@@ -1,4 +1,5 @@
 import type { HeishamonState } from '../types/heishamon';
+import { useCommand } from '../hooks/useCommand';
 
 interface ThreeWayValveCardProps {
   state: HeishamonState;
@@ -7,9 +8,25 @@ interface ThreeWayValveCardProps {
 export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
   const valveState = state['main/ThreeWay_Valve_State'];
   const val = valveState?.value;
+  const forceDHW = state['main/Force_DHW_State']?.value === '1';
+  const { send, pending, error, success } = useCommand();
+
+  /*
+   * Heishamon exposes no direct 3-way valve command — the valve follows
+   * demand. Forcing DHW is what actually swings it to the tank, so that is
+   * what this switch drives, and the card says so rather than pretending
+   * to command the valve directly.
+   */
+  function switchTo(target: 'dhw' | 'heating') {
+    const next = target === 'dhw' ? 1 : 0;
+    send('commands/SetForceDHW', next,
+      target === 'dhw' ? 'Forcing hot water' : 'Released to heating');
+  }
   const isRoom = val === '0';
   const isDHW = val === '1';
-  const hasData = val !== undefined;
+  // Only 0/1 are meaningful; anything else is an unknown state, not "heating".
+  const hasData = isRoom || isDHW;
+  const isUnknown = val !== undefined && !hasData;
 
   return (
     <div className="card" style={{
@@ -20,7 +37,9 @@ export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
         <span className="card-title">3-Way Valve</span>
         <div style={{ marginLeft: 'auto' }}>
           {!hasData ? (
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No data</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {isUnknown ? `State ${val}` : 'No data'}
+            </span>
           ) : isDHW ? (
             <div className="badge badge-dhw">DHW</div>
           ) : (
@@ -79,7 +98,11 @@ export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
 
         <div style={{ textAlign: 'center' }}>
           {!hasData ? (
-            <p className="no-data">Valve not wired yet — will show data when connected</p>
+            <p className="no-data">
+              {isUnknown
+                ? `Unrecognised valve state: ${val}`
+                : 'Valve not wired yet — will show data when connected'}
+            </p>
           ) : (
             <div>
               <div style={{
@@ -92,6 +115,43 @@ export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 PAW-3WYVLV4HW · State {val}
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="divider" style={{ marginTop: 16 }} />
+
+        {/* Switch: drives Force DHW, which is what moves the valve */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Request position
+          </div>
+          <div className="toggle-group">
+            <button
+              className={`toggle-btn ${!forceDHW ? 'active' : ''}`}
+              onClick={() => switchTo('heating')}
+              disabled={pending}
+              id="btn-valve-heating"
+            >
+              Heating
+            </button>
+            <button
+              className={`toggle-btn ${forceDHW ? 'active' : ''}`}
+              onClick={() => switchTo('dhw')}
+              disabled={pending}
+              id="btn-valve-dhw"
+            >
+              Hot water
+            </button>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.4 }}>
+            The valve has no direct command — this forces hot water priority, and
+            the valve follows. It may take a moment to move.
+          </div>
+
+          {(error || success) && (
+            <div className={`control-msg ${error ? 'error' : 'ok'}`}>
+              {error ? `⚠ ${error}` : `✓ ${success}`}
             </div>
           )}
         </div>

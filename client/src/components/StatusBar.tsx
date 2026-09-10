@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { HeishamonState, MqttStatus } from '../types/heishamon';
+import { numVal } from '../types/heishamon';
 
 interface StatusBarProps {
   state: HeishamonState;
@@ -8,9 +10,9 @@ interface StatusBarProps {
   lastUpdate: number | null;
 }
 
-function timeAgo(ts: number | null): string {
+function timeAgo(ts: number | null, now: number): string {
   if (!ts) return 'never';
-  const sec = Math.floor((Date.now() - ts) / 1000);
+  const sec = Math.floor((now - ts) / 1000);
   if (sec < 5) return 'just now';
   if (sec < 60) return `${sec}s ago`;
   if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
@@ -24,9 +26,17 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdate }: StatusBarProps) {
+  // The clock and the "updated Xs ago" label are derived from Date.now(), so
+  // they only advance if something re-renders. Tick once a second.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const hpState = state['main/Heatpump_State']?.value;
   const opMode = state['main/Operating_Mode_State']?.value;
-  const outsideTemp = state['main/Outside_Temp'];
+  const outsideTempNum = numVal(state, 'main/Outside_Temp');
   const error = state['main/Error']?.value;
   const hasError = error && error !== '0' && error !== 'H00';
 
@@ -105,11 +115,11 @@ export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
         )}
 
         {/* Outside temp */}
-        {outsideTemp && (
+        {outsideTempNum !== null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Outside</span>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cool-primary)' }}>
-              {parseFloat(outsideTemp.value).toFixed(1)}°C
+              {outsideTempNum.toFixed(1)}°C
             </span>
           </div>
         )}
@@ -130,12 +140,12 @@ export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
 
         {/* Last update */}
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          Updated {timeAgo(lastUpdate)}
+          Updated {timeAgo(lastUpdate, now)}
         </span>
 
         {/* Time */}
         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-          {new Date().toLocaleTimeString('fi-FI')}
+          {new Date(now).toLocaleTimeString('fi-FI')}
         </span>
       </div>
     </header>

@@ -73,13 +73,16 @@ export function HistoryChart() {
     const hours = HOURS[timeRange];
 
     fetch(`/api/history/multi?topics=${encodeURIComponent(topics)}&hours=${hours}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`History request failed (${r.status})`);
+        return r.json();
+      })
       .then((res) => {
         if (cancelled) return;
         // Merge all topic data into time-indexed points
         const byTime = new Map<number, ChartDataPoint>();
 
-        Object.entries(res.data as Record<string, HistoryRow[]>).forEach(([topic, rows]) => {
+        Object.entries((res.data ?? {}) as Record<string, HistoryRow[]>).forEach(([topic, rows]) => {
           (rows as any[]).forEach((row) => {
             const t = Number(row.recorded_at);
             if (!byTime.has(t)) byTime.set(t, { time: t });

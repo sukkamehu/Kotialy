@@ -37,9 +37,15 @@ export function useWebSocket(): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set on unmount so a socket we close ourselves does not schedule a reconnect
+  const closedRef = useRef(false);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (closedRef.current) return;
+    // CONNECTING counts as live too, otherwise a reconnect can open a second
+    // socket while the first is still handshaking.
+    const rs = wsRef.current?.readyState;
+    if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) return;
 
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
@@ -57,6 +63,7 @@ export function useWebSocket(): UseWebSocketReturn {
     ws.onclose = () => {
       setWsConnected(false);
       if (pingRef.current) clearInterval(pingRef.current);
+      if (closedRef.current) return;
       // Reconnect after 3 seconds
       reconnectRef.current = setTimeout(connect, 3000);
     };
@@ -109,10 +116,12 @@ export function useWebSocket(): UseWebSocketReturn {
         break;
 
       case 'mqtt_status':
-        setMqtt({
+        // Functional update — `handleMessage` is captured by the socket on the
+        // first render, so reading `mqtt` directly here is always stale.
+        setMqtt((prev) => ({
+          ...prev,
           connected: msg.connected,
-          lastReceivedAt: mqtt.lastReceivedAt,
-        });
+        }));
         break;
 
       case 'lwt':
@@ -164,8 +173,10 @@ export function useWebSocket(): UseWebSocketReturn {
   }
 
   useEffect(() => {
+    closedRef.current = false;
     connect();
     return () => {
+      closedRef.current = true;
       if (wsRef.current) wsRef.current.close();
       if (pingRef.current) clearInterval(pingRef.current);
       if (reconnectRef.current) clearTimeout(reconnectRef.current);

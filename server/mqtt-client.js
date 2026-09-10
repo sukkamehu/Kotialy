@@ -58,11 +58,19 @@ function init(wsBroadcast) {
     });
   });
 
-  client.on('disconnect', () => {
+  // 'disconnect' only fires on an MQTT 5 broker-initiated DISCONNECT packet.
+  // A dropped/closed connection surfaces as 'close'/'offline', so listen for
+  // those too or the UI keeps showing the broker as online after it dies.
+  const onDisconnected = (reason) => {
+    if (!connected) return;
     connected = false;
-    console.log('[MQTT] Disconnected');
+    console.log(`[MQTT] Disconnected (${reason})`);
     wsBroadcast({ type: 'mqtt_status', connected: false, ts: Date.now() });
-  });
+  };
+
+  client.on('disconnect', () => onDisconnected('disconnect'));
+  client.on('close', () => onDisconnected('close'));
+  client.on('offline', () => onDisconnected('offline'));
 
   client.on('error', (err) => {
     console.error('[MQTT] Error:', err.message);

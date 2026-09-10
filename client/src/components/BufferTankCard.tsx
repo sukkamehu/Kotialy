@@ -1,5 +1,35 @@
+import { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
+import { useCommand } from '../hooks/useCommand';
+import { SetpointControl } from './SetpointControl';
+
+/*
+ * With a buffer tank the heating circuit target is the Z1 heat request
+ * temperature. What that number means depends on the pump's configuration:
+ *
+ *   direct -> absolute water temperature
+ *   curve  -> a shift applied to the compensation curve
+ *
+ * Nothing in the MQTT feed tells us which is active, so the user picks the
+ * mode and the choice is remembered per browser.
+ */
+type Z1Mode = 'direct' | 'curve';
+
+const Z1_MODES: Record<Z1Mode, { min: number; max: number; label: string; hint: string; signed: boolean }> = {
+  direct: { min: 20, max: 60, label: 'Target water temperature', hint: 'absolute setpoint', signed: false },
+  curve:  { min: -5, max: 5,  label: 'Heat curve shift',         hint: 'offset from curve',  signed: true },
+};
+
+const MODE_KEY = 'kotialy.z1Mode';
+
+function loadMode(): Z1Mode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'curve' ? 'curve' : 'direct';
+  } catch {
+    return 'direct';
+  }
+}
 
 interface BufferTankCardProps {
   state: HeishamonState;
@@ -47,6 +77,21 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
   const bufferTemp = numVal(state, 'main/Buffer_Temp');
   const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
   const outletTemp = numVal(state, 'main/Main_Outlet_Temp');
+  const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
+
+  const { send, pending, error, success } = useCommand();
+  const [mode, setMode] = useState<Z1Mode>(loadMode);
+  const cfg = Z1_MODES[mode];
+
+  function changeMode(next: Z1Mode) {
+    setMode(next);
+    try { localStorage.setItem(MODE_KEY, next); } catch { /* private mode */ }
+  }
+
+  function setZ1(v: number) {
+    send('commands/SetZ1HeatRequestTemperature', v,
+      mode === 'curve' ? `Curve shift set to ${v > 0 ? '+' : ''}${v}` : `Target set to ${v}°C`);
+  }
 
   const delta = inletTemp !== null && bufferTemp !== null
     ? (bufferTemp - inletTemp).toFixed(1)
@@ -99,6 +144,57 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
         </div>
 
         <div className="divider" />
+
+        {/* Heating circuit setpoint (buffer target) */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Heating circuit
+            </span>
+            <div className="toggle-group" style={{ width: 'auto' }}>
+              {(['direct', 'curve'] as Z1Mode[]).map((m) => (
+                <button
+                  key={m}
+                  className={`toggle-btn ${mode === m ? 'active' : ''}`}
+                  onClick={() => changeMode(m)}
+                  id={`btn-z1-mode-${m}`}
+                  style={{ fontSize: 11, padding: '3px 10px' }}
+                >
+                  {m === 'direct' ? 'Direct' : 'Curve'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <SetpointControl
+            label={cfg.label}
+            value={z1Request}
+            min={cfg.min}
+            max={cfg.max}
+            step={1}
+            unit={mode === 'curve' ? '' : '°C'}
+            signed={cfg.signed}
+            accentColor="var(--buffer-primary)"
+            pending={pending}
+            onCommit={setZ1}
+            idPrefix="z1-request"
+            hint={cfg.hint}
+          />
+
+          {z1Request === null && (
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+              Waiting for main/Z1_Heat_Request_Temp from Heishamon
+            </div>
+          )}
+
+          {(error || success) && (
+            <div className={`control-msg ${error ? 'error' : 'ok'}`}>
+              {error ? `⚠ ${error}` : `✓ ${success}`}
+            </div>
+          )}
+        </div>
+
+        <div className="divider" style={{ marginTop: 16 }} />
 
         {/* Context temps */}
         <div className="metrics-grid metrics-grid-2" style={{ marginTop: 12 }}>

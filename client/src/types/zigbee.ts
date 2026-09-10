@@ -58,7 +58,7 @@ export interface ZigbeeAvailabilityMessage {
 
 // Helpers
 export function getProp(device: ZigbeeDeviceInfo, prop: string): string | null {
-  return device.properties[prop]?.value ?? null;
+  return device.properties?.[prop]?.value ?? null;
 }
 
 export function getNumProp(device: ZigbeeDeviceInfo, prop: string): number | null {

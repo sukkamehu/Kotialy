@@ -12,7 +12,10 @@ async function sendCommand(setTopic: string, value: number) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ setTopic, value }),
   });
-  if (!res.ok) throw new Error('Command failed');
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `Command failed (${res.status})`);
+  }
 }
 
 export function ControlPanel({ state }: ControlPanelProps) {
@@ -38,7 +41,7 @@ export function ControlPanel({ state }: ControlPanelProps) {
     try {
       await sendCommand('commands/SetQuietMode', level);
       showFeedback(`Quiet mode set to ${level === 0 ? 'Off' : `Level ${level}`}`);
-    } catch { showFeedback('Command failed'); }
+    } catch (err) { showFeedback(err instanceof Error ? err.message : 'Command failed'); }
     finally { setQuietLoading(false); }
   }
 
@@ -47,7 +50,7 @@ export function ControlPanel({ state }: ControlPanelProps) {
     try {
       await sendCommand('commands/SetPowerfulMode', time);
       showFeedback(time === 0 ? 'Powerful mode off' : `Powerful mode: ${time * 30}min`);
-    } catch { showFeedback('Command failed'); }
+    } catch (err) { showFeedback(err instanceof Error ? err.message : 'Command failed'); }
     finally { setPowerfulLoading(false); }
   }
 
@@ -56,7 +59,7 @@ export function ControlPanel({ state }: ControlPanelProps) {
     try {
       await sendCommand('commands/SetForceDHW', forceDHW ? 0 : 1);
       showFeedback(forceDHW ? 'DHW boost stopped' : 'DHW boost started');
-    } catch { showFeedback('Command failed'); }
+    } catch (err) { showFeedback(err instanceof Error ? err.message : 'Command failed'); }
     finally { setTimeout(() => setDhwLoading(false), 1000); }
   }
 
@@ -68,7 +71,7 @@ export function ControlPanel({ state }: ControlPanelProps) {
     try {
       await sendCommand('commands/SetHeatpump', heatpumpOn ? 0 : 1);
       showFeedback(heatpumpOn ? 'Heat pump turned off' : 'Heat pump turned on');
-    } catch { showFeedback('Command failed'); }
+    } catch (err) { showFeedback(err instanceof Error ? err.message : 'Command failed'); }
     finally { setHeatpumpLoading(false); }
   }
 
@@ -80,22 +83,9 @@ export function ControlPanel({ state }: ControlPanelProps) {
     setModeLoading(true);
     try {
       await sendCommand('commands/SetOperationMode', mode);
-      showFeedback(`Operating mode set to ${modeLabels[mode]}`);
-    } catch { showFeedback('Command failed'); }
+      showFeedback(`Operating mode set to ${modeLabels[mode] ?? `Mode ${mode}`}`);
+    } catch (err) { showFeedback(err instanceof Error ? err.message : 'Command failed'); }
     finally { setModeLoading(false); }
-  }
-
-  const dhwTarget = numVal(state, 'main/DHW_Target_Temp') ?? 50;
-  const [dhwTargetLoading, setDhwTargetLoading] = useState(false);
-
-  async function changeDHWTarget(delta: number) {
-    const newVal = Math.min(75, Math.max(40, Math.round(dhwTarget + delta)));
-    setDhwTargetLoading(true);
-    try {
-      await sendCommand('commands/SetDHWTemp', newVal);
-      showFeedback(`DHW target set to ${newVal}°C`);
-    } catch { showFeedback('Command failed'); }
-    finally { setDhwTargetLoading(false); }
   }
 
   const holidayModeVal = numVal(state, 'main/Holiday_Mode_State') ?? 0;
@@ -106,7 +96,7 @@ export function ControlPanel({ state }: ControlPanelProps) {
     try {
       await sendCommand('commands/SetHolidayMode', holidayModeVal > 0 ? 0 : 1);
       showFeedback(holidayModeVal > 0 ? 'Holiday mode off' : 'Holiday mode on');
-    } catch { showFeedback('Command failed'); }
+    } catch (err) { showFeedback(err instanceof Error ? err.message : 'Command failed'); }
     finally { setHolidayLoading(false); }
   }
 
@@ -118,7 +108,7 @@ export function ControlPanel({ state }: ControlPanelProps) {
     try {
       await sendCommand('commands/SetForceHeater', forceHeater ? 0 : 1);
       showFeedback(forceHeater ? 'Force heater off' : 'Force heater on');
-    } catch { showFeedback('Command failed'); }
+    } catch (err) { showFeedback(err instanceof Error ? err.message : 'Command failed'); }
     finally { setHeaterLoading(false); }
   }
 
@@ -252,39 +242,6 @@ export function ControlPanel({ state }: ControlPanelProps) {
                 {label}
               </button>
             ))}
-          </div>
-        </div>
-
-        {/* DHW Target */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 2 }}>
-                🚿 DHW Target
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                Domestic hot water setpoint
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => changeDHWTarget(-1)}
-                disabled={dhwTargetLoading || dhwTarget <= 40}
-              >
-                −
-              </button>
-              <span style={{ fontSize: 13, fontWeight: 500, minWidth: 36, textAlign: 'center' }}>
-                {dhwTarget}°C
-              </span>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => changeDHWTarget(1)}
-                disabled={dhwTargetLoading || dhwTarget >= 75}
-              >
-                +
-              </button>
-            </div>
           </div>
         </div>
 

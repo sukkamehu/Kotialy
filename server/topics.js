@@ -16,6 +16,9 @@ const TOPICS = {
     map: { 0: 'Off', 1: 'On' },
     writable: true,
     setTopic: 'commands/SetHeatpump',
+    min: 0,
+    max: 1,
+    step: 1,
   },
   'main/Operating_Mode_State': {
     label: 'Operating Mode',
@@ -35,6 +38,9 @@ const TOPICS = {
     },
     writable: true,
     setTopic: 'commands/SetOperationMode',
+    min: 0,
+    max: 8,
+    step: 1,
   },
   'main/Compressor_Freq': {
     label: 'Compressor Freq',
@@ -126,6 +132,9 @@ const TOPICS = {
     type: 'number',
     writable: true,
     setTopic: 'commands/SetDHWTemp',
+    min: 40,
+    max: 75,
+    step: 1,
   },
   'main/Force_DHW_State': {
     label: 'Force DHW',
@@ -135,6 +144,9 @@ const TOPICS = {
     map: { 0: 'Off', 1: 'On' },
     writable: true,
     setTopic: 'commands/SetForceDHW',
+    min: 0,
+    max: 1,
+    step: 1,
   },
   'main/DHW_Heater_State': {
     label: 'DHW Heater',
@@ -162,6 +174,31 @@ const TOPICS = {
     unit: '°C',
     category: 'buffer',
     type: 'number',
+  },
+  /*
+   * With a buffer tank the heating circuit target IS the Z1 heat request
+   * temperature, so this is the buffer setpoint in practice.
+   *
+   * Its meaning depends on how the pump is configured:
+   *   - "direct"       -> an absolute water temperature (modes.direct)
+   *   - compensation   -> a shift applied to the heat curve (modes.curve)
+   * The server cannot see which is active, so it validates against the union
+   * of both ranges and the UI clamps to the mode the user selected.
+   */
+  'main/Z1_Heat_Request_Temp': {
+    label: 'Z1 Heat Request',
+    unit: '°C',
+    category: 'buffer',
+    type: 'number',
+    writable: true,
+    setTopic: 'commands/SetZ1HeatRequestTemperature',
+    min: -5,
+    max: 60,
+    step: 1,
+    modes: {
+      direct: { min: 20, max: 60, step: 1, label: 'Target water temperature' },
+      curve:  { min: -5, max: 5,  step: 1, label: 'Heat curve shift' },
+    },
   },
 
   // ─── 3-Way Valve ─────────────────────────────────────────────────────────
@@ -320,6 +357,9 @@ const TOPICS = {
     map: { 0: 'Off', 1: 'Level 1', 2: 'Level 2', 3: 'Level 3' },
     writable: true,
     setTopic: 'commands/SetQuietMode',
+    min: 0,
+    max: 3,
+    step: 1,
   },
   'main/Powerful_Mode_Time': {
     label: 'Powerful Mode',
@@ -329,6 +369,9 @@ const TOPICS = {
     map: { 0: 'Off', 1: '30 min', 2: '60 min', 3: '90 min' },
     writable: true,
     setTopic: 'commands/SetPowerfulMode',
+    min: 0,
+    max: 3,
+    step: 1,
   },
   'main/Holiday_Mode_State': {
     label: 'Holiday Mode',
@@ -338,6 +381,9 @@ const TOPICS = {
     map: { 0: 'Off', 1: 'Scheduled', 2: 'Active' },
     writable: true,
     setTopic: 'commands/SetHolidayMode',
+    min: 0,
+    max: 2,
+    step: 1,
   },
   'main/Quiet_Mode_Schedule': {
     label: 'Quiet Schedule',
@@ -354,6 +400,9 @@ const TOPICS = {
     map: { 0: 'Inactive', 1: 'Active' },
     writable: true,
     setTopic: 'commands/SetForceHeater',
+    min: 0,
+    max: 1,
+    step: 1,
   },
 };
 
@@ -372,4 +421,35 @@ const CHART_TOPICS = [
   'extra/Heat_Power_Production',
 ];
 
-module.exports = { TOPICS, CHART_TOPICS };
+/**
+ * Enrich a raw `{ topic: { value, updated_at } }` state map with the
+ * label/unit/category/type/displayValue metadata the frontend expects.
+ *
+ * Used by both the REST snapshot and the WebSocket snapshot so the two
+ * cannot drift apart.
+ */
+function enrichState(raw) {
+  const enriched = {};
+
+  for (const [topic, data] of Object.entries(raw)) {
+    const meta = TOPICS[topic];
+    let displayValue = data.value;
+
+    if (meta?.type === 'enum' && meta.map) {
+      displayValue = meta.map[parseInt(data.value)] ?? data.value;
+    }
+
+    enriched[topic] = {
+      ...data,
+      label: meta?.label || topic.split('/').pop(),
+      unit: meta?.unit || '',
+      category: meta?.category || 'misc',
+      type: meta?.type || 'string',
+      displayValue,
+    };
+  }
+
+  return enriched;
+}
+
+module.exports = { TOPICS, CHART_TOPICS, enrichState };

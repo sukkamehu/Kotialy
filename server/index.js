@@ -11,6 +11,7 @@ const zigbeeClient = require('./zigbee-client');
 const nordpoolClient = require('./nordpool-client');
 const weatherClient = require('./weather-client');
 const { getFullState } = require('./db');
+const { enrichState } = require('./topics');
 
 const PORT = parseInt(process.env.PORT || '3001');
 
@@ -46,12 +47,12 @@ wss.on('connection', (ws, req) => {
   console.log(`[WS] Client connected (${wss.clients.size} total)`);
   wsClients.add(ws);
 
-  // Send full state snapshot on connect
-  const snapshot = getFullState();
+  // Send full state snapshot on connect, with the same metadata /api/state
+  // returns — the frontend reads label/unit/displayValue off every entry.
   ws.send(
     JSON.stringify({
       type: 'snapshot',
-      state: snapshot,
+      state: enrichState(getFullState()),
       mqtt: {
         connected: mqttClient.isConnected(),
         lastReceivedAt: mqttClient.getLastReceivedAt(),

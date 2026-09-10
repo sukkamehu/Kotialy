@@ -65,6 +65,8 @@ export function NordpoolPanel() {
       });
     } catch (err) {
       console.error('Nordpool fetch failed', err);
+      // Clear the loading flag too, or the panel is stuck on "Loading..."
+      setData((prev) => ({ ...prev, loading: false }));
     }
   };
 
@@ -184,15 +186,13 @@ export function NordpoolPanel() {
 }
 
 function PriceChart({ prices, weather }: { prices: NordpoolPrice[]; weather: WeatherForecast[] }) {
-  if (!prices.length) return <div style={{ fontSize: 13 }}>No price data</div>;
-
   const values = prices.map((p) => p.price);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 0;
   const range = max - min || 1;
   const width = 1000;
   const height = 200;
-  const barWidth = width / prices.length;
+  const barWidth = prices.length ? width / prices.length : width;
 
   // Map each price x to nearest weather point within 30 min
   const weatherPoints = useMemo(() => {
@@ -223,6 +223,10 @@ function PriceChart({ prices, weather }: { prices: NordpoolPrice[]; weather: Wea
     }).filter(Boolean);
     return points.join(' ');
   }, [weatherPoints, barWidth]);
+
+  // Must come after every hook — an early return above would change the hook
+  // count between renders once prices arrive, which crashes React.
+  if (!prices.length) return <div style={{ fontSize: 13 }}>No price data</div>;
 
   return (
     <div style={{ overflowX: 'auto', marginTop: 8 }}>
