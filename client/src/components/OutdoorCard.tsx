@@ -5,10 +5,10 @@ import { SegmentedControl } from './SegmentedControl';
 
 /* Quiet mode throttles the outdoor fan/compressor, so it lives with the unit. */
 const QUIET_LEVELS = [
-  { value: 0, label: 'Off' },
-  { value: 1, label: 'L1' },
-  { value: 2, label: 'L2' },
-  { value: 3, label: 'L3' },
+  { value: 0, label: 'Pois' },
+  { value: 1, label: 'Taso 1' },
+  { value: 2, label: 'Taso 2' },
+  { value: 3, label: 'Taso 3' },
 ];
 
 interface OutdoorCardProps {
@@ -83,10 +83,10 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
     }}>
       <div className="card-header">
         <span className="card-icon">🌤</span>
-        <span className="card-title">Outdoor Unit</span>
+        <span className="card-title">Ulkoyksikkö</span>
         {defrosting && (
           <div className="badge" style={{ marginLeft: 'auto', background: 'rgba(34,211,238,0.15)', color: 'var(--cool-primary)', border: '1px solid rgba(34,211,238,0.3)' }}>
-            ❄️ Defrosting
+            ❄️ Sulatus
           </div>
         )}
       </div>
@@ -94,14 +94,14 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
           <ThermometerSvg temp={outsideTemp} />
           <div className="metric">
-            <span className="metric-label">Outdoor Temperature</span>
+            <span className="metric-label">Ulkolämpötila</span>
             <span className="metric-value" style={{ fontSize: 34, color: tempColor }}>
               {outsideTemp !== null ? outsideTemp.toFixed(1) : '—'}
               <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>
             </span>
             {outsidePipe !== null && (
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                Outdoor pipe: {outsidePipe.toFixed(1)}°C
+                Ulkoputki: {outsidePipe.toFixed(1)} °C
               </span>
             )}
           </div>
@@ -111,21 +111,21 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
 
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
-            <span className="metric-label">Discharge</span>
+            <span className="metric-label">Kuumakaasu</span>
             <span className="metric-value">
               {discharge !== null ? discharge.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Inside Pipe</span>
+            <span className="metric-label">Sisäputki</span>
             <span className="metric-value">
               {insidePipe !== null ? insidePipe.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Eva Outlet</span>
+            <span className="metric-label">Höyrystin</span>
             <span className="metric-value">
               {evaOutlet !== null ? evaOutlet.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
@@ -135,21 +135,21 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
 
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
-            <span className="metric-label">IPM Temp</span>
+            <span className="metric-label">IPM-lämpö</span>
             <span className="metric-value">
               {ipmTemp !== null ? ipmTemp.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Fan 1</span>
+            <span className="metric-label">Puhallin 1</span>
             <span className="metric-value">
               {fan1 !== null ? Math.round(fan1) : '—'}
               <span className="metric-unit">rpm</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Fan 2</span>
+            <span className="metric-label">Puhallin 2</span>
             <span className="metric-value">
               {fan2 !== null ? Math.round(fan2) : '—'}
               <span className="metric-unit">rpm</span>
@@ -160,14 +160,14 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
         <div className="divider" />
 
         <SegmentedControl
-          label="🤫 Quiet mode"
+          label="🤫 Hiljainen tila"
           options={QUIET_LEVELS}
           value={quietLevel === null ? null : Math.round(quietLevel)}
           onSelect={(v) => send('commands/SetQuietMode', v,
-            v === 0 ? 'Quiet mode off' : `Quiet level ${v}`)}
+            v === 0 ? 'Hiljainen tila pois' : `Hiljainen tila: Taso ${v}`)}
           pending={pending}
           idPrefix="btn-quiet"
-          hint="higher level = quieter, lower output"
+          hint="korkeampi taso = hiljaisempi ääni, alempi maksimiteho"
         />
 
         {(error || success) && (
@@ -179,3 +179,4 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
     </div>
   );
 }
+

@@ -3,11 +3,13 @@ import type {
   HeishamonState,
   WsMessage,
   MqttStatus,
+  SensorData,
 } from '../types/heishamon';
 import type { ZigbeeRegistry } from '../types/zigbee';
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
-const PING_INTERVAL = 30_000; // 30 seconds
+const PING_INTERVAL = 20_000; // 20 seconds
+const HEARTBEAT_TIMEOUT = 8_000; // 8 seconds watchdog for pong/activity
 
 interface UseWebSocketReturn {
   state: HeishamonState;
@@ -35,63 +37,188 @@ export function useWebSocket(): UseWebSocketReturn {
   const [zigbeeState, setZigbeeState] = useState<Record<string, string>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
-  const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const watchdogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Set on unmount so a socket we close ourselves does not schedule a reconnect
   const closedRef = useRef(false);
+  const lastActivityRef = useRef<number>(Date.now());
+  const retryCountRef = useRef(0);
+
+  // Batch buffer for rapid bursts of MQTT / Zigbee updates
+  const pendingStateUpdatesRef = useRef<Record<string, SensorData>>({});
+  const pendingZigbeePropsRef = useRef<Record<string, string>>({});
+  const pendingZigbeeDeviceUpdatesRef = useRef<Record<string, { props: Record<string, string>; ts: number }>>({});
+  const latestTsRef = useRef<number | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+
+  const flushBatch = useCallback(() => {
+    rafIdRef.current = null;
+
+    const hasStateUpdates = Object.keys(pendingStateUpdatesRef.current).length > 0;
+    if (hasStateUpdates) {
+      const updates = { ...pendingStateUpdatesRef.current };
+      pendingStateUpdatesRef.current = {};
+      setState((prev) => ({ ...prev, ...updates }));
+      if (latestTsRef.current !== null) {
+        setLastUpdate(latestTsRef.current);
+      }
+    }
+
+    const hasZigbeeProps = Object.keys(pendingZigbeePropsRef.current).length > 0;
+    if (hasZigbeeProps) {
+      const zUpdates = { ...pendingZigbeePropsRef.current };
+      pendingZigbeePropsRef.current = {};
+      setZigbeeState((prev) => ({ ...prev, ...zUpdates }));
+    }
+
+    const hasZigbeeDevUpdates = Object.keys(pendingZigbeeDeviceUpdatesRef.current).length > 0;
+    if (hasZigbeeDevUpdates) {
+      const devUpdates = { ...pendingZigbeeDeviceUpdatesRef.current };
+      pendingZigbeeDeviceUpdatesRef.current = {};
+
+      setZigbeeDevices((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [device, data] of Object.entries(devUpdates)) {
+          if (next[device]) {
+            changed = true;
+            next[device] = {
+              ...next[device],
+              properties: {
+                ...next[device].properties,
+                ...Object.fromEntries(
+                  Object.entries(data.props).map(([k, v]) => [
+                    k, { value: v, updated_at: data.ts }
+                  ])
+                ),
+              },
+            };
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (rafIdRef.current === null) {
+      rafIdRef.current = requestAnimationFrame(flushBatch);
+    }
+  }, [flushBatch]);
+
+  const clearTimers = useCallback(() => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    if (watchdogTimeoutRef.current) {
+      clearTimeout(watchdogTimeoutRef.current);
+      watchdogTimeoutRef.current = null;
+    }
+    if (reconnectRef.current) {
+      clearTimeout(reconnectRef.current);
+      reconnectRef.current = null;
+    }
+  }, []);
 
   const connect = useCallback(() => {
     if (closedRef.current) return;
-    // CONNECTING counts as live too, otherwise a reconnect can open a second
-    // socket while the first is still handshaking.
-    const rs = wsRef.current?.readyState;
-    if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) return;
 
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
+    const currentRs = wsRef.current?.readyState;
+    if (currentRs === WebSocket.OPEN || currentRs === WebSocket.CONNECTING) {
+      return;
+    }
 
-    ws.onopen = () => {
-      setWsConnected(true);
-      // Start ping interval
-      pingRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
+    clearTimers();
+
+    try {
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (wsRef.current !== ws) return;
+        setWsConnected(true);
+        lastActivityRef.current = Date.now();
+        retryCountRef.current = 0;
+
+        // Start heartbeat ping interval
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ type: 'ping' }));
+            } catch {
+              // Ignore send error, watchdog handles it
+            }
+
+            // Set watchdog timer expecting pong or any message
+            if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
+            watchdogTimeoutRef.current = setTimeout(() => {
+              const idleTime = Date.now() - lastActivityRef.current;
+              if (idleTime > PING_INTERVAL + HEARTBEAT_TIMEOUT) {
+                // Socket is dead/zombie — force terminate to trigger reconnect
+                try { ws.close(); } catch { /* ignore */ }
+              }
+            }, HEARTBEAT_TIMEOUT);
+          }
+        }, PING_INTERVAL);
+      };
+
+      ws.onclose = () => {
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+          setWsConnected(false);
         }
-      }, PING_INTERVAL);
-    };
+        clearTimers();
+        if (closedRef.current) return;
 
-    ws.onclose = () => {
-      setWsConnected(false);
-      if (pingRef.current) clearInterval(pingRef.current);
-      if (closedRef.current) return;
-      // Reconnect after 3 seconds
+        // Exponential backoff capped at 8s
+        const backoff = Math.min(1000 * Math.pow(1.5, retryCountRef.current), 8000);
+        retryCountRef.current += 1;
+        reconnectRef.current = setTimeout(connect, backoff);
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch { /* ignore */ }
+      };
+
+      ws.onmessage = (event) => {
+        lastActivityRef.current = Date.now();
+        if (watchdogTimeoutRef.current) {
+          clearTimeout(watchdogTimeoutRef.current);
+          watchdogTimeoutRef.current = null;
+        }
+
+        try {
+          const msg: WsMessage = JSON.parse(event.data);
+          handleMessage(msg);
+        } catch {
+          // ignore parsing error
+        }
+      };
+    } catch {
+      // Reconnect attempt on constructor failure
       reconnectRef.current = setTimeout(connect, 3000);
-    };
+    }
+  }, [clearTimers]);
 
-    ws.onerror = () => {
-      ws.close();
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg: WsMessage = JSON.parse(event.data);
-        handleMessage(msg);
-      } catch {
-        // ignore
-      }
-    };
-  }, []);
-
-  function handleMessage(msg: WsMessage) {
+  const handleMessage = useCallback((msg: WsMessage) => {
     switch (msg.type) {
       case 'snapshot':
+        // Cancel pending batch and apply full snapshot directly
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        pendingStateUpdatesRef.current = {};
+        pendingZigbeePropsRef.current = {};
+        pendingZigbeeDeviceUpdatesRef.current = {};
+
         setState(msg.state);
         setMqtt(msg.mqtt);
         if (msg.state.LWT) {
           setHeishamonOnline(msg.state.LWT.value === 'Online');
         }
         setLastUpdate(msg.ts);
-        // Hydrate Zigbee from snapshot
         if ((msg as any).zigbee) {
           const z = (msg as any).zigbee;
           if (z.devices) setZigbeeDevices(z.devices);
@@ -100,24 +227,20 @@ export function useWebSocket(): UseWebSocketReturn {
         break;
 
       case 'state_update':
-        setState((prev) => ({
-          ...prev,
-          [msg.topic]: {
-            value: msg.value,
-            updated_at: msg.ts,
-            label: msg.label,
-            unit: msg.unit,
-            category: msg.category,
-            type: 'unknown',
-            displayValue: msg.displayValue,
-          },
-        }));
-        setLastUpdate(msg.ts);
+        pendingStateUpdatesRef.current[msg.topic] = {
+          value: msg.value,
+          updated_at: msg.ts,
+          label: msg.label,
+          unit: msg.unit,
+          category: msg.category,
+          type: 'unknown',
+          displayValue: msg.displayValue,
+        };
+        latestTsRef.current = msg.ts;
+        scheduleFlush();
         break;
 
       case 'mqtt_status':
-        // Functional update — `handleMessage` is captured by the socket on the
-        // first render, so reading `mqtt` directly here is always stale.
         setMqtt((prev) => ({
           ...prev,
           connected: msg.connected,
@@ -129,34 +252,16 @@ export function useWebSocket(): UseWebSocketReturn {
         break;
 
       default: {
-        // Handle Zigbee message types (not in WsMessage union)
         const m = msg as any;
         if (m.type === 'zigbee_update') {
-          setZigbeeState((prev) => {
-            const next = { ...prev };
-            for (const [prop, val] of Object.entries(m.properties as Record<string, string>)) {
-              next[`${m.device}/${prop}`] = val;
-            }
-            return next;
-          });
-          // Also update device properties in registry
-          setZigbeeDevices((prev) => {
-            if (!prev[m.device]) return prev;
-            return {
-              ...prev,
-              [m.device]: {
-                ...prev[m.device],
-                properties: {
-                  ...prev[m.device].properties,
-                  ...Object.fromEntries(
-                    Object.entries(m.properties as Record<string, string>).map(([k, v]) => [
-                      k, { value: v, updated_at: m.ts }
-                    ])
-                  ),
-                },
-              },
-            };
-          });
+          for (const [prop, val] of Object.entries(m.properties as Record<string, string>)) {
+            pendingZigbeePropsRef.current[`${m.device}/${prop}`] = val;
+          }
+          pendingZigbeeDeviceUpdatesRef.current[m.device] = {
+            props: m.properties,
+            ts: m.ts,
+          };
+          scheduleFlush();
         } else if (m.type === 'zigbee_devices') {
           setZigbeeDevices(m.devices);
         } else if (m.type === 'zigbee_status') {
@@ -170,18 +275,59 @@ export function useWebSocket(): UseWebSocketReturn {
         break;
       }
     }
-  }
+  }, [scheduleFlush]);
+
+  // Handle visibilitychange / sleep wake / online events
+  useEffect(() => {
+    const handleWakeOrOnline = () => {
+      if (document.visibilityState === 'visible') {
+        const idleTime = Date.now() - lastActivityRef.current;
+        const rs = wsRef.current?.readyState;
+
+        // If disconnected or if idle longer than a heartbeat cycle (tab slept), force reconnect
+        if (!wsRef.current || rs !== WebSocket.OPEN || idleTime > PING_INTERVAL + HEARTBEAT_TIMEOUT) {
+          if (wsRef.current) {
+            try { wsRef.current.close(); } catch { /* ignore */ }
+            wsRef.current = null;
+          }
+          retryCountRef.current = 0;
+          connect();
+        } else if (rs === WebSocket.OPEN) {
+          // Socket still open — send immediate ping to verify link and refresh activity
+          try {
+            wsRef.current.send(JSON.stringify({ type: 'ping' }));
+          } catch {
+            try { wsRef.current.close(); } catch { /* ignore */ }
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleWakeOrOnline);
+    window.addEventListener('pageshow', handleWakeOrOnline);
+    window.addEventListener('online', handleWakeOrOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleWakeOrOnline);
+      window.removeEventListener('pageshow', handleWakeOrOnline);
+      window.removeEventListener('online', handleWakeOrOnline);
+    };
+  }, [connect]);
 
   useEffect(() => {
     closedRef.current = false;
     connect();
     return () => {
       closedRef.current = true;
-      if (wsRef.current) wsRef.current.close();
-      if (pingRef.current) clearInterval(pingRef.current);
-      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch { /* ignore */ }
+        wsRef.current = null;
+      }
+      clearTimers();
     };
-  }, [connect]);
+  }, [connect, clearTimers]);
 
   return { state, mqtt, heishamonOnline, wsConnected, lastUpdate, zigbeeDevices, zigbeeConnected, zigbeeState };
 }
+

@@ -11,18 +11,18 @@ interface StatusBarProps {
 }
 
 function timeAgo(ts: number | null, now: number): string {
-  if (!ts) return 'never';
+  if (!ts) return 'ei koskaan';
   const sec = Math.floor((now - ts) / 1000);
-  if (sec < 5) return 'just now';
-  if (sec < 60) return `${sec}s ago`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-  return `${Math.floor(sec / 3600)}h ago`;
+  if (sec < 5) return 'juuri nyt';
+  if (sec < 60) return `${sec} s sitten`;
+  if (sec < 3600) return `${Math.floor(sec / 60)} min sitten`;
+  return `${Math.floor(sec / 3600)} h sitten`;
 }
 
 const MODE_LABELS: Record<string, string> = {
-  '0': 'Heat', '1': 'Cool', '2': 'Auto Heat',
-  '3': 'DHW', '4': 'Heat+DHW', '5': 'Cool+DHW',
-  '6': 'Auto+DHW', '7': 'Auto Cool', '8': 'Auto Cool+DHW',
+  '0': 'Lämmitys', '1': 'Jäähdytys', '2': 'Auto (lämpö)',
+  '3': 'Käyttövesi', '4': 'Lämmitys+KV', '5': 'Jäähdytys+KV',
+  '6': 'Auto+KV', '7': 'Auto (viilennys)', '8': 'Auto (viilennys)+KV',
 };
 
 export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdate }: StatusBarProps) {
@@ -43,81 +43,62 @@ export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
   const isOn = hpState === '1';
 
   return (
-    <header style={{
-      background: 'rgba(255,255,255,0.03)',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
-      borderBottom: '1px solid rgba(255,255,255,0.07)',
-      position: 'sticky',
-      top: 0,
-      zIndex: 100,
-    }}>
-      <div style={{
-        maxWidth: 1600,
-        margin: '0 auto',
-        padding: '0 24px',
-        height: 56,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 24,
-      }}>
+    <header className="status-bar">
+      <div className="status-bar-inner">
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div className="status-logo">
           <span style={{ fontSize: 22 }}>🏠</span>
-          <span style={{
-            fontSize: 16,
-            fontWeight: 700,
-            background: 'linear-gradient(135deg, #f59e0b, #22d3ee)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            letterSpacing: '-0.02em',
-          }}>Kotiäly</span>
+          <span className="status-logo-text">Kotiäly</span>
         </div>
 
-        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)' }} />
+        <div className="status-divider status-hide-mobile" />
 
-        {/* WS connection */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div className={`status-dot ${wsConnected ? 'online' : 'offline'}`} />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            {wsConnected ? 'Live' : 'Disconnected'}
-          </span>
+        {/* Status Indicators Group */}
+        <div className="status-group">
+          {/* WS connection */}
+          <div className="status-indicator" title={wsConnected ? 'WebSocket yhdistetty' : 'WebSocket ei yhteyttä'}>
+            <div className={`status-dot ${wsConnected ? 'online' : 'offline'}`} />
+            <span className="status-label status-hide-mobile">
+              {wsConnected ? 'Live' : 'Ei yhteyttä'}
+            </span>
+          </div>
+
+          {/* Broker online */}
+          <div className="status-indicator status-hide-xs" title={mqtt.connected ? 'MQTT-välittäjä yhdistetty' : 'MQTT-välittäjä ei yhteyttä'}>
+            <div className={`status-dot ${mqtt.connected ? 'online' : 'offline'}`} />
+            <span className="status-label status-hide-mobile">
+              Välittäjä {mqtt.connected ? 'Paikalla' : 'Poissa'}
+            </span>
+          </div>
+
+          {/* Heishamon online */}
+          <div className="status-indicator status-hide-sm" title={`Heishamon ${heishamonOnline === true ? 'Paikalla' : heishamonOnline === false ? 'Poissa' : 'Tuntematon'}`}>
+            <div className={`status-dot ${
+              heishamonOnline === true ? 'online' :
+              heishamonOnline === false ? 'offline' : 'warning'
+            }`} />
+            <span className="status-label status-hide-mobile">
+              Heishamon {heishamonOnline === true ? 'Paikalla' : heishamonOnline === false ? 'Poissa' : '—'}
+            </span>
+          </div>
         </div>
 
-        {/* Heishamon online */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div className={`status-dot ${mqtt.connected ? 'online' : 'offline'}`} />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Broker {mqtt.connected ? 'Online' : 'Offline'}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div className={`status-dot ${
-            heishamonOnline === true ? 'online' :
-            heishamonOnline === false ? 'offline' : 'warning'
-          }`} />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Heishamon {heishamonOnline === true ? 'Online' : heishamonOnline === false ? 'Offline' : '—'}
-          </span>
-        </div>
-
-        {/* Heat pump state */}
+        {/* Heat pump state badge */}
         <div className={`badge ${isOn ? 'badge-heat' : 'badge-off'}`}>
-          {isOn ? '🔥' : '⏹'} {isOn ? 'Running' : 'Standby'}
+          {isOn ? '🔥' : '⏹'} {isOn ? 'Käynnissä' : 'Valmiustila'}
         </div>
 
         {/* Operating mode */}
         {opMode !== undefined && (
-          <div className="badge badge-heat" style={{ fontSize: 11 }}>
-            {MODE_LABELS[opMode] ?? `Mode ${opMode}`}
+          <div className="badge badge-heat status-hide-xs" style={{ fontSize: 11 }}>
+            {MODE_LABELS[opMode] ?? `Tila ${opMode}`}
           </div>
         )}
 
         {/* Outside temp */}
         {outsideTempNum !== null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Outside</span>
+          <div className="status-temp">
+            <span className="status-label status-hide-xs">Ulkoilma</span>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cool-primary)' }}>
               {outsideTempNum.toFixed(1)}°C
             </span>
@@ -138,16 +119,18 @@ export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Last update */}
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          Updated {timeAgo(lastUpdate, now)}
-        </span>
-
-        {/* Time */}
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-          {new Date(now).toLocaleTimeString('fi-FI')}
-        </span>
+        {/* Last update & Clock */}
+        <div className="status-meta">
+          <span className="status-hide-sm" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Päivitetty {timeAgo(lastUpdate, now)}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+            {new Date(now).toLocaleTimeString('fi-FI')}
+          </span>
+        </div>
       </div>
     </header>
   );
 }
+
+

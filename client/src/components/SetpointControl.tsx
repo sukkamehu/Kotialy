@@ -69,7 +69,7 @@ export function SetpointControl({
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>{label}</span>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          {pending && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>sending…</span>}
+          {pending && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>lähetetään…</span>}
           <span style={{ fontSize: 20, fontWeight: 700, color: accentColor, fontVariantNumeric: 'tabular-nums' }}>
             {formatted}
             <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 2 }}>{unit}</span>

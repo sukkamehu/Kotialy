@@ -17,8 +17,8 @@ import { SetpointControl } from './SetpointControl';
 type Z1Mode = 'direct' | 'curve';
 
 const Z1_MODES: Record<Z1Mode, { min: number; max: number; label: string; hint: string; signed: boolean }> = {
-  direct: { min: 20, max: 60, label: 'Target water temperature', hint: 'absolute setpoint', signed: false },
-  curve:  { min: -5, max: 5,  label: 'Heat curve shift',         hint: 'offset from curve',  signed: true },
+  direct: { min: 20, max: 60, label: 'Menoveden tavoitelämpötila', hint: 'absoluuttinen asetusarvo', signed: false },
+  curve:  { min: -5, max: 5,  label: 'Lämpökäyrän siirto',         hint: 'siirtoarvo käyrästä',    signed: true },
 };
 
 const MODE_KEY = 'kotialy.z1Mode';
@@ -90,7 +90,7 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
 
   function setZ1(v: number) {
     send('commands/SetZ1HeatRequestTemperature', v,
-      mode === 'curve' ? `Curve shift set to ${v > 0 ? '+' : ''}${v}` : `Target set to ${v}°C`);
+      mode === 'curve' ? `Käyrän siirto asetettu: ${v > 0 ? '+' : ''}${v}` : `Tavoite asetettu: ${v} °C`);
   }
 
   const delta = inletTemp !== null && bufferTemp !== null
@@ -109,11 +109,11 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
     }}>
       <div className="card-header">
         <span className="card-icon">🗄️</span>
-        <span className="card-title">Buffer Tank · 100L</span>
+        <span className="card-title">Puskurivaraaja · 100L</span>
         <div style={{ marginLeft: 'auto' }}>
           {bufferTemp !== null && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              {bufferTemp > 45 ? '🔥 Warm' : bufferTemp > 35 ? '🌡 Tepid' : '❄️ Cold'}
+              {bufferTemp > 45 ? '🔥 Lämmin' : bufferTemp > 35 ? '🌡 Haalea' : '❄️ Viileä'}
             </span>
           )}
         </div>
@@ -123,7 +123,7 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
           <BufferSvg temp={bufferTemp} />
           <div style={{ flex: 1 }}>
             <div className="metric">
-              <span className="metric-label">Buffer Temperature</span>
+              <span className="metric-label">Puskurin lämpötila</span>
               <span className="metric-value" style={{ fontSize: 34, color: tempColor }}>
                 {bufferTemp !== null ? bufferTemp.toFixed(1) : '—'}
                 <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>
@@ -131,7 +131,7 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
             </div>
             {delta !== null && (
               <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ΔT vs inlet:</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ΔT vs tulo:</span>
                 <span style={{
                   fontSize: 13, fontWeight: 600,
                   color: parseFloat(delta) > 0 ? 'var(--heat-primary)' : 'var(--cool-primary)',
@@ -149,7 +149,7 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
         <div style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Heating circuit
+              Lämmityspiiri (Z1)
             </span>
             <div className="toggle-group" style={{ width: 'auto' }}>
               {(['direct', 'curve'] as Z1Mode[]).map((m) => (
@@ -160,7 +160,7 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
                   id={`btn-z1-mode-${m}`}
                   style={{ fontSize: 11, padding: '3px 10px' }}
                 >
-                  {m === 'direct' ? 'Direct' : 'Curve'}
+                  {m === 'direct' ? 'Suora' : 'Käyrä'}
                 </button>
               ))}
             </div>
@@ -183,7 +183,7 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
 
           {z1Request === null && (
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
-              Waiting for main/Z1_Heat_Request_Temp from Heishamon
+              Odotetaan arvoa main/Z1_Heat_Request_Temp Heishamonilta
             </div>
           )}
 
@@ -199,14 +199,14 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
         {/* Context temps */}
         <div className="metrics-grid metrics-grid-2" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
-            <span className="metric-label">System Inlet</span>
+            <span className="metric-label">Järjestelmän tulo</span>
             <span className="metric-value" style={{ color: 'var(--cool-primary)' }}>
               {inletTemp !== null ? inletTemp.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">System Outlet</span>
+            <span className="metric-label">Järjestelmän meno</span>
             <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
               {outletTemp !== null ? outletTemp.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
@@ -217,3 +217,4 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
     </div>
   );
 }
+

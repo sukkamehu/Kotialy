@@ -144,10 +144,10 @@ function ContactCard({ device }: { device: ZigbeeDeviceInfo }) {
             fontSize: 18, fontWeight: 700,
             color: isOpen ? '#ef4444' : '#22c55e',
           }}>
-            {contact === null ? '—' : isOpen ? 'OPEN' : 'Closed'}
+            {contact === null ? '—' : isOpen ? 'AUKI' : 'Suljettu'}
           </div>
           {tamper && (
-            <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>⚠ Tampered</div>
+            <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>⚠ Peukaloitu</div>
           )}
         </div>
       </div>
@@ -174,14 +174,14 @@ function ThermostatCard({ device }: { device: ZigbeeDeviceInfo }) {
           </div>
           {setpoint !== null && (
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-              → {setpoint.toFixed(1)}°C target
+              → {setpoint.toFixed(1)}°C tavoite
             </div>
           )}
         </div>
         <div style={{ textAlign: 'right' }}>
           {heatDemand !== null && (
             <div style={{ fontSize: 14, fontWeight: 600, color: isHeating ? '#f59e0b' : 'var(--text-muted)' }}>
-              {isHeating ? `🔥 ${heatDemand.toFixed(0)}%` : '○ Idle'}
+              {isHeating ? `🔥 ${heatDemand.toFixed(0)}%` : '○ Lepotilassa'}
             </div>
           )}
           {systemMode && (
@@ -217,7 +217,7 @@ function WaterLeakCard({ device }: { device: ZigbeeDeviceInfo }) {
           fontSize: 18, fontWeight: 700,
           color: leak ? '#ef4444' : '#22c55e',
         }}>
-          {leak === null ? 'No data' : leak ? 'LEAK DETECTED!' : 'Dry — OK'}
+          {leak === null ? 'Ei tietoa' : leak ? 'VUOTO HAVAITTU!' : 'Kuiva — OK'}
         </div>
       </div>
     </DeviceCardShell>
@@ -242,7 +242,7 @@ function GenericCard({ device }: { device: ZigbeeDeviceInfo }) {
           </div>
         ))}
         {props.length === 0 && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No properties yet</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ei ominaisuustietoja</span>
         )}
       </div>
     </DeviceCardShell>
@@ -290,7 +290,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
             fontSize: 13, fontWeight: 700, letterSpacing: '0.1em',
             textTransform: 'uppercase', color: 'var(--text-secondary)',
           }}>
-            Zigbee Sensors
+            Zigbee-anturit
           </span>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -304,7 +304,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
               fontSize: 11, fontWeight: 600,
               color: connected ? 'var(--online)' : 'var(--offline)',
             }}>
-              {connected ? `${deviceList.length} devices` : 'Disconnected'}
+              {connected ? `${deviceList.length} laitetta` : 'Ei yhteyttä'}
             </span>
           </div>
           {hasAlert && (
@@ -315,7 +315,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
               fontSize: 11, fontWeight: 700, color: '#ef4444',
               animation: 'pulse-amber 1.5s infinite',
             }}>
-              ⚠ ALERT
+              ⚠ HÄLYTYS
             </div>
           )}
         </div>
@@ -330,10 +330,10 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
         <div className="card" style={{ padding: 32, textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📡</div>
           <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            {connected ? 'No Zigbee devices discovered yet' : 'Connecting to Zigbee gateway...'}
+            {connected ? 'Ei vielä löydettyjä Zigbee-laitteita' : 'Yhdistetään Zigbee-yhdyskäytävään...'}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Waiting for MQTT from 192.168.68.51 · Topic: zigbee2mqtt/#
+            Odotetaan MQTT-viestejä osoitteesta 192.168.68.51 · Aihe: zigbee2mqtt/#
           </div>
         </div>
       )}
@@ -342,7 +342,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
       {waterLeaks.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            💧 Water Leak Sensors
+            💧 Vesivuotoanturit
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {waterLeaks.map(renderDevice)}
@@ -354,7 +354,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
       {contacts.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            🚪 Door & Window Sensors
+            🚪 Ovi- ja ikkuna-anturit
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
             {contacts.map(renderDevice)}
@@ -366,7 +366,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
       {climates.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            🌡️ Temperature & Humidity
+            🌡️ Lämpötila ja kosteus
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
             {climates.map(renderDevice)}
@@ -378,7 +378,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
       {thermostats.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            🏠 Thermostats & TRVs
+            🏠 Termostaatit ja patterit
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {thermostats.map(renderDevice)}
@@ -390,7 +390,7 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
       {others.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            📦 Other Devices
+            📦 Muut laitteet
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
             {others.map(renderDevice)}

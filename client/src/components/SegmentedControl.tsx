@@ -28,7 +28,7 @@ export function SegmentedControl({
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>{label}</span>
-        {pending && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>sending…</span>}
+        {pending && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>lähetetään…</span>}
       </div>
       <div className="toggle-group">
         {options.map((opt) => (
@@ -65,7 +65,7 @@ interface ToggleRowProps {
 /** Label + description on the left, an on/off button on the right. */
 export function ToggleRow({
   label, description, on, onToggle, pending = false, idPrefix,
-  onLabel = '● On', offLabel = '○ Off', danger = false,
+  onLabel = '● Päällä', offLabel = '○ Pois', danger = false,
 }: ToggleRowProps) {
   return (
     <div style={{

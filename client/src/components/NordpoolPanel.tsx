@@ -26,10 +26,10 @@ function fmtDateTime(ts: number) {
 }
 
 const LEVEL_META = {
-  cheap:     { badge: 'badge-cheap',     label: 'Cheap',     color: 'var(--online)' },
-  avg:       { badge: 'badge-off',       label: 'Average',   color: 'var(--text-primary)' },
-  expensive: { badge: 'badge-expensive', label: 'Expensive', color: 'var(--offline)' },
-  unknown:   { badge: 'badge-off',       label: 'No data',   color: 'var(--text-muted)' },
+  cheap:     { badge: 'badge-cheap',     label: 'Edullinen', color: 'var(--online)' },
+  avg:       { badge: 'badge-off',       label: 'Normaali',  color: 'var(--text-primary)' },
+  expensive: { badge: 'badge-expensive', label: 'Kallis',    color: 'var(--offline)' },
+  unknown:   { badge: 'badge-off',       label: 'Ei tietoa', color: 'var(--text-muted)' },
 } as const;
 
 type Level = keyof typeof LEVEL_META;
@@ -109,7 +109,7 @@ export function NordpoolPanel() {
     <div className="card">
       <div className="card-header">
         <span className="card-icon">⚡</span>
-        <span className="card-title">Electricity Price · FI</span>
+        <span className="card-title">Sähkön hinta · FI</span>
         {!data.loading && currentLevel !== 'unknown' && (
           <div className={`badge ${level.badge}`} style={{ marginLeft: 'auto' }}>
             {level.label}
@@ -119,37 +119,37 @@ export function NordpoolPanel() {
 
       <div className="card-body">
         {data.loading ? (
-          <p className="no-data">Loading prices…</p>
+          <p className="no-data">Ladataan hintatietoja…</p>
         ) : (
           <>
             {/* Now / today's range */}
             <div className="metrics-grid metrics-grid-4">
               <div className="metric metric-sm">
-                <span className="metric-label">Now</span>
+                <span className="metric-label">Nyt</span>
                 <span className="metric-value" style={{ color: level.color }}>
                   {currentPrice != null ? cents(currentPrice) : '—'}
-                  <span className="metric-unit">c/kWh</span>
+                  <span className="metric-unit">snt/kWh</span>
                 </span>
               </div>
               <div className="metric metric-sm">
-                <span className="metric-label">Today min</span>
+                <span className="metric-label">Päivän alin</span>
                 <span className="metric-value" style={{ color: 'var(--online)' }}>
                   {todayMinMax ? cents(todayMinMax.min) : '—'}
-                  <span className="metric-unit">c/kWh</span>
+                  <span className="metric-unit">snt/kWh</span>
                 </span>
               </div>
               <div className="metric metric-sm">
-                <span className="metric-label">Today avg</span>
+                <span className="metric-label">Päivän ka.</span>
                 <span className="metric-value">
                   {todayMinMax ? cents(todayMinMax.avg) : '—'}
-                  <span className="metric-unit">c/kWh</span>
+                  <span className="metric-unit">snt/kWh</span>
                 </span>
               </div>
               <div className="metric metric-sm">
-                <span className="metric-label">Today max</span>
+                <span className="metric-label">Päivän ylin</span>
                 <span className="metric-value" style={{ color: 'var(--offline)' }}>
                   {todayMinMax ? cents(todayMinMax.max) : '—'}
-                  <span className="metric-unit">c/kWh</span>
+                  <span className="metric-unit">snt/kWh</span>
                 </span>
               </div>
             </div>
@@ -158,18 +158,18 @@ export function NordpoolPanel() {
 
             {/* Cheapest windows */}
             <div className="section-label" style={{ marginBottom: 8 }}>
-              🎯 Cheapest windows from now
+              🎯 Edullisimmat jaksot tästä eteenpäin
             </div>
             <div className="metrics-grid metrics-grid-2">
-              <CheapestWindow label="Next 3 h" window={data.cheapest3h} />
-              <CheapestWindow label="Next 6 h" window={data.cheapest6h} />
+              <CheapestWindow label="Seuraavat 3 h" window={data.cheapest3h} />
+              <CheapestWindow label="Seuraavat 6 h" window={data.cheapest6h} />
             </div>
 
             <div className="divider" />
 
             {/* Forecast chart */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span className="section-label">📊 Next 24 h</span>
+              <span className="section-label">📊 Seuraavat 24 h</span>
               <div className="toggle-group" style={{ width: 'auto' }}>
                 <button
                   className={`toggle-btn ${!showWeather ? 'active' : ''}`}
@@ -177,7 +177,7 @@ export function NordpoolPanel() {
                   id="btn-price-only"
                   style={{ fontSize: 11, padding: '3px 10px' }}
                 >
-                  Price
+                  Hinta
                 </button>
                 <button
                   className={`toggle-btn ${showWeather ? 'active' : ''}`}
@@ -185,7 +185,7 @@ export function NordpoolPanel() {
                   id="btn-price-weather"
                   style={{ fontSize: 11, padding: '3px 10px' }}
                 >
-                  + Weather
+                  + Sää
                 </button>
               </div>
             </div>
@@ -206,7 +206,7 @@ function CheapestWindow({ label, window }: { label: string; window: NordpoolWind
         <>
           <span className="metric-value" style={{ color: 'var(--online)' }}>
             {cents(window.avgPrice)}
-            <span className="metric-unit">c/kWh</span>
+            <span className="metric-unit">snt/kWh</span>
           </span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
             {fmtDateTime(window.start)} – {fmtTime(window.end)}
@@ -260,7 +260,7 @@ function PriceChart({ prices, weather }: { prices: NordpoolPrice[]; weather: Wea
 
   // Must come after every hook — an early return above would change the hook
   // count between renders once prices arrive, which crashes React.
-  if (!prices.length) return <p className="no-data">No price data yet</p>;
+  if (!prices.length) return <p className="no-data">Ei vielä hintatietoja</p>;
 
   const now = Date.now();
 
@@ -296,7 +296,7 @@ function PriceChart({ prices, weather }: { prices: NordpoolPrice[]; weather: Wea
               points={tempLine}
             />
             <text x={width - 110} y={22} fill="var(--heat-primary)" fontSize={11} fontWeight={600}>
-              Temperature °C
+              Lämpötila °C
             </text>
           </>
         )}

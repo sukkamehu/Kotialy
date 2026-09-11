@@ -115,7 +115,7 @@ export function WeatherPanel() {
     <div className="card">
       <div className="card-header">
         <span className="card-icon">{current ? getEmoji(current.symbol || '') : '🌤'}</span>
-        <span className="card-title">Weather · Järvenpää</span>
+        <span className="card-title">Sää · Järvenpää</span>
         {current && (
           <div className="badge badge-cool" style={{ marginLeft: 'auto' }}>
             {formatTemp(current.temperature)}°C
@@ -125,7 +125,7 @@ export function WeatherPanel() {
 
       <div className="card-body">
         {data.loading ? (
-          <p className="no-data">Loading weather…</p>
+          <p className="no-data">Ladataan säätietoja…</p>
         ) : (
           <>
             {/* Current conditions */}
@@ -136,7 +136,7 @@ export function WeatherPanel() {
                     {getEmoji(current.symbol || '')}
                   </span>
                   <div className="metric">
-                    <span className="metric-label">Outdoor now</span>
+                    <span className="metric-label">Ulkolämpötila nyt</span>
                     <span
                       className="metric-value"
                       style={{ fontSize: 34, color: tempColor(current.temperature) }}
@@ -149,21 +149,21 @@ export function WeatherPanel() {
 
                 <div className="metrics-grid metrics-grid-3" style={{ marginTop: 16 }}>
                   <div className="metric metric-sm">
-                    <span className="metric-label">Feels like</span>
+                    <span className="metric-label">Tuntuu kuin</span>
                     <span className="metric-value">
                       {current.feels_like != null ? formatTemp(current.feels_like) : '—'}
                       <span className="metric-unit">°C</span>
                     </span>
                   </div>
                   <div className="metric metric-sm">
-                    <span className="metric-label">Wind</span>
+                    <span className="metric-label">Tuuli</span>
                     <span className="metric-value">
                       {current.wind_speed != null ? current.wind_speed.toFixed(1) : '—'}
                       <span className="metric-unit">m/s</span>
                     </span>
                   </div>
                   <div className="metric metric-sm">
-                    <span className="metric-label">Humidity</span>
+                    <span className="metric-label">Kosteus</span>
                     <span className="metric-value">
                       {current.humidity != null ? Math.round(current.humidity) : '—'}
                       <span className="metric-unit">%</span>
@@ -172,15 +172,15 @@ export function WeatherPanel() {
                 </div>
               </>
             ) : (
-              <p className="no-data">No current observation</p>
+              <p className="no-data">Ei havaintotietoja</p>
             )}
 
             <div className="divider" />
 
             {/* Hourly */}
-            <div className="section-label" style={{ marginBottom: 10 }}>Next hours</div>
+            <div className="section-label" style={{ marginBottom: 10 }}>Seuraavat tunnit</div>
             {data.forecast.length === 0 ? (
-              <p className="no-data">No forecast yet</p>
+              <p className="no-data">Ei vielä ennustetta</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <div style={{ display: 'flex', gap: 8, minWidth: 'min-content' }}>
@@ -207,9 +207,9 @@ export function WeatherPanel() {
             <div className="divider" />
 
             {/* Daily */}
-            <div className="section-label" style={{ marginBottom: 10 }}>Next days</div>
+            <div className="section-label" style={{ marginBottom: 10 }}>Seuraavat päivät</div>
             {data.daily.length === 0 ? (
-              <p className="no-data">No daily summary yet</p>
+              <p className="no-data">Ei vielä päiväennustetta</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 8 }}>
                 {data.daily.slice(0, 5).map((d) => {

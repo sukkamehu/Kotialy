@@ -4,21 +4,21 @@ import { useCommand } from '../hooks/useCommand';
 import { SegmentedControl, ToggleRow } from './SegmentedControl';
 
 const OPERATING_MODES = [
-  { value: 0, label: 'Heat' },
-  { value: 1, label: 'Cool' },
+  { value: 0, label: 'Lämmitys' },
+  { value: 1, label: 'Jäähdytys' },
   { value: 2, label: 'Auto' },
-  { value: 3, label: 'DHW' },
-  { value: 4, label: 'Heat+DHW' },
-  { value: 5, label: 'Cool+DHW' },
-  { value: 6, label: 'Auto+DHW' },
+  { value: 3, label: 'Käyttövesi' },
+  { value: 4, label: 'Lämmitys+KV' },
+  { value: 5, label: 'Jäähdytys+KV' },
+  { value: 6, label: 'Auto+KV' },
 ];
 
 /* Powerful mode is sent as a slot index; each step is 30 minutes. */
 const POWERFUL_TIMES = [
-  { value: 0, label: 'Off' },
-  { value: 1, label: '30m' },
-  { value: 2, label: '60m' },
-  { value: 3, label: '90m' },
+  { value: 0, label: 'Pois' },
+  { value: 1, label: '30 min' },
+  { value: 2, label: '60 min' },
+  { value: 3, label: '90 min' },
 ];
 
 interface HeatpumpCardProps {
@@ -75,7 +75,7 @@ function TempFlow({ inlet, outlet, target }: { inlet: number | null; outlet: num
     <div style={{ flex: 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <div className="metric metric-sm">
-          <span className="metric-label">Inlet</span>
+          <span className="metric-label">Tulo (Inlet)</span>
           <span className="metric-value" style={{ color: 'var(--cool-primary)' }}>
             {inlet !== null ? inlet.toFixed(1) : '—'}
             <span className="metric-unit">°C</span>
@@ -83,7 +83,7 @@ function TempFlow({ inlet, outlet, target }: { inlet: number | null; outlet: num
         </div>
         <div style={{ fontSize: 20, alignSelf: 'center', color: 'var(--text-muted)' }}>→</div>
         <div className="metric metric-sm" style={{ textAlign: 'right' }}>
-          <span className="metric-label">Outlet</span>
+          <span className="metric-label">Meno (Outlet)</span>
           <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
             {outlet !== null ? outlet.toFixed(1) : '—'}
             <span className="metric-unit">°C</span>
@@ -99,7 +99,7 @@ function TempFlow({ inlet, outlet, target }: { inlet: number | null; outlet: num
       {target !== null && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 3 }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            Target: {target.toFixed(1)}°C
+            Tavoite: {target.toFixed(1)}°C
           </span>
         </div>
       )}
@@ -136,21 +136,21 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
     }}>
       <div className="card-header">
         <span className="card-icon">⚙️</span>
-        <span className="card-title">Heat Pump · WH-MXC12J9E8 T-CAP J</span>
+        <span className="card-title">Lämpöpumppu · WH-MXC12J9E8 T-CAP J</span>
         {defrost && (
           <span className="badge" style={{ marginLeft: 'auto', background: 'rgba(34,211,238,0.15)', color: 'var(--cool-primary)', border: '1px solid rgba(34,211,238,0.3)', fontSize: 10 }}>
-            ❄️ Defrost
+            ❄️ Sulatus
           </span>
         )}
         <button
           className={`btn btn-sm ${isOn ? 'btn-primary' : 'btn-ghost'}`}
           style={{ marginLeft: defrost ? 4 : 'auto' }}
-          onClick={() => send('commands/SetHeatpump', isOn ? 0 : 1, isOn ? 'Heat pump off' : 'Heat pump on')}
+          onClick={() => send('commands/SetHeatpump', isOn ? 0 : 1, isOn ? 'Lämpöpumppu sammutettu' : 'Lämpöpumppu käynnistetty')}
           disabled={pending}
           id="btn-heatpump-power"
-          title="Turn the heat pump on or off"
+          title="Kytke lämpöpumppu päälle tai pois"
         >
-          {pending ? '…' : isOn ? '● On' : '○ Off'}
+          {pending ? '…' : isOn ? '● Päällä' : '○ Pois'}
         </button>
       </div>
       <div className="card-body">
@@ -165,21 +165,21 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
         {/* Secondary metrics */}
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 16 }}>
           <div className="metric metric-sm">
-            <span className="metric-label">Pump Flow</span>
+            <span className="metric-label">Virtaus</span>
             <span className="metric-value">
               {flow !== null ? flow.toFixed(1) : '—'}
-              <span className="metric-unit">L/m</span>
+              <span className="metric-unit">L/min</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Pump Speed</span>
+            <span className="metric-label">Pumpun nopeus</span>
             <span className="metric-value">
               {pumpSpeed !== null ? Math.round(pumpSpeed) : '—'}
               <span className="metric-unit">rpm</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">High Press</span>
+            <span className="metric-label">Korkeapaine</span>
             <span className="metric-value">
               {highPress !== null ? highPress.toFixed(2) : '—'}
               <span className="metric-unit">kg</span>
@@ -189,21 +189,21 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
 
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
-            <span className="metric-label">Low Press</span>
+            <span className="metric-label">Matalapaine</span>
             <span className="metric-value">
               {lowPress !== null ? lowPress.toFixed(2) : '—'}
               <span className="metric-unit">kg</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Runtime</span>
+            <span className="metric-label">Käyntiaika</span>
             <span className="metric-value">
               {opHours !== null ? Math.round(opHours) : '—'}
               <span className="metric-unit">h</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Starts</span>
+            <span className="metric-label">Käynnistykset</span>
             <span className="metric-value">
               {opCount !== null ? Math.round(opCount) : '—'}
             </span>
@@ -213,36 +213,38 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
         <div className="divider" />
 
         {/* Controls */}
-        <div className="section-label" style={{ marginBottom: 10 }}>Controls</div>
+        <div className="section-label" style={{ marginBottom: 10 }}>Ohjaus</div>
 
         <SegmentedControl
-          label="🔄 Operating mode"
+          label="🔄 Toimintatila"
           options={OPERATING_MODES}
           value={operatingMode === null ? null : Math.round(operatingMode)}
           onSelect={(v) => send('commands/SetOperationMode', v,
-            `Mode: ${OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`)}
+            `Toimintatila: ${OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`)}
           pending={pending}
           idPrefix="btn-mode"
         />
 
         <SegmentedControl
-          label="⚡ Powerful mode"
+          label="⚡ Tehotila"
           options={POWERFUL_TIMES}
           value={powerfulTime === null ? null : Math.round(powerfulTime)}
           onSelect={(v) => send('commands/SetPowerfulMode', v,
-            v === 0 ? 'Powerful off' : `Powerful for ${v * 30} min`)}
+            v === 0 ? 'Tehotila pois' : `Tehotila päällä ${v * 30} min`)}
           pending={pending}
           idPrefix="btn-powerful"
         />
 
         <ToggleRow
-          label="🏖️ Holiday mode"
-          description="Away setting — lowers demand"
+          label="🏖️ Lomatila"
+          description="Poissaoloasetus — säästää energiaa"
           on={holidayOn}
           onToggle={() => send('commands/SetHolidayMode', holidayOn ? 0 : 1,
-            holidayOn ? 'Holiday off' : 'Holiday on')}
+            holidayOn ? 'Lomatila pois' : 'Lomatila päällä')}
           pending={pending}
           idPrefix="btn-holiday"
+          onLabel="● Päällä"
+          offLabel="○ Pois"
         />
 
         {(error || success) && (
@@ -254,13 +256,14 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
         {/* Backup heater activity */}
         <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
           <span style={{ fontSize: 11, color: internalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
-            {internalHeater ? '● ' : '○ '}Internal heater
+            {internalHeater ? '● ' : '○ '}Sisäinen vastus
           </span>
           <span style={{ fontSize: 11, color: externalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
-            {externalHeater ? '● ' : '○ '}External heater
+            {externalHeater ? '● ' : '○ '}Ulkoinen vastus
           </span>
         </div>
       </div>
     </div>
   );
 }
+

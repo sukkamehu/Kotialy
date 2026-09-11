@@ -73,16 +73,16 @@ export function DHWCard({ state }: DHWCardProps) {
 
   function toggleForceDHW() {
     send('commands/SetForceDHW', forceDHW ? 0 : 1,
-      forceDHW ? 'Boost stopped' : 'Boost started');
+      forceDHW ? 'Tehostus lopetettu' : 'Tehostus aloitettu');
   }
 
   function toggleForceHeater() {
     send('commands/SetForceHeater', forceHeater ? 0 : 1,
-      forceHeater ? 'Backup heater off' : 'Backup heater forced on');
+      forceHeater ? 'Lisävastus pois päältä' : 'Lisävastus pakotettu päälle');
   }
 
   function setDHWTarget(v: number) {
-    send('commands/SetDHWTemp', v, `Target set to ${v}°C`);
+    send('commands/SetDHWTemp', v, `Käyttöveden tavoite asetettu ${v} °C`);
   }
 
   const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
@@ -95,9 +95,9 @@ export function DHWCard({ state }: DHWCardProps) {
     }}>
       <div className="card-header">
         <span className="card-icon">🚿</span>
-        <span className="card-title">Hot Water Tank</span>
+        <span className="card-title">Käyttövesivaraaja</span>
         {forceDHW && (
-          <div className="badge badge-heat" style={{ marginLeft: 'auto' }}>⚡ Boost</div>
+          <div className="badge badge-heat" style={{ marginLeft: 'auto' }}>⚡ Tehostus</div>
         )}
       </div>
       <div className="card-body">
@@ -105,7 +105,7 @@ export function DHWCard({ state }: DHWCardProps) {
           <TankSvg temp={temp} target={target} />
           <div style={{ flex: 1 }}>
             <div className="metric" style={{ marginBottom: 8 }}>
-              <span className="metric-label">Temperature</span>
+              <span className="metric-label">Lämpötila</span>
               <span className="metric-value" style={{ fontSize: 32, color: tempColor }}>
                 {temp !== null ? temp.toFixed(1) : '—'}
                 <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>
@@ -114,7 +114,7 @@ export function DHWCard({ state }: DHWCardProps) {
             {target !== null && temp !== null && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, color: temp >= target ? 'var(--online)' : 'var(--warning)' }}>
-                  {temp >= target ? '✓ Target reached' : `${(target - temp).toFixed(1)}° to go`}
+                  {temp >= target ? '✓ Tavoite saavutettu' : `${(target - temp).toFixed(1)} °C tavoitteeseen`}
                 </span>
               </div>
             )}
@@ -126,7 +126,7 @@ export function DHWCard({ state }: DHWCardProps) {
         {/* Setpoint */}
         <div style={{ marginTop: 12 }}>
           <SetpointControl
-            label="Hot water target"
+            label="Käyttöveden tavoitelämpötila"
             value={target}
             min={40}
             max={75}
@@ -135,7 +135,7 @@ export function DHWCard({ state }: DHWCardProps) {
             pending={pending}
             onCommit={setDHWTarget}
             idPrefix="dhw-target"
-            hint="legionella cycle needs ≥60°C"
+            hint="legionellakuumennus vaatii ≥60 °C"
           />
         </div>
 
@@ -144,14 +144,14 @@ export function DHWCard({ state }: DHWCardProps) {
         {/* Power */}
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
-            <span className="metric-label">Production</span>
+            <span className="metric-label">Tuotto</span>
             <span className="metric-value" style={{ color: 'var(--dhw-primary)' }}>
               {dhwProd !== null ? Math.round(dhwProd) : '—'}
               <span className="metric-unit">W</span>
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Consumption</span>
+            <span className="metric-label">Kulutus</span>
             <span className="metric-value">
               {dhwCons !== null ? Math.round(dhwCons) : '—'}
               <span className="metric-unit">W</span>
@@ -171,16 +171,16 @@ export function DHWCard({ state }: DHWCardProps) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Backup heater {heaterEnabled ? 'enabled' : 'disabled'}
+              Lisävastus {heaterEnabled ? 'käytössä' : 'pois'}
             </span>
             <button
               className={`btn btn-sm ${forceHeater ? 'btn-danger' : 'btn-ghost'}`}
               onClick={toggleForceHeater}
               disabled={pending}
               id="btn-force-heater"
-              title="Force the electric backup heater"
+              title="Pakota sähkövastus päälle"
             >
-              {forceHeater ? '🔥 Forced' : 'Force heater'}
+              {forceHeater ? '🔥 Pakotettu' : 'Pakota vastus'}
             </button>
           </div>
           <button
@@ -189,7 +189,7 @@ export function DHWCard({ state }: DHWCardProps) {
             disabled={pending}
             id="btn-force-dhw"
           >
-            {pending ? '...' : forceDHW ? '⏹ Stop Boost' : '⚡ Force DHW'}
+            {pending ? '...' : forceDHW ? '⏹ Lopeta tehostus' : '⚡ Pakota KV'}
           </button>
         </div>
 
@@ -202,3 +202,4 @@ export function DHWCard({ state }: DHWCardProps) {
     </div>
   );
 }
+

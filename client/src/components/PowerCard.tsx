@@ -85,7 +85,7 @@ export function PowerCard({ state }: PowerCardProps) {
     <div className="card">
       <div className="card-header">
         <span className="card-icon">⚡</span>
-        <span className="card-title">Power & Energy</span>
+        <span className="card-title">Teho ja energia</span>
         {usingXtop && (
           <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--dhw-primary)', fontWeight: 600 }}>
             XTOP
@@ -96,14 +96,14 @@ export function PowerCard({ state }: PowerCardProps) {
         {/* Total */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <div className="metric">
-            <span className="metric-label">Total Production</span>
+            <span className="metric-label">Kokonaistuotto</span>
             <span className="metric-value" style={{ color: 'var(--heat-primary)', fontSize: 28 }}>
               {totalProd > 0 ? `${(totalProd / 1000).toFixed(2)}` : '—'}
               <span className="metric-unit" style={{ fontSize: 14 }}>kW</span>
             </span>
           </div>
           <div className="metric" style={{ textAlign: 'right' }}>
-            <span className="metric-label">Consumption</span>
+            <span className="metric-label">Kokonaiskulutus</span>
             <span className="metric-value" style={{ fontSize: 28 }}>
               {totalCons > 0 ? `${(totalCons / 1000).toFixed(2)}` : '—'}
               <span className="metric-unit" style={{ fontSize: 14 }}>kW</span>
@@ -113,16 +113,16 @@ export function PowerCard({ state }: PowerCardProps) {
 
         <div className="divider" />
         <div style={{ marginTop: 16 }}>
-          <PowerGauge label="Heating" produced={heatProd} consumed={heatCons} color="var(--heat-primary)" />
-          <PowerGauge label="Cooling" produced={coolProd} consumed={coolCons} color="var(--cool-primary)" />
-          <PowerGauge label="DHW" produced={dhwProd} consumed={dhwCons} color="var(--dhw-primary)" />
+          <PowerGauge label="Lämmitys" produced={heatProd} consumed={heatCons} color="var(--heat-primary)" />
+          <PowerGauge label="Jäähdytys" produced={coolProd} consumed={coolCons} color="var(--cool-primary)" />
+          <PowerGauge label="Käyttövesi" produced={dhwProd} consumed={dhwCons} color="var(--dhw-primary)" />
         </div>
 
         {current !== null && (
           <>
             <div className="divider" />
             <div className="metric metric-sm" style={{ marginTop: 12 }}>
-              <span className="metric-label">Compressor Current</span>
+              <span className="metric-label">Kompressorin virta</span>
               <span className="metric-value">
                 {current.toFixed(1)}
                 <span className="metric-unit">A</span>
@@ -134,3 +134,4 @@ export function PowerCard({ state }: PowerCardProps) {
     </div>
   );
 }
+

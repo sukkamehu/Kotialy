@@ -35,7 +35,7 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
         lastUpdate={lastUpdate}
       />
 
-      <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 24px 48px' }}>
+      <main className="dashboard-main">
         {/* Waiting for data */}
         {!hasAnyData && (
           <div style={{
@@ -44,25 +44,26 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
           }}>
             <div style={{ fontSize: 48 }}>🌡️</div>
             <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Connecting to Heishamon...
+              Yhdistetään Heishamoniin...
             </div>
-            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-              Waiting for MQTT data from the Kotiäly broker
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>
+              Odotetaan MQTT-tietoja Kotiäly-välittäjältä
             </div>
-            <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: wsConnected ? 'var(--online)' : 'var(--offline)', boxShadow: wsConnected ? '0 0 8px var(--online)' : undefined }} />
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  WebSocket: {wsConnected ? 'Connected' : 'Connecting...'}
+                  WebSocket: {wsConnected ? 'Yhdistetty' : 'Yhdistetään...'}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: zigbeeConnected ? 'var(--online)' : 'var(--offline)', boxShadow: zigbeeConnected ? '0 0 8px var(--online)' : undefined }} />
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Zigbee: {zigbeeConnected ? 'Connected' : 'Connecting...'}
+                  Zigbee: {zigbeeConnected ? 'Yhdistetty' : 'Yhdistetään...'}
                 </span>
               </div>
             </div>
+
           </div>
         )}
         {/* Always show Zigbee panel if we have any devices */}
@@ -70,16 +71,10 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
           <ZigbeePanel devices={zigbeeDevices} connected={zigbeeConnected} />
         )}
 
-
         {hasAnyData && (
           <>
             {/* Row 1: Main monitoring cards */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: 20,
-              marginBottom: 20,
-            }}>
+            <div className="dashboard-grid dashboard-grid-main">
               <HeatpumpCard state={state} />
               <DHWCard state={state} />
               <BufferTankCard state={state} />
@@ -87,12 +82,7 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
             </div>
 
             {/* Row 2: Outdoor + Valve — each card carries its own controls */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: 20,
-              marginBottom: 20,
-            }}>
+            <div className="dashboard-grid dashboard-grid-sub">
               <OutdoorCard state={state} />
               <ThreeWayValveCard state={state} />
             </div>
@@ -101,7 +91,7 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
             <HistoryChart />
 
             {/* Row 4: Electricity price + Weather */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 16, marginTop: 24 }}>
+            <div className="dashboard-grid dashboard-grid-sub" style={{ marginTop: 24 }}>
               <NordpoolPanel />
               <WeatherPanel />
             </div>
@@ -116,3 +106,4 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
     </div>
   );
 }
+

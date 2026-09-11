@@ -92,13 +92,14 @@ export function fmt(
 }
 
 export const OPERATING_MODES: Record<number, string> = {
-  0: 'Heat Only',
-  1: 'Cool Only',
-  2: 'Auto (Heat)',
-  3: 'DHW Only',
-  4: 'Heat + DHW',
-  5: 'Cool + DHW',
-  6: 'Auto Heat + DHW',
-  7: 'Auto (Cool)',
-  8: 'Auto Cool + DHW',
+  0: 'Vain lämmitys',
+  1: 'Vain jäähdytys',
+  2: 'Auto (lämmitys)',
+  3: 'Vain käyttövesi',
+  4: 'Lämmitys + KV',
+  5: 'Jäähdytys + KV',
+  6: 'Auto (lämpö) + KV',
+  7: 'Auto (viilennys)',
+  8: 'Auto (viilennys) + KV',
 };
+
