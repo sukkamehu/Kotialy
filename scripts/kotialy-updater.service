@@ -1,0 +1,14 @@
+[Unit]
+Description=Kotiäly Auto Updater and Deploy Service
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kotialy
+ExecStart=/opt/kotialy/scripts/autodeploy.sh
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

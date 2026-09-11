@@ -404,6 +404,18 @@ const TOPICS = {
     max: 1,
     step: 1,
   },
+  'main/Force_Defrost_State': {
+    label: 'Pakkosulatus',
+    unit: '',
+    category: 'settings',
+    type: 'enum',
+    map: { 0: 'Pois', 1: 'Päällä' },
+    writable: true,
+    setTopic: 'commands/SetForceDefrost',
+    min: 0,
+    max: 1,
+    step: 1,
+  },
 };
 
 // Topics that are chartable (numeric, interesting to plot over time)

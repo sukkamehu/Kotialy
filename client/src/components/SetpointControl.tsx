@@ -56,13 +56,12 @@ export function SetpointControl({
   }
 
   function nudge(delta: number) {
-    if (!hasValue) return;
     commit(sliderValue + delta);
   }
 
   const formatted = hasValue
     ? `${signed && sliderValue > 0 ? '+' : ''}${Number.isInteger(sliderValue) ? sliderValue : sliderValue.toFixed(1)}`
-    : '—';
+    : `${sliderValue}`;
 
   return (
     <div style={{ marginTop: 4 }}>
@@ -81,7 +80,7 @@ export function SetpointControl({
         <button
           className="btn btn-sm btn-ghost"
           onClick={() => nudge(-step)}
-          disabled={disabled || !hasValue || sliderValue <= min}
+          disabled={disabled || sliderValue <= min}
           id={`${idPrefix}-minus`}
           aria-label={`${label} down`}
         >
@@ -95,7 +94,7 @@ export function SetpointControl({
           max={max}
           step={step}
           value={sliderValue}
-          disabled={disabled || !hasValue}
+          disabled={disabled}
           id={`${idPrefix}-slider`}
           aria-label={label}
           style={{
@@ -114,7 +113,7 @@ export function SetpointControl({
         <button
           className="btn btn-sm btn-ghost"
           onClick={() => nudge(step)}
-          disabled={disabled || !hasValue || sliderValue >= max}
+          disabled={disabled || sliderValue >= max}
           id={`${idPrefix}-plus`}
           aria-label={`${label} up`}
         >

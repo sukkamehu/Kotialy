@@ -124,6 +124,7 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
   const operatingMode = numVal(state, 'main/Operating_Mode_State');
   const powerfulTime = numVal(state, 'main/Powerful_Mode_Time');
   const holidayOn = (numVal(state, 'main/Holiday_Mode_State') ?? 0) > 0;
+  const forceHeater = state['main/Force_Heater_State']?.value === '1';
   const internalHeater = state['main/Internal_Heater_State']?.value === '1';
   const externalHeater = state['main/External_Heater_State']?.value === '1';
 
@@ -245,6 +246,19 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
           idPrefix="btn-holiday"
           onLabel="● Päällä"
           offLabel="○ Pois"
+        />
+
+        <ToggleRow
+          label="🔥 Pakota lisävastus (Force Heater)"
+          description="Käynnistää sähköisen varavastuksen"
+          on={forceHeater}
+          onToggle={() => send('commands/SetForceHeater', forceHeater ? 0 : 1,
+            forceHeater ? 'Lisävastus pois' : 'Lisävastus pakotettu päälle')}
+          pending={pending}
+          idPrefix="btn-hp-force-heater"
+          onLabel="🔥 Pakotettu"
+          offLabel="○ Pois"
+          danger={true}
         />
 
         {(error || success) && (

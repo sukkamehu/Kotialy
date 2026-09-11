@@ -173,6 +173,115 @@ The WebSocket provides real-time streaming updates:
 
 ---
 
+## 🔥 Varavastus ja erikoisohjaukset (Heater & Force Controls)
+
+Kotiäly mahdollistaa Panasonic Aquarean lisävastuksen ja erikoistilojen ohjaamisen suoraan käyttöliittymästä, REST API:lla tai MQTT-viesteillä.
+
+### Ohjauskomennot MQTT:llä
+
+| Toiminto | MQTT-komentoaihe (Set topic) | Arvot | Tilapalaute (State topic) |
+|---|---|---|---|
+| **Pakota lisävastus / varavastus (Force Heater)** | `panasonic_heat_pump/commands/SetForceHeater` | `1` = Päällä, `0` = Pois | `main/Force_Heater_State`, `main/Internal_Heater_State` |
+| **Käyttöveden tehostus (Force DHW)** | `panasonic_heat_pump/commands/SetForceDHW` | `1` = Päällä, `0` = Pois | `main/Force_DHW_State`, `main/DHW_Heater_State` |
+| **Pakkosulatus (Force Defrost)** | `panasonic_heat_pump/commands/SetForceDefrost` | `1` = Päällä, `0` = Pois | `main/Defrosting_State` |
+| **Käyttötila (Operation Mode)** | `panasonic_heat_pump/commands/SetOperationMode` | `0`–`8` (ks. alla) | `main/Operating_Mode_State` |
+
+#### Käyttötilojen arvot:
+* `0` = Vain lämmitys
+* `1` = Vain jäähdytys
+* `2` = Auto (lämmitys)
+* `3` = Vain käyttövesi
+* `4` = **Lämmitys + Käyttövesi** (Suositeltu oletus)
+* `5` = Jäähdytys + Käyttövesi
+* `6` = Auto (lämmitys) + Käyttövesi
+* `7` = Auto (jäähdytys)
+* `8` = Auto (jäähdytys) + Käyttövesi
+
+#### Esimerkkikomennot komentoriviltä:
+```bash
+# Pakota varavastus päälle
+mosquitto_pub -h 192.168.68.51 -u kotialy -P <salasana> -t "panasonic_heat_pump/commands/SetForceHeater" -m "1"
+
+# Pakota käyttöveden lämmitys/tehostus päälle
+mosquitto_pub -h 192.168.68.51 -u kotialy -P <salasana> -t "panasonic_heat_pump/commands/SetForceDHW" -m "1"
+
+# Vaihda toimintatilaksi Lämmitys + Käyttövesi
+mosquitto_pub -h 192.168.68.51 -u kotialy -P <salasana> -t "panasonic_heat_pump/commands/SetOperationMode" -m "4"
+```
+
+> [!TIP]
+> **Vianmääritys – Jos käyttövesivastuksen tila näyttää "Pois":**
+> 1. Varmista Panasonicin omalta seinäohjaimelta asetus: **Valikko → Asennusvalikko (Installer setup) → Lämmin käyttövesi (DHW) → Säiliön vastus (Tank heater): Kyllä**.
+> 2. Varmista, että toimintatilana on jokin käyttöveden sisältävä tila (esim. **Lämmitys + KV**, tila 4).
+
+---
+
+## 🔄 Automaattinen päivitys (Auto-Deploy Ubuntu / Linux)
+
+Projektissa on mukana valmis skripti ([scripts/autodeploy.sh](file:///Users/sukkis/Dev/Kotiäly/scripts/autodeploy.sh)), joka tarkistaa Git-repositorion 10 minuutin välein ja deployaa uuden version automaattisesti, mikäli uusia committeja tai julkaisuja löytyy.
+
+### Skriptin ominaisuudet:
+- **Flock-lukitus**: Estää päällekkäiset ajot.
+- **Automaattinen tunnistus**: Tunnistaa Docker Compose- ja paikallisasennukset automaattisesti.
+- **Siivous**: Poistaa vanhat Docker-imaget päivityksen jälkeen automaattisesti.
+- **Lokitus**: Tallentaa aikaleimatut tulosteet kansioon `logs/autodeploy.log`.
+
+---
+
+### Vaihtoehto A: Asennus Cronilla (Nopein ja helpoin)
+
+1. Avaa crontab palvelimella:
+   ```bash
+   crontab -e
+   ```
+2. Lisää rivi (vaihda polku vastaamaan asennushakemistoasi):
+   ```cron
+   */10 * * * * /opt/kotialy/scripts/autodeploy.sh >> /opt/kotialy/logs/autodeploy.log 2>&1
+   ```
+
+---
+
+### Vaihtoehto B: Asennus systemd Timerilla (Ubuntun suositus)
+
+1. Varmista skriptin suoritusoikeudet:
+   ```bash
+   chmod +x scripts/autodeploy.sh
+   ```
+
+2. Kopioi systemd-palvelu ja ajastin:
+   ```bash
+   sudo cp scripts/kotialy-updater.service /etc/systemd/system/
+   sudo cp scripts/kotialy-updater.timer /etc/systemd/system/
+   ```
+
+3. *(Valinnainen)* Tarkista ja muokkaa polut tiedostossa `/etc/systemd/system/kotialy-updater.service`:
+   ```ini
+   [Service]
+   WorkingDirectory=/opt/kotialy
+   ExecStart=/opt/kotialy/scripts/autodeploy.sh
+   ```
+
+4. Ota ajastus käyttöön ja käynnistä se:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now kotialy-updater.timer
+   ```
+
+5. Tarkista ajastimen tila ja seuraava suoritusaika:
+   ```bash
+   systemctl list-timers kotialy-updater.timer
+   ```
+
+6. Voit seurata päivityslokeja komennolla:
+   ```bash
+   journalctl -u kotialy-updater.service -f
+   # tai
+   tail -f logs/autodeploy.log
+   ```
+
+---
+
 ## 📄 License
 
 MIT
+
