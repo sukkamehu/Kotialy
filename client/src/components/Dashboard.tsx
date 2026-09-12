@@ -7,6 +7,7 @@ import { BufferTankCard } from './BufferTankCard';
 import { OutdoorCard } from './OutdoorCard';
 import { ThreeWayValveCard } from './ThreeWayValveCard';
 import { EnergyStatsCard } from './EnergyStatsCard';
+import { DailyCostsCard } from './DailyCostsCard';
 import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
 import { NordpoolPanel } from './NordpoolPanel';
@@ -106,12 +107,17 @@ export function Dashboard({
               <ThreeWayValveCard state={state} />
             </div>
 
-            {/* Row 3: Energy & Lifecycle Analytics */}
+            {/* Row 3: Daily Energy Costs & Savings */}
+            <div style={{ marginBottom: 20 }}>
+              <DailyCostsCard />
+            </div>
+
+            {/* Row 4: Energy & Lifecycle Analytics */}
             <div style={{ marginBottom: 20 }}>
               <EnergyStatsCard state={state} />
             </div>
 
-            {/* Row 4: History chart (full width) */}
+            {/* Row 5: History chart (full width) */}
             <HistoryChart />
 
             {/* Row 4: Electricity price + Weather */}

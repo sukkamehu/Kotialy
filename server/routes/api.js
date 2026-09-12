@@ -1,12 +1,21 @@
 const express = require('express');
 const router = express.Router();
 
-const { getFullState, getTopicHistory, getMultiTopicHistory } = require('../db');
+const {
+  getFullState,
+  getTopicHistory,
+  getMultiTopicHistory,
+  getDailyCosts,
+  getDailyCost,
+  getCostSettings,
+  updateCostSetting,
+} = require('../db');
 const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
 const mqttClient = require('../mqtt-client');
 const zigbeeClient = require('../zigbee-client');
 const nordpoolClient = require('../nordpool-client');
 const weatherClient = require('../weather-client');
+const costCalculator = require('../cost-calculator');
 
 
 const {
@@ -332,4 +341,85 @@ router.get('/zigbee/state', (req, res) => {
   }
   res.json({ state: zigbeeState, count: Object.keys(zigbeeState).length });
 });
+
+// ─── Daily Energy Costs Routes ───────────────────────────────────────────────
+
+/**
+ * GET /api/costs/daily?days=30&from=YYYY-MM-DD&to=YYYY-MM-DD
+ * Returns daily aggregated costs and consumption history.
+ */
+router.get('/costs/daily', (req, res) => {
+  const { from, to, days } = req.query;
+  const limit = days ? parseInt(days) : 30;
+
+  // Make sure today is up to date
+  const todayStr = costCalculator.toLocalDateStr(new Date());
+  costCalculator.calculateDay(todayStr);
+
+  const rows = getDailyCosts(from, to, limit);
+  res.json({
+    costs: rows,
+    count: rows.length,
+    ts: Date.now(),
+  });
+});
+
+/**
+ * GET /api/costs/summary
+ * Returns KPI summary: today, yesterday, current month, settings.
+ */
+router.get('/costs/summary', (req, res) => {
+  const summary = costCalculator.getCostSummary();
+  res.json(summary);
+});
+
+/**
+ * GET /api/costs/settings
+ * Returns current electricity pricing settings (margin, transfer fee, VAT).
+ */
+router.get('/costs/settings', (req, res) => {
+  res.json({ settings: getCostSettings() });
+});
+
+/**
+ * POST /api/costs/settings
+ * Body: { margin_cents_kwh, transfer_cents_kwh, vat_percent }
+ */
+router.post('/costs/settings', express.json(), (req, res) => {
+  const { margin_cents_kwh, transfer_cents_kwh, vat_percent } = req.body || {};
+
+  if (margin_cents_kwh != null && !isNaN(parseFloat(margin_cents_kwh))) {
+    updateCostSetting('margin_cents_kwh', parseFloat(margin_cents_kwh));
+  }
+  if (transfer_cents_kwh != null && !isNaN(parseFloat(transfer_cents_kwh))) {
+    updateCostSetting('transfer_cents_kwh', parseFloat(transfer_cents_kwh));
+  }
+  if (vat_percent != null && !isNaN(parseFloat(vat_percent))) {
+    updateCostSetting('vat_percent', parseFloat(vat_percent));
+  }
+
+  // Recalculate recent history with new price settings
+  costCalculator.recalculateRecentDays(30);
+
+  res.json({
+    ok: true,
+    settings: getCostSettings(),
+  });
+});
+
+/**
+ * POST /api/costs/recalculate
+ * Body: { days: 30 }
+ */
+router.post('/costs/recalculate', express.json(), (req, res) => {
+  const days = req.body?.days ? parseInt(req.body.days) : 30;
+  const results = costCalculator.recalculateRecentDays(days);
+  res.json({
+    ok: true,
+    recalculatedCount: results.length,
+    summary: costCalculator.getCostSummary(),
+  });
+});
+
+module.exports = router;
 

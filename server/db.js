@@ -65,6 +65,33 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_weather_time
     ON weather_forecast (time);
+
+  CREATE TABLE IF NOT EXISTS daily_costs (
+    date                   TEXT PRIMARY KEY,
+    heat_consumption_kwh   REAL NOT NULL DEFAULT 0,
+    dhw_consumption_kwh    REAL NOT NULL DEFAULT 0,
+    cool_consumption_kwh   REAL NOT NULL DEFAULT 0,
+    total_consumption_kwh  REAL NOT NULL DEFAULT 0,
+    heat_production_kwh    REAL NOT NULL DEFAULT 0,
+    dhw_production_kwh     REAL NOT NULL DEFAULT 0,
+    total_production_kwh   REAL NOT NULL DEFAULT 0,
+    cop                    REAL,
+    spot_cost_eur          REAL NOT NULL DEFAULT 0,
+    transfer_cost_eur      REAL NOT NULL DEFAULT 0,
+    total_cost_eur         REAL NOT NULL DEFAULT 0,
+    avg_price_cents_kwh    REAL,
+    savings_eur            REAL NOT NULL DEFAULT 0,
+    is_final               INTEGER NOT NULL DEFAULT 0,
+    updated_at             INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_daily_costs_date
+    ON daily_costs (date);
+
+  CREATE TABLE IF NOT EXISTS cost_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
 `);
 
 // ─── Prepared Statements ─────────────────────────────────────────────────────
@@ -107,6 +134,68 @@ const stmtGetLatestHistory = db.prepare(`
   SELECT recorded_at FROM sensor_history
   WHERE topic = ?
   ORDER BY recorded_at DESC LIMIT 1
+`);
+
+const stmtUpsertDailyCost = db.prepare(`
+  INSERT INTO daily_costs (
+    date,
+    heat_consumption_kwh,
+    dhw_consumption_kwh,
+    cool_consumption_kwh,
+    total_consumption_kwh,
+    heat_production_kwh,
+    dhw_production_kwh,
+    total_production_kwh,
+    cop,
+    spot_cost_eur,
+    transfer_cost_eur,
+    total_cost_eur,
+    avg_price_cents_kwh,
+    savings_eur,
+    is_final,
+    updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(date) DO UPDATE SET
+    heat_consumption_kwh = excluded.heat_consumption_kwh,
+    dhw_consumption_kwh = excluded.dhw_consumption_kwh,
+    cool_consumption_kwh = excluded.cool_consumption_kwh,
+    total_consumption_kwh = excluded.total_consumption_kwh,
+    heat_production_kwh = excluded.heat_production_kwh,
+    dhw_production_kwh = excluded.dhw_production_kwh,
+    total_production_kwh = excluded.total_production_kwh,
+    cop = excluded.cop,
+    spot_cost_eur = excluded.spot_cost_eur,
+    transfer_cost_eur = excluded.transfer_cost_eur,
+    total_cost_eur = excluded.total_cost_eur,
+    avg_price_cents_kwh = excluded.avg_price_cents_kwh,
+    savings_eur = excluded.savings_eur,
+    is_final = excluded.is_final,
+    updated_at = excluded.updated_at
+`);
+
+const stmtGetDailyCosts = db.prepare(`
+  SELECT * FROM daily_costs
+  WHERE date >= ? AND date <= ?
+  ORDER BY date ASC
+`);
+
+const stmtGetRecentDailyCosts = db.prepare(`
+  SELECT * FROM daily_costs
+  ORDER BY date DESC
+  LIMIT ?
+`);
+
+const stmtGetDailyCostByDate = db.prepare(`
+  SELECT * FROM daily_costs
+  WHERE date = ?
+`);
+
+const stmtGetCostSettings = db.prepare(`SELECT key, value FROM cost_settings`);
+
+const stmtUpsertCostSetting = db.prepare(`
+  INSERT INTO cost_settings (key, value)
+  VALUES (?, ?)
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value
 `);
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -173,6 +262,72 @@ function getMultiTopicHistory(topicsArray, from, to) {
   }));
 }
 
+/**
+ * Upsert daily cost entry.
+ */
+function upsertDailyCost(cost) {
+  stmtUpsertDailyCost.run(
+    cost.date,
+    cost.heat_consumption_kwh || 0,
+    cost.dhw_consumption_kwh || 0,
+    cost.cool_consumption_kwh || 0,
+    cost.total_consumption_kwh || 0,
+    cost.heat_production_kwh || 0,
+    cost.dhw_production_kwh || 0,
+    cost.total_production_kwh || 0,
+    cost.cop != null ? cost.cop : null,
+    cost.spot_cost_eur || 0,
+    cost.transfer_cost_eur || 0,
+    cost.total_cost_eur || 0,
+    cost.avg_price_cents_kwh != null ? cost.avg_price_cents_kwh : null,
+    cost.savings_eur || 0,
+    cost.is_final ? 1 : 0,
+    cost.updated_at || Date.now()
+  );
+}
+
+/**
+ * Get daily costs for a date range or latest N days.
+ */
+function getDailyCosts(startDate, endDate, limit = 30) {
+  if (startDate && endDate) {
+    return stmtGetDailyCosts.all(startDate, endDate);
+  }
+  const rows = stmtGetRecentDailyCosts.all(limit);
+  return rows.reverse(); // chronological order
+}
+
+/**
+ * Get single day cost.
+ */
+function getDailyCost(dateStr) {
+  return stmtGetDailyCostByDate.get(dateStr) || null;
+}
+
+/**
+ * Get cost settings with defaults.
+ */
+function getCostSettings() {
+  const rows = stmtGetCostSettings.all();
+  const settings = {
+    margin_cents_kwh: 0.50,    // 0.50 c/kWh välityspalkkio
+    transfer_cents_kwh: 4.50,  // 4.50 c/kWh siirtohinta + sähkövero
+    vat_percent: 25.5,         // ALV 25.5%
+  };
+  for (const r of rows) {
+    const n = parseFloat(r.value);
+    if (!isNaN(n)) settings[r.key] = n;
+  }
+  return settings;
+}
+
+/**
+ * Update single cost setting.
+ */
+function updateCostSetting(key, value) {
+  stmtUpsertCostSetting.run(key, String(value));
+}
+
 module.exports = {
   db,
   updateState,
@@ -181,4 +336,9 @@ module.exports = {
   getFullState,
   getTopicHistory,
   getMultiTopicHistory,
+  upsertDailyCost,
+  getDailyCosts,
+  getDailyCost,
+  getCostSettings,
+  updateCostSetting,
 };

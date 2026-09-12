@@ -10,6 +10,7 @@ const mqttClient = require('./mqtt-client');
 const zigbeeClient = require('./zigbee-client');
 const nordpoolClient = require('./nordpool-client');
 const weatherClient = require('./weather-client');
+const costCalculator = require('./cost-calculator');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -141,6 +142,7 @@ nordpoolClient.setDb(require('./db'));
 nordpoolClient.startScheduler();
 weatherClient.setDb(require('./db'));
 weatherClient.startScheduler();
+costCalculator.startScheduler();
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 
