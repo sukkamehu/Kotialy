@@ -3,6 +3,7 @@ import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
+import { useApc } from '../hooks/useApc';
 import { SetpointControl } from './SetpointControl';
 
 /*
@@ -109,6 +110,7 @@ function BufferSvg({
 export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferTankCardProps) {
   const bufferTemp = numVal(state, 'main/Buffer_Temp');
   const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
+  const mainTargetTemp = numVal(state, 'main/Main_Target_Temp');
   const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
 
   // Power – prefer XTOP values, fallback to main topics
@@ -130,10 +132,15 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
 
   const { send, pending, error, success } = useCommand();
   const { calcCostPerHour } = useElectricityPrice();
+  const { status: apcStatus, updateSettings: updateApcSettings } = useApc();
   const cost = calcCostPerHour(cons);
 
   const [mode, setMode] = useState<Z1Mode>(loadMode);
   const cfg = Z1_MODES[mode];
+
+  const apcEnabled = apcStatus?.enabled ?? false;
+  const baseZ1Shift = apcStatus?.settings?.base_z1_shift ?? 0;
+  const directive = apcStatus?.currentDirective ?? 'NORMAL';
 
   function changeMode(next: Z1Mode) {
     setMode(next);
@@ -141,8 +148,12 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   }
 
   function setZ1(v: number) {
-    send('commands/SetZ1HeatRequestTemperature', v,
-      mode === 'curve' ? `Käyrän siirto asetettu: ${v > 0 ? '+' : ''}${v}` : `Tavoite asetettu: ${v} °C`);
+    if (apcEnabled && mode === 'curve') {
+      updateApcSettings({ base_z1_shift: v });
+    } else {
+      send('commands/SetZ1HeatRequestTemperature', v,
+        mode === 'curve' ? `Käyrän siirto asetettu: ${v > 0 ? '+' : ''}${v}` : `Tavoite asetettu: ${v} °C`);
+    }
   }
 
   const delta = inletTemp !== null && bufferTemp !== null
@@ -152,6 +163,49 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   const tempColor = bufferTemp !== null && bufferTemp > 45
     ? 'var(--heat-primary)'
     : 'var(--buffer-primary)';
+
+  const getDirectiveBadge = () => {
+    switch (directive) {
+      case 'BOOST':
+        return {
+          icon: '🔥',
+          label: 'APC Esilämmitys / Boost',
+          tag: `+${apcStatus?.settings?.buffer_boost_c ?? 3}°C`,
+          bg: 'rgba(245, 158, 11, 0.15)',
+          border: 'rgba(245, 158, 11, 0.3)',
+          color: '#f59e0b',
+        };
+      case 'SETBACK':
+        return {
+          icon: '⚡',
+          label: 'APC Hintahuippusäästö',
+          tag: `${apcStatus?.settings?.buffer_setback_c ?? -2}°C`,
+          bg: 'rgba(56, 189, 248, 0.15)',
+          border: 'rgba(56, 189, 248, 0.3)',
+          color: '#38bdf8',
+        };
+      case 'ECO':
+        return {
+          icon: '🌱',
+          label: 'APC Eko-säästö',
+          tag: '-1°C',
+          bg: 'rgba(16, 185, 129, 0.15)',
+          border: 'rgba(16, 185, 129, 0.3)',
+          color: '#10b981',
+        };
+      default:
+        return {
+          icon: '⚖️',
+          label: 'APC Normaali',
+          tag: 'Perusasetus',
+          bg: 'rgba(167, 139, 250, 0.15)',
+          border: 'rgba(167, 139, 250, 0.3)',
+          color: '#a78bfa',
+        };
+    }
+  };
+
+  const directiveBadge = getDirectiveBadge();
 
   return (
     <div className="card" style={{
@@ -230,9 +284,58 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
             </div>
           </div>
 
+          {/* 1. Active Moment Display when APC is controlling the curve */}
+          {apcEnabled && mode === 'curve' && (
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              marginBottom: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  ⚡ Nykyhetken aktiivinen pyynti
+                </span>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: directiveBadge.color,
+                  backgroundColor: directiveBadge.bg,
+                  border: `1px solid ${directiveBadge.border}`,
+                  padding: '2px 7px',
+                  borderRadius: 6,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  <span>{directiveBadge.icon}</span>
+                  <span>{directiveBadge.tag}</span>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Pumpulle lähetetty siirto:
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {z1Request !== null ? `${z1Request > 0 ? '+' : ''}${z1Request}` : '—'}
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 3 }}>
+                    {mainTargetTemp !== null ? `(menovesi ~${mainTargetTemp.toFixed(1)}°C)` : ''}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                {directiveBadge.label} · Ohjataan automaattisesti sähkön hinnan mukaan
+              </div>
+            </div>
+          )}
+
+          {/* 2. Base Setting Stepper */}
           <SetpointControl
-            label={cfg.label}
-            value={z1Request}
+            label={apcEnabled && mode === 'curve' ? '🎯 Käyrän perusasetus (keskiarvo)' : cfg.label}
+            value={apcEnabled && mode === 'curve' ? baseZ1Shift : z1Request}
             min={cfg.min}
             max={cfg.max}
             step={1}
@@ -243,7 +346,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
             disabled={readOnly}
             onCommit={setZ1}
             idPrefix="z1-request"
-            hint={cfg.hint}
+            hint={apcEnabled && mode === 'curve' ? 'APC laskee siirrot tämän perusarvon päälle' : cfg.hint}
           />
 
           {z1Request === null && (

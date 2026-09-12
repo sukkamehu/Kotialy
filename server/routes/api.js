@@ -218,6 +218,15 @@ router.post('/command', requireAdmin, express.json(), (req, res) => {
   }
 
   try {
+    if (setTopic === 'commands/SetZ1HeatRequestTemperature') {
+      const dbModule = require('../db');
+      const apcSettings = dbModule.getApcSettings();
+      if (apcSettings.enabled) {
+        dbModule.updateApcSetting('base_z1_shift', num);
+        apcService.evaluate();
+        return res.json({ ok: true, setTopic, value: num, isApcBase: true });
+      }
+    }
     mqttClient.publish(setTopic, num);
     res.json({ ok: true, setTopic, value: num });
   } catch (err) {

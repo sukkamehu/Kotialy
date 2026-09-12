@@ -5,6 +5,7 @@ export type ApcDirective = 'BOOST' | 'NORMAL' | 'SETBACK' | 'ECO' | 'DHW_CYCLE';
 export interface ApcSettings {
   enabled: boolean;
   mode: ApcMode;
+  base_z1_shift?: number;
   buffer_boost_c: number;
   buffer_setback_c: number;
   dhw_target_c: number;

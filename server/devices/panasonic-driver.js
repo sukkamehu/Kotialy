@@ -59,13 +59,14 @@ class PanasonicDriver {
     const { settings, price, bufferTemp, dhwTemp, isDhwSlot } = context;
     const now = Date.now();
 
-    let targetShift = 0;
+    const baseShift = settings.base_z1_shift ?? 0;
+    let targetShift = baseShift;
     let targetDhw = settings.dhw_min_c || 45;
     let forceDhw = 0;
 
     switch (directive) {
       case 'BOOST':
-        targetShift = Math.max(1, Math.min(settings.buffer_boost_c || 5, 15));
+        targetShift = Math.max(-5, Math.min(15, baseShift + (settings.buffer_boost_c || 3)));
         if (isDhwSlot) {
           targetDhw = settings.dhw_target_c || 55;
           forceDhw = 1;
@@ -73,26 +74,26 @@ class PanasonicDriver {
         break;
 
       case 'SETBACK':
-        targetShift = Math.min(-1, Math.max(settings.buffer_setback_c || -2, -10));
+        targetShift = Math.max(-10, Math.min(5, baseShift + (settings.buffer_setback_c || -2)));
         targetDhw = settings.dhw_min_c || 45;
         forceDhw = 0;
         break;
 
       case 'ECO':
-        targetShift = -1;
+        targetShift = baseShift - 1;
         targetDhw = settings.dhw_min_c || 45;
         forceDhw = 0;
         break;
 
       case 'DHW_CYCLE':
-        targetShift = 0;
+        targetShift = baseShift;
         targetDhw = settings.dhw_target_c || 55;
         forceDhw = 1;
         break;
 
       case 'NORMAL':
       default:
-        targetShift = 0;
+        targetShift = baseShift;
         targetDhw = 50;
         forceDhw = 0;
         break;

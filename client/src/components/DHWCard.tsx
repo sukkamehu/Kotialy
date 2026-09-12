@@ -2,6 +2,7 @@ import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
+import { useApc } from '../hooks/useApc';
 import { SetpointControl } from './SetpointControl';
 import { ToggleRow } from './SegmentedControl';
 
@@ -109,7 +110,12 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
 
   const { send, pending, error, success } = useCommand();
   const { calcCostPerHour } = useElectricityPrice();
+  const { status: apcStatus, updateSettings: updateApcSettings } = useApc();
   const cost = calcCostPerHour(dhwCons);
+
+  const apcEnabled = apcStatus?.enabled ?? false;
+  const baseDhwTarget = apcStatus?.settings?.dhw_target_c ?? 55;
+  const activeDhwSlot = apcStatus?.activeDhwSlot ?? false;
 
   function toggleForceHeater() {
     send('commands/SetForceHeater', forceHeater ? 0 : 1,
@@ -117,7 +123,11 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   }
 
   function setDHWTarget(v: number) {
-    send('commands/SetDHWTemp', v, `Käyttöveden tavoite asetettu ${v} °C`);
+    if (apcEnabled) {
+      updateApcSettings({ dhw_target_c: v });
+    } else {
+      send('commands/SetDHWTemp', v, `Käyttöveden tavoite asetettu ${v} °C`);
+    }
   }
 
   const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
@@ -171,11 +181,57 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
 
         <div className="divider" />
 
-        {/* Setpoint */}
+        {/* Setpoints & APC Dual Target */}
         <div style={{ marginTop: 12 }}>
+          {/* 1. Live target indicator if APC is enabled */}
+          {apcEnabled && (
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              marginBottom: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  ⚡ Nykyhetken aktiivinen pyynti
+                </span>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: activeDhwSlot ? '#f59e0b' : '#38bdf8',
+                  backgroundColor: activeDhwSlot ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                  border: `1px solid ${activeDhwSlot ? 'rgba(245, 158, 11, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
+                  padding: '2px 7px',
+                  borderRadius: 6,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  <span>{activeDhwSlot ? '🔥' : '⚡'}</span>
+                  <span>{activeDhwSlot ? 'Kuumennusjakso' : 'Säästölämpötila'}</span>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Pumpun nykyinen tavoite:
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {target !== null ? `${target} °C` : '—'}
+                </div>
+              </div>
+
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                {activeDhwSlot ? 'Halvan jakson kuumennus käynnissä' : 'Odottaa vuorokauden edullisinta aikaa'}
+              </div>
+            </div>
+          )}
+
+          {/* 2. Base setting stepper */}
           <SetpointControl
-            label="Käyttöveden tavoitelämpötila"
-            value={target}
+            label={apcEnabled ? '🎯 Kuumennuksen perustavoite' : 'Käyttöveden tavoitelämpötila'}
+            value={apcEnabled ? baseDhwTarget : target}
             min={40}
             max={75}
             step={1}
@@ -184,7 +240,7 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
             disabled={readOnly}
             onCommit={setDHWTarget}
             idPrefix="dhw-target"
-            hint="legionellakuumennus vaatii ≥60 °C"
+            hint={apcEnabled ? 'APC kuumentaa tähän lämpötilaan edullisena aikana' : 'legionellakuumennus vaatii ≥60 °C'}
           />
         </div>
 

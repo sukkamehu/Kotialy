@@ -376,6 +376,7 @@ function getApcSettings() {
   const settings = {
     enabled: true,
     mode: 'balanced', // 'balanced' | 'eco' | 'comfort' | 'dhw_only'
+    base_z1_shift: 0,
     buffer_boost_c: 3,
     buffer_setback_c: -2,
     dhw_target_c: 55,
