@@ -32,12 +32,23 @@ function loadMode(): Z1Mode {
   }
 }
 
+import type { TrendTopicTarget } from './VariableTrendModal';
+
 interface BufferTankCardProps {
   state: HeishamonState;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }
 
-function BufferSvg({ temp, maxTemp = 70, minTemp = 20 }: {
-  temp: number | null; maxTemp?: number; minTemp?: number;
+function BufferSvg({
+  temp,
+  maxTemp = 70,
+  minTemp = 20,
+  onOpenTrend,
+}: {
+  temp: number | null;
+  maxTemp?: number;
+  minTemp?: number;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }) {
   const fillPct = temp !== null
     ? Math.max(5, Math.min(95, ((temp - minTemp) / (maxTemp - minTemp)) * 100))
@@ -47,34 +58,54 @@ function BufferSvg({ temp, maxTemp = 70, minTemp = 20 }: {
   const glow = temp !== null && temp > 45 ? 'rgba(245,158,11,0.3)' : 'rgba(167,139,250,0.3)';
 
   return (
-    <svg width="50" height="80" viewBox="0 0 50 80" fill="none" style={{ flexShrink: 0 }}>
-      {/* Cylinder body */}
-      <rect x="5" y="10" width="40" height="58" rx="6" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-      {/* Fill */}
-      <clipPath id="buf-clip"><rect x="6.5" y="11.5" width="37" height="55" rx="5.5" /></clipPath>
-      <g clipPath="url(#buf-clip)">
-        <rect
-          x="6.5"
-          y={11.5 + 55 * (1 - fillPct / 100)}
-          width="37"
-          height={55 * fillPct / 100}
-          fill={color}
-          opacity="0.2"
-          style={{ transition: 'all 1s ease', filter: `drop-shadow(0 0 4px ${glow})` }}
-        />
-      </g>
-      {/* Caps */}
-      <ellipse cx="25" cy="10" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-      <ellipse cx="25" cy="68" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-      {/* Sensor indicator */}
-      <circle cx="25" cy="39" r="3" fill={color} opacity="0.8" style={{ filter: `drop-shadow(0 0 3px ${glow})` }}/>
-      <line x1="25" y1="11.5" x2="25" y2="36" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2"/>
-      <line x1="25" y1="42" x2="25" y2="63" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2"/>
-    </svg>
+    <div
+      className="gauge-clickable"
+      title="Klikkaa nähdäksesi puskurisäiliön lämpötilatrendi"
+      onClick={() =>
+        onOpenTrend?.({
+          topic: 'main/Buffer_Temp',
+          label: 'Puskurivaraajan lämpötila',
+          unit: '°C',
+          color: '#a78bfa',
+          currentValue: temp,
+        })
+      }
+      style={{ flexShrink: 0 }}
+    >
+      <svg
+        width="50"
+        height="80"
+        viewBox="0 0 50 80"
+        fill="none"
+      >
+        {/* Cylinder body */}
+        <rect x="5" y="10" width="40" height="58" rx="6" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        {/* Fill */}
+        <clipPath id="buf-clip"><rect x="6.5" y="11.5" width="37" height="55" rx="5.5" /></clipPath>
+        <g clipPath="url(#buf-clip)">
+          <rect
+            x="6.5"
+            y={11.5 + 55 * (1 - fillPct / 100)}
+            width="37"
+            height={55 * fillPct / 100}
+            fill={color}
+            opacity="0.2"
+            style={{ transition: 'all 1s ease', filter: `drop-shadow(0 0 4px ${glow})` }}
+          />
+        </g>
+        {/* Caps */}
+        <ellipse cx="25" cy="10" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        <ellipse cx="25" cy="68" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        {/* Sensor indicator */}
+        <circle cx="25" cy="39" r="3" fill={color} opacity="0.8" style={{ filter: `drop-shadow(0 0 3px ${glow})` }}/>
+        <line x1="25" y1="11.5" x2="25" y2="36" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2"/>
+        <line x1="25" y1="42" x2="25" y2="63" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2"/>
+      </svg>
+    </div>
   );
 }
 
-export function BufferTankCard({ state }: BufferTankCardProps) {
+export function BufferTankCard({ state, onOpenTrend }: BufferTankCardProps) {
   const bufferTemp = numVal(state, 'main/Buffer_Temp');
   const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
   const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
@@ -140,10 +171,22 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
       </div>
       <div className="card-body">
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
-          <BufferSvg temp={bufferTemp} />
+          <BufferSvg temp={bufferTemp} onOpenTrend={onOpenTrend} />
           <div style={{ flex: 1 }}>
-            <div className="metric">
-              <span className="metric-label">Puskurin lämpötila</span>
+            <div
+              className="metric metric-clickable"
+              title="Klikkaa nähdäksesi puskurisäiliön lämpötilatrendi"
+              onClick={() =>
+                onOpenTrend?.({
+                  topic: 'main/Buffer_Temp',
+                  label: 'Puskurivaraajan lämpötila',
+                  unit: '°C',
+                  color: '#a78bfa',
+                  currentValue: bufferTemp,
+                })
+              }
+            >
+              <span className="metric-label">Puskurin lämpötila ↗</span>
               <span className="metric-value" style={{ fontSize: 34, color: tempColor }}>
                 {bufferTemp !== null ? bufferTemp.toFixed(1) : '—'}
                 <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>

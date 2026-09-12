@@ -23,18 +23,42 @@ const POWERFUL_TIMES = [
   { value: 3, label: '90 min' },
 ];
 
+import type { TrendTopicTarget } from './VariableTrendModal';
+
 interface HeatpumpCardProps {
   state: HeishamonState;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }
 
-function CompressorRing({ freq, isOn }: { freq: number | null; isOn: boolean }) {
+function CompressorRing({
+  freq,
+  isOn,
+  onOpenTrend,
+}: {
+  freq: number | null;
+  isOn: boolean;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
+}) {
   const maxFreq = 120;
   const pct = freq ? Math.min((freq / maxFreq) * 100, 100) : 0;
   const circumference = 2 * Math.PI * 26;
   const strokeDash = (pct / 100) * circumference;
 
   return (
-    <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+    <div
+      className="gauge-clickable"
+      title="Klikkaa nähdäksesi kompressorin taajuustrendi"
+      onClick={() =>
+        onOpenTrend?.({
+          topic: 'main/Compressor_Freq',
+          label: 'Kompressorin taajuus',
+          unit: 'Hz',
+          color: '#fb923c',
+          currentValue: freq,
+        })
+      }
+      style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}
+    >
       <svg width="72" height="72" style={{ transform: 'rotate(-90deg)' }}>
         <circle cx="36" cy="36" r="26" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
         {isOn && (
@@ -68,7 +92,17 @@ function CompressorRing({ freq, isOn }: { freq: number | null; isOn: boolean }) 
   );
 }
 
-function TempFlow({ inlet, outlet, target }: { inlet: number | null; outlet: number | null; target: number | null }) {
+function TempFlow({
+  inlet,
+  outlet,
+  target,
+  onOpenTrend,
+}: {
+  inlet: number | null;
+  outlet: number | null;
+  target: number | null;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
+}) {
   const minTemp = 20, maxTemp = 70;
   const outletPct = outlet ? Math.max(0, Math.min(100, ((outlet - minTemp) / (maxTemp - minTemp)) * 100)) : 0;
   const targetPct = target ? Math.max(0, Math.min(100, ((target - minTemp) / (maxTemp - minTemp)) * 100)) : 0;
@@ -76,16 +110,41 @@ function TempFlow({ inlet, outlet, target }: { inlet: number | null; outlet: num
   return (
     <div style={{ flex: 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        <div className="metric metric-sm">
-          <span className="metric-label">Tulo (Inlet)</span>
+        <div
+          className="metric metric-sm metric-clickable"
+          title="Klikkaa nähdäksesi tuloveden trendi"
+          onClick={() =>
+            onOpenTrend?.({
+              topic: 'main/Main_Inlet_Temp',
+              label: 'Tuloveden lämpötila',
+              unit: '°C',
+              color: 'var(--cool-primary)',
+              currentValue: inlet,
+            })
+          }
+        >
+          <span className="metric-label">Tulo (Inlet) ↗</span>
           <span className="metric-value" style={{ color: 'var(--cool-primary)' }}>
             {inlet !== null ? inlet.toFixed(1) : '—'}
             <span className="metric-unit">°C</span>
           </span>
         </div>
         <div style={{ fontSize: 20, alignSelf: 'center', color: 'var(--text-muted)' }}>→</div>
-        <div className="metric metric-sm" style={{ textAlign: 'right' }}>
-          <span className="metric-label">Meno (Outlet)</span>
+        <div
+          className="metric metric-sm metric-clickable"
+          style={{ textAlign: 'right' }}
+          title="Klikkaa nähdäksesi menoveden trendi"
+          onClick={() =>
+            onOpenTrend?.({
+              topic: 'main/Main_Outlet_Temp',
+              label: 'Menoveden lämpötila',
+              unit: '°C',
+              color: 'var(--heat-primary)',
+              currentValue: outlet,
+            })
+          }
+        >
+          <span className="metric-label">Meno (Outlet) ↗</span>
           <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
             {outlet !== null ? outlet.toFixed(1) : '—'}
             <span className="metric-unit">°C</span>
@@ -109,7 +168,7 @@ function TempFlow({ inlet, outlet, target }: { inlet: number | null; outlet: num
   );
 }
 
-export function HeatpumpCard({ state }: HeatpumpCardProps) {
+export function HeatpumpCard({ state, onOpenTrend }: HeatpumpCardProps) {
   const isOn = state['main/Heatpump_State']?.value === '1';
   const freq = numVal(state, 'main/Compressor_Freq');
   const inlet = numVal(state, 'main/Main_Inlet_Temp');
@@ -158,30 +217,66 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
       <div className="card-body">
         {/* Compressor + Temps */}
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 20 }}>
-          <CompressorRing freq={freq} isOn={isOn} />
-          <TempFlow inlet={inlet} outlet={outlet} target={target} />
+          <CompressorRing freq={freq} isOn={isOn} onOpenTrend={onOpenTrend} />
+          <TempFlow inlet={inlet} outlet={outlet} target={target} onOpenTrend={onOpenTrend} />
         </div>
 
         <div className="divider" />
 
         {/* Secondary metrics */}
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 16 }}>
-          <div className="metric metric-sm">
-            <span className="metric-label">Virtaus</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi virtausnopeuden trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Pump_Flow',
+                label: 'Kiertovesipumpun virtausnopeus',
+                unit: 'L/min',
+                color: '#34d399',
+                currentValue: flow,
+              })
+            }
+          >
+            <span className="metric-label">Virtaus ↗</span>
             <span className="metric-value">
               {flow !== null ? flow.toFixed(1) : '—'}
               <span className="metric-unit">L/min</span>
             </span>
           </div>
-          <div className="metric metric-sm">
-            <span className="metric-label">Pumpun nopeus</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi pumpun pyörimisnopeuden trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Pump_Speed',
+                label: 'Pumpun pyörimisnopeus',
+                unit: 'rpm',
+                color: '#60a5fa',
+                currentValue: pumpSpeed,
+              })
+            }
+          >
+            <span className="metric-label">Pumpun nopeus ↗</span>
             <span className="metric-value">
               {pumpSpeed !== null ? Math.round(pumpSpeed) : '—'}
               <span className="metric-unit">rpm</span>
             </span>
           </div>
-          <div className="metric metric-sm">
-            <span className="metric-label">Korkeapaine</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi korkeapaineen trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/High_Pressure',
+                label: 'Korkeapaine',
+                unit: 'kg',
+                color: '#f87171',
+                currentValue: highPress,
+              })
+            }
+          >
+            <span className="metric-label">Korkeapaine ↗</span>
             <span className="metric-value">
               {highPress !== null ? highPress.toFixed(2) : '—'}
               <span className="metric-unit">kg</span>

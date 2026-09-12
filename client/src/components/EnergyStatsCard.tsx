@@ -1,11 +1,14 @@
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 
+import type { TrendTopicTarget } from './VariableTrendModal';
+
 interface EnergyStatsCardProps {
   state: HeishamonState;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }
 
-export function EnergyStatsCard({ state }: EnergyStatsCardProps) {
+export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
   // Cumulative energies (prefer XTOP, fallback to main)
   const heatProd = numVal(state, 'extra/Heat_Energy_Production') ?? numVal(state, 'main/Heat_Energy_Production');
   const heatCons = numVal(state, 'extra/Heat_Energy_Consumption') ?? numVal(state, 'main/Heat_Energy_Consumption');
@@ -74,15 +77,37 @@ export function EnergyStatsCard({ state }: EnergyStatsCardProps) {
 
             {/* Total Energy KPI Tiles */}
             <div className="metrics-grid metrics-grid-3">
-              <div className="metric-box">
-                <span className="metric-label">Tuotettu lämpö</span>
+              <div
+                className="metric-box metric-clickable"
+                title="Klikkaa nähdäksesi lämmitystehon tuottotrendi"
+                onClick={() =>
+                  onOpenTrend?.({
+                    topic: 'main/Heat_Power_Production',
+                    label: 'Lämmitysteho (tuotto)',
+                    unit: 'W',
+                    color: 'var(--heat-primary)',
+                  })
+                }
+              >
+                <span className="metric-label">Tuotettu lämpö ↗</span>
                 <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
                   {hasEnergyData ? `${Math.round(totalProd).toLocaleString('fi-FI')}` : '—'}
                   <span className="metric-unit">kWh</span>
                 </span>
               </div>
-              <div className="metric-box">
-                <span className="metric-label">Käytetty sähkö</span>
+              <div
+                className="metric-box metric-clickable"
+                title="Klikkaa nähdäksesi lämmityksen ottotehotrendi"
+                onClick={() =>
+                  onOpenTrend?.({
+                    topic: 'main/Heat_Power_Consumption',
+                    label: 'Ottoteho (lämmitys)',
+                    unit: 'W',
+                    color: '#f43f5e',
+                  })
+                }
+              >
+                <span className="metric-label">Käytetty sähkö ↗</span>
                 <span className="metric-value">
                   {hasEnergyData ? `${Math.round(totalCons).toLocaleString('fi-FI')}` : '—'}
                   <span className="metric-unit">kWh</span>
@@ -107,10 +132,22 @@ export function EnergyStatsCard({ state }: EnergyStatsCardProps) {
               gap: 10,
             }}>
               {/* Heating row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div
+                className="metric-clickable"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                title="Klikkaa nähdäksesi lämmitystehon trendi"
+                onClick={() =>
+                  onOpenTrend?.({
+                    topic: 'main/Heat_Power_Production',
+                    label: 'Lämmitysteho (tuotto)',
+                    unit: 'W',
+                    color: 'var(--buffer-primary)',
+                  })
+                }
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--buffer-primary)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>Tilojen lämmitys</span>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>Tilojen lämmitys ↗</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
                   <span style={{ color: 'var(--text-secondary)' }}>
@@ -126,10 +163,22 @@ export function EnergyStatsCard({ state }: EnergyStatsCardProps) {
               </div>
 
               {/* DHW row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div
+                className="metric-clickable"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                title="Klikkaa nähdäksesi käyttöveden tuottotehon trendi"
+                onClick={() =>
+                  onOpenTrend?.({
+                    topic: 'main/DHW_Power_Production',
+                    label: 'Käyttöveden tuottoteho',
+                    unit: 'W',
+                    color: 'var(--dhw-primary)',
+                  })
+                }
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--dhw-primary)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>Käyttövesi</span>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>Käyttövesi ↗</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
                   <span style={{ color: 'var(--text-secondary)' }}>

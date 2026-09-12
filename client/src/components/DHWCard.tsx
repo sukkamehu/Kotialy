@@ -5,12 +5,25 @@ import { useElectricityPrice } from '../hooks/useElectricityPrice';
 import { SetpointControl } from './SetpointControl';
 import { ToggleRow } from './SegmentedControl';
 
+import type { TrendTopicTarget } from './VariableTrendModal';
+
 interface DHWCardProps {
   state: HeishamonState;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }
 
-function TankSvg({ temp, target, maxTemp = 65, minTemp = 20 }: {
-  temp: number | null; target: number | null; maxTemp?: number; minTemp?: number;
+function TankSvg({
+  temp,
+  target,
+  maxTemp = 65,
+  minTemp = 20,
+  onOpenTrend,
+}: {
+  temp: number | null;
+  target: number | null;
+  maxTemp?: number;
+  minTemp?: number;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }) {
   const fillPct = temp !== null
     ? Math.max(5, Math.min(95, ((temp - minTemp) / (maxTemp - minTemp)) * 100))
@@ -25,38 +38,58 @@ function TankSvg({ temp, target, maxTemp = 65, minTemp = 20 }: {
   const waterGlow = temp !== null && temp > 45 ? 'rgba(245,158,11,0.3)' : 'rgba(34,211,238,0.2)';
 
   return (
-    <svg width="56" height="90" viewBox="0 0 56 90" fill="none" style={{ flexShrink: 0 }}>
-      {/* Tank outline */}
-      <rect x="6" y="8" width="44" height="72" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-      {/* Water fill */}
-      <clipPath id="tank-clip">
-        <rect x="7.5" y="9.5" width="41" height="69" rx="7" />
-      </clipPath>
-      <g clipPath="url(#tank-clip)">
-        <rect
-          x="7.5"
-          y={9.5 + 69 * (1 - fillPct / 100)}
-          width="41"
-          height={69 * fillPct / 100}
-          fill={waterColor}
-          opacity="0.25"
-          style={{ transition: 'all 1s ease', filter: `drop-shadow(0 0 6px ${waterGlow})` }}
-        />
-      </g>
-      {/* Target line */}
-      {target !== null && (() => {
-        const targetPct = Math.max(5, Math.min(95, ((target - minTemp) / (maxTemp - minTemp)) * 100));
-        const y = 9.5 + 69 * (1 - targetPct / 100);
-        return <line x1="7.5" y1={y} x2="48.5" y2={y} stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeDasharray="3,2" />;
-      })()}
-      {/* Tank caps */}
-      <rect x="16" y="2" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-      <rect x="16" y="80" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-    </svg>
+    <div
+      className="gauge-clickable"
+      title="Klikkaa nähdäksesi käyttöveden lämpötilatrendi"
+      onClick={() =>
+        onOpenTrend?.({
+          topic: 'main/DHW_Temp',
+          label: 'Käyttöveden lämpötila',
+          unit: '°C',
+          color: '#10b981',
+          currentValue: temp,
+        })
+      }
+      style={{ flexShrink: 0 }}
+    >
+      <svg
+        width="56"
+        height="90"
+        viewBox="0 0 56 90"
+        fill="none"
+      >
+        {/* Tank outline */}
+        <rect x="6" y="8" width="44" height="72" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        {/* Water fill */}
+        <clipPath id="tank-clip">
+          <rect x="7.5" y="9.5" width="41" height="69" rx="7" />
+        </clipPath>
+        <g clipPath="url(#tank-clip)">
+          <rect
+            x="7.5"
+            y={9.5 + 69 * (1 - fillPct / 100)}
+            width="41"
+            height={69 * fillPct / 100}
+            fill={waterColor}
+            opacity="0.25"
+            style={{ transition: 'all 1s ease', filter: `drop-shadow(0 0 6px ${waterGlow})` }}
+          />
+        </g>
+        {/* Target line */}
+        {target !== null && (() => {
+          const targetPct = Math.max(5, Math.min(95, ((target - minTemp) / (maxTemp - minTemp)) * 100));
+          const y = 9.5 + 69 * (1 - targetPct / 100);
+          return <line x1="7.5" y1={y} x2="48.5" y2={y} stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeDasharray="3,2" />;
+        })()}
+        {/* Tank caps */}
+        <rect x="16" y="2" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        <rect x="16" y="80" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+      </svg>
+    </div>
   );
 }
 
-export function DHWCard({ state }: DHWCardProps) {
+export function DHWCard({ state, onOpenTrend }: DHWCardProps) {
   const temp = numVal(state, 'main/DHW_Temp');
   const target = numVal(state, 'main/DHW_Target_Temp');
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
@@ -103,10 +136,23 @@ export function DHWCard({ state }: DHWCardProps) {
       </div>
       <div className="card-body">
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
-          <TankSvg temp={temp} target={target} />
+          <TankSvg temp={temp} target={target} onOpenTrend={onOpenTrend} />
           <div style={{ flex: 1 }}>
-            <div className="metric" style={{ marginBottom: 8 }}>
-              <span className="metric-label">Lämpötila</span>
+            <div
+              className="metric metric-clickable"
+              style={{ marginBottom: 8 }}
+              title="Klikkaa nähdäksesi käyttöveden lämpötilatrendi"
+              onClick={() =>
+                onOpenTrend?.({
+                  topic: 'main/DHW_Temp',
+                  label: 'Käyttöveden lämpötila',
+                  unit: '°C',
+                  color: '#10b981',
+                  currentValue: temp,
+                })
+              }
+            >
+              <span className="metric-label">Lämpötila ↗</span>
               <span className="metric-value" style={{ fontSize: 32, color: tempColor }}>
                 {temp !== null ? temp.toFixed(1) : '—'}
                 <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>

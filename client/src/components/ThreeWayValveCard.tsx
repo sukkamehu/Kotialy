@@ -1,11 +1,13 @@
 import type { HeishamonState } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
+import type { TrendTopicTarget } from './VariableTrendModal';
 
 interface ThreeWayValveCardProps {
   state: HeishamonState;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }
 
-export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
+export function ThreeWayValveCard({ state, onOpenTrend }: ThreeWayValveCardProps) {
   const valveState = state['main/ThreeWay_Valve_State'];
   const val = valveState?.value;
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
@@ -49,7 +51,20 @@ export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
       </div>
       <div className="card-body">
         {/* Valve diagram */}
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 16px' }}>
+        <div
+          className="gauge-clickable"
+          title="Klikkaa nähdäksesi 3-tieventtiilin asennon trendi"
+          onClick={() =>
+            onOpenTrend?.({
+              topic: 'main/ThreeWay_Valve_State',
+              label: '3-tieventtiilin asento (0=Lämpö, 1=KV)',
+              unit: '',
+              color: isDHW ? 'var(--dhw-primary)' : 'var(--buffer-primary)',
+              currentValue: val === '1' ? 'Käyttövesi (1)' : 'Lämmitys (0)',
+            })
+          }
+          style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 16px' }}
+        >
           <svg width="140" height="80" viewBox="0 0 140 80" fill="none">
             {/* Heat pump supply side (left) - green */}
             <line
@@ -100,7 +115,20 @@ export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
           </svg>
         </div>
 
-        <div style={{ textAlign: 'center' }}>
+        <div
+          className="metric-clickable"
+          style={{ textAlign: 'center' }}
+          title="Klikkaa nähdäksesi 3-tieventtiilin asennon trendi"
+          onClick={() =>
+            onOpenTrend?.({
+              topic: 'main/ThreeWay_Valve_State',
+              label: '3-tieventtiilin asento (0=Lämpö, 1=KV)',
+              unit: '',
+              color: isDHW ? 'var(--dhw-primary)' : 'var(--buffer-primary)',
+              currentValue: val === '1' ? 'Käyttövesi (1)' : 'Lämmitys (0)',
+            })
+          }
+        >
           {!hasData ? (
             <p className="no-data">
               {isUnknown
@@ -114,7 +142,7 @@ export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
                 color: isDHW ? 'var(--dhw-primary)' : 'var(--buffer-primary)',
                 marginBottom: 4,
               }}>
-                {isDHW ? 'Ohjaa käyttövesivaraajaan (DHW)' : 'Ohjaa lämmityspiiriin (Lämpö)'}
+                {isDHW ? 'Ohjaa käyttövesivaraajaan (DHW) ↗' : 'Ohjaa lämmityspiiriin (Lämpö) ↗'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 PAW-3WYVLV4HW · Tila {val}

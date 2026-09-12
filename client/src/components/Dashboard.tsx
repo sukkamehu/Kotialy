@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { HeishamonState, MqttStatus } from '../types/heishamon';
 import type { ZigbeeRegistry } from '../types/zigbee';
 import { StatusBar } from './StatusBar';
@@ -12,6 +13,7 @@ import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
 import { NordpoolPanel } from './NordpoolPanel';
 import { WeatherPanel } from './WeatherPanel';
+import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 
 interface DashboardProps {
   state: HeishamonState;
@@ -41,6 +43,7 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
+  const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
 
   return (
     <div className="app-bg" style={{ minHeight: '100vh' }}>
@@ -96,15 +99,15 @@ export function Dashboard({
           <>
             {/* Row 1: Main monitoring cards */}
             <div className="dashboard-grid dashboard-grid-main">
-              <HeatpumpCard state={state} />
-              <DHWCard state={state} />
-              <BufferTankCard state={state} />
+              <HeatpumpCard state={state} onOpenTrend={setTrendTarget} />
+              <DHWCard state={state} onOpenTrend={setTrendTarget} />
+              <BufferTankCard state={state} onOpenTrend={setTrendTarget} />
             </div>
 
             {/* Row 2: Outdoor + Valve — each card carries its own controls */}
             <div className="dashboard-grid dashboard-grid-sub">
-              <OutdoorCard state={state} />
-              <ThreeWayValveCard state={state} />
+              <OutdoorCard state={state} onOpenTrend={setTrendTarget} />
+              <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} />
             </div>
 
             {/* Row 3: Daily Energy Costs & Savings */}
@@ -114,7 +117,7 @@ export function Dashboard({
 
             {/* Row 4: Energy & Lifecycle Analytics */}
             <div style={{ marginBottom: 20 }}>
-              <EnergyStatsCard state={state} />
+              <EnergyStatsCard state={state} onOpenTrend={setTrendTarget} />
             </div>
 
             {/* Row 5: History chart (full width) */}
@@ -133,6 +136,9 @@ export function Dashboard({
           </>
         )}
       </main>
+
+      {/* Quick Variable Daily Trend Modal */}
+      <VariableTrendModal target={trendTarget} onClose={() => setTrendTarget(null)} />
     </div>
   );
 }

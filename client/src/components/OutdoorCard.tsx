@@ -2,6 +2,7 @@ import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { SegmentedControl } from './SegmentedControl';
+import type { TrendTopicTarget } from './VariableTrendModal';
 
 /* Quiet mode throttles the outdoor fan/compressor, so it lives with the unit. */
 const QUIET_LEVELS = [
@@ -13,9 +14,16 @@ const QUIET_LEVELS = [
 
 interface OutdoorCardProps {
   state: HeishamonState;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
 }
 
-function ThermometerSvg({ temp }: { temp: number | null }) {
+function ThermometerSvg({
+  temp,
+  onOpenTrend,
+}: {
+  temp: number | null;
+  onOpenTrend?: (target: TrendTopicTarget) => void;
+}) {
   const minT = -30, maxT = 40;
   const pct = temp !== null
     ? Math.max(0, Math.min(100, ((temp - minT) / (maxT - minT)) * 100))
@@ -30,11 +38,29 @@ function ThermometerSvg({ temp }: { temp: number | null }) {
     : '#f87171';
 
   return (
-    <svg width="28" height="90" viewBox="0 0 28 90" fill="none">
-      {/* Stem */}
-      <rect x="10" y="4" width="8" height="64" rx="4" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-      {/* Fill */}
-      <clipPath id="therm-clip"><rect x="11.5" y="5.5" width="5" height="61" rx="2.5"/></clipPath>
+    <div
+      className="gauge-clickable"
+      title="Klikkaa nähdäksesi ulkolämpötilan trendi"
+      onClick={() =>
+        onOpenTrend?.({
+          topic: 'main/Outside_Temp',
+          label: 'Ulkoilman lämpötila',
+          unit: '°C',
+          color: '#22d3ee',
+          currentValue: temp,
+        })
+      }
+    >
+      <svg
+        width="28"
+        height="90"
+        viewBox="0 0 28 90"
+        fill="none"
+      >
+        {/* Stem */}
+        <rect x="10" y="4" width="8" height="64" rx="4" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        {/* Fill */}
+        <clipPath id="therm-clip"><rect x="11.5" y="5.5" width="5" height="61" rx="2.5"/></clipPath>
       <g clipPath="url(#therm-clip)">
         <rect
           x="11.5" y={5.5 + 61 * (1 - fillH / height)}
@@ -52,11 +78,12 @@ function ThermometerSvg({ temp }: { temp: number | null }) {
         <line key={p} x1="10" y1={5.5 + 61 * (1 - p / 100)} x2="7" y2={5.5 + 61 * (1 - p / 100)}
           stroke="rgba(255,255,255,0.2)" strokeWidth="1"/>
       ))}
-    </svg>
+      </svg>
+    </div>
   );
 }
 
-export function OutdoorCard({ state }: OutdoorCardProps) {
+export function OutdoorCard({ state, onOpenTrend }: OutdoorCardProps) {
   const outsideTemp = numVal(state, 'main/Outside_Temp');
   const outsidePipe = numVal(state, 'main/Outside_Pipe_Temp');
   const discharge = numVal(state, 'main/Discharge_Temp');
@@ -68,15 +95,14 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
   const defrosting = state['main/Defrosting_State']?.value === '1';
   const baseHeater = state['main/Base_Pan_Heater']?.value === '1' ||
     state['main/Outdoor_Heater_State']?.value === '1' ||
-    state['main/External_Heater_State']?.value === '1';
+    state['main/Internal_Heater_State']?.value === '1';
   const quietLevel = numVal(state, 'main/Quiet_Mode_Level');
 
   const { send, pending, error, success } = useCommand();
 
   const tempColor = outsideTemp === null ? 'var(--text-muted)'
-    : outsideTemp < 0 ? '#38bdf8'
-    : outsideTemp < 10 ? '#22d3ee'
-    : outsideTemp < 20 ? '#34d399'
+    : outsideTemp < 0 ? 'var(--cool-primary)'
+    : outsideTemp < 15 ? 'var(--cool-secondary)'
     : 'var(--heat-primary)';
 
   return (
@@ -102,9 +128,21 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
       </div>
       <div className="card-body">
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
-          <ThermometerSvg temp={outsideTemp} />
-          <div className="metric">
-            <span className="metric-label">Ulkolämpötila</span>
+          <ThermometerSvg temp={outsideTemp} onOpenTrend={onOpenTrend} />
+          <div
+            className="metric metric-clickable"
+            title="Klikkaa nähdäksesi ulkolämpötilan trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Outside_Temp',
+                label: 'Ulkoilman lämpötila',
+                unit: '°C',
+                color: '#22d3ee',
+                currentValue: outsideTemp,
+              })
+            }
+          >
+            <span className="metric-label">Ulkolämpötila ↗</span>
             <span className="metric-value" style={{ fontSize: 34, color: tempColor }}>
               {outsideTemp !== null ? outsideTemp.toFixed(1) : '—'}
               <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>
@@ -120,22 +158,58 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
         <div className="divider" />
 
         <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
-          <div className="metric metric-sm">
-            <span className="metric-label">Kuumakaasu</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi kuumakaasun trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Discharge_Temp',
+                label: 'Kuumakaasun lämpötila',
+                unit: '°C',
+                color: '#f59e0b',
+                currentValue: discharge,
+              })
+            }
+          >
+            <span className="metric-label">Kuumakaasu ↗</span>
             <span className="metric-value">
               {discharge !== null ? discharge.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
             </span>
           </div>
-          <div className="metric metric-sm">
-            <span className="metric-label">Sisäputki</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi sisäputken trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Inside_Pipe_Temp',
+                label: 'Sisäyksikön putkilämpötila',
+                unit: '°C',
+                color: '#38bdf8',
+                currentValue: insidePipe,
+              })
+            }
+          >
+            <span className="metric-label">Sisäputki ↗</span>
             <span className="metric-value">
               {insidePipe !== null ? insidePipe.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
             </span>
           </div>
-          <div className="metric metric-sm">
-            <span className="metric-label">Höyrystin</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi höyrystimen trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Eva_Outlet_Temp',
+                label: 'Höyrystimen poistolämpötila',
+                unit: '°C',
+                color: '#22d3ee',
+                currentValue: evaOutlet,
+              })
+            }
+          >
+            <span className="metric-label">Höyrystin ↗</span>
             <span className="metric-value">
               {evaOutlet !== null ? evaOutlet.toFixed(1) : '—'}
               <span className="metric-unit">°C</span>
