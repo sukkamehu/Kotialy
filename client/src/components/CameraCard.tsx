@@ -42,10 +42,12 @@ export function CameraCard() {
 
   const [status, setStatus] = useState<CameraStatus | null>(null);
   const [copiedStream, setCopiedStream] = useState<string | null>(null);
+  const [isStale, setIsStale] = useState<boolean>(false);
 
   const prevBlobUrlRef = useRef<string | null>(null);
   const isMountedRef = useRef<boolean>(true);
   const isFetchingRef = useRef<boolean>(false);
+  const consecutiveFailuresRef = useRef<number>(0);
 
   // Fetch camera status info
   const fetchStatus = useCallback(async () => {
@@ -96,16 +98,25 @@ export function CameraCard() {
         setImageUrl(newUrl);
         setLastUpdated(new Date());
         setError(null);
+        setIsStale(false);
+        consecutiveFailuresRef.current = 0;
       };
       img.onerror = () => {
         if (!isMountedRef.current) return;
         URL.revokeObjectURL(newUrl);
+        // On decode error, keep previous image
+        setIsStale(true);
       };
       img.src = newUrl;
 
     } catch (err: any) {
+      consecutiveFailuresRef.current++;
       if (isMountedRef.current) {
-        setError(err.message || 'Kamerayhteys poikki');
+        setIsStale(true);
+        // Only trigger full offline screen if we have no image at all and multiple failed retries
+        if (!prevBlobUrlRef.current && consecutiveFailuresRef.current >= 3) {
+          setError(err.message || 'Kamerayhteys poikki');
+        }
       }
     } finally {
       isFetchingRef.current = false;
@@ -159,7 +170,8 @@ export function CameraCard() {
     setTimeout(() => setCopiedStream(null), 2500);
   };
 
-  const isLive = refreshInterval > 0 && !error;
+  const isActuallyOffline = consecutiveFailuresRef.current >= 4;
+  const isLive = refreshInterval > 0 && !isActuallyOffline;
 
   return (
     <>
@@ -189,9 +201,29 @@ export function CameraCard() {
                 borderRadius: 12,
                 fontSize: 11,
                 fontWeight: 600,
-                background: isLive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                color: isLive ? 'var(--online)' : 'var(--offline)',
-                border: `1px solid ${isLive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                background: isActuallyOffline
+                  ? 'rgba(239, 68, 68, 0.15)'
+                  : isStale
+                  ? 'rgba(245, 158, 11, 0.15)'
+                  : isLive
+                  ? 'rgba(34, 197, 94, 0.15)'
+                  : 'rgba(255, 255, 255, 0.08)',
+                color: isActuallyOffline
+                  ? 'var(--offline)'
+                  : isStale
+                  ? '#f59e0b'
+                  : isLive
+                  ? 'var(--online)'
+                  : 'var(--text-muted)',
+                border: `1px solid ${
+                  isActuallyOffline
+                    ? 'rgba(239, 68, 68, 0.3)'
+                    : isStale
+                    ? 'rgba(245, 158, 11, 0.3)'
+                    : isLive
+                    ? 'rgba(34, 197, 94, 0.3)'
+                    : 'var(--border)'
+                }`,
               }}
             >
               <div
@@ -199,12 +231,24 @@ export function CameraCard() {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: isLive ? 'var(--online)' : 'var(--offline)',
-                  boxShadow: isLive ? '0 0 6px var(--online)' : undefined,
-                  animation: isLive ? 'pulse 1.5s infinite' : undefined,
+                  background: isActuallyOffline
+                    ? 'var(--offline)'
+                    : isStale
+                    ? '#f59e0b'
+                    : isLive
+                    ? 'var(--online)'
+                    : 'var(--text-muted)',
+                  boxShadow: isLive && !isStale ? '0 0 6px var(--online)' : undefined,
+                  animation: isLive && !isStale ? 'pulse 1.5s infinite' : undefined,
                 }}
               />
-              {refreshInterval === 0 ? 'PYSÄYTETTY' : error ? 'OFFLINE' : 'LIVE'}
+              {refreshInterval === 0
+                ? 'PYSÄYTETTY'
+                : isActuallyOffline
+                ? 'OFFLINE'
+                : isStale
+                ? 'VIIVE'
+                : 'LIVE'}
             </div>
 
             {/* Quality HD/SD toggle */}
@@ -344,13 +388,14 @@ export function CameraCard() {
               </div>
             ) : null}
 
-            {error && (
+            {/* Only show full blocking error if we have NO image to display */}
+            {error && !imageUrl && (
               <div
                 style={{
                   position: 'absolute',
                   inset: 0,
-                  background: 'rgba(15, 20, 32, 0.85)',
-                  backdropFilter: 'blur(4px)',
+                  background: 'rgba(15, 20, 32, 0.92)',
+                  backdropFilter: 'blur(6px)',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -362,7 +407,7 @@ export function CameraCard() {
               >
                 <div style={{ fontSize: 24 }}>⚠️</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#f87171' }}>
-                  Kamerayhteysvirhe
+                  Kamerayhteys poikki
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 300 }}>
                   {error}
@@ -429,10 +474,15 @@ export function CameraCard() {
               <div>
                 <span style={{ color: 'var(--text-muted)' }}>Laatu:</span> {isHd ? '1920×1080 (HQ)' : '640×352 (Fast)'}
               </div>
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {isStale && (
+                  <span style={{ color: '#f59e0b', fontSize: 10 }}>
+                    ⚡ Viive (edellinen kuva)
+                  </span>
+                )}
                 {lastUpdated ? (
                   <span>
-                    Päivitetty: {lastUpdated.toLocaleTimeString('fi-FI')}
+                    {lastUpdated.toLocaleTimeString('fi-FI')}
                   </span>
                 ) : (
                   'Odottaa kuvaa'
