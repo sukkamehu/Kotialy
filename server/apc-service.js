@@ -162,6 +162,9 @@ class ApcService {
   /**
    * Generates a 24-hour visual plan of quarters with directives
    */
+  /**
+   * Generates a 24-hour visual plan of quarters with directives
+   */
   generatePlan(rawPrices, settings, cheapestDhw) {
     if (!rawPrices || !rawPrices.length) return [];
 
@@ -176,6 +179,15 @@ class ApcService {
     const minP = Math.min(...priceVals);
     const maxP = Math.max(...priceVals);
     const avgP = priceVals.reduce((a, b) => a + b, 0) / priceVals.length;
+    const spread = Math.round((maxP - minP) * 100) / 100;
+
+    // Minimum price spread needed to justify thermal shifting (COP loss tradeoff)
+    // Mode-specific volatility thresholds in snt/kWh:
+    // 'balanced': requires at least 2.5 snt/kWh spread
+    // 'eco': requires at least 1.8 snt/kWh spread
+    // 'comfort': requires at least 3.5 snt/kWh spread
+    const minSpreadRequired = settings.mode === 'eco' ? 1.8 : settings.mode === 'comfort' ? 3.5 : 2.5;
+    const isFlatHorizon = spread < minSpreadRequired && maxP < (settings.peak_threshold_cents || 20.0);
 
     return prices.map((p) => {
       const isDhwSlot = cheapestDhw && p.start_time >= cheapestDhw.start && p.end_time <= cheapestDhw.end;
@@ -187,27 +199,46 @@ class ApcService {
       if (settings.mode === 'dhw_only') {
         if (isDhwSlot) {
           directive = 'DHW_CYCLE';
-          reason = `Vuorokauden halvin käyttövesiaika (${p.price.toFixed(1)} snt)`;
+          reason = `Vuorokauden halvin käyttövesiaika (${p.price.toFixed(1)} snt/kWh)`;
           dhwTarget = settings.dhw_target_c || 55;
         }
-      } else if (p.price <= (settings.cheap_threshold_cents || 3.0) || p.price <= avgP * 0.7) {
-        directive = 'BOOST';
-        reason = `Edullinen sähkö (${p.price.toFixed(1)} snt/kWh)`;
-        bufferShift = settings.buffer_boost_c || 3;
-        dhwTarget = isDhwSlot ? (settings.dhw_target_c || 55) : 50;
-      } else if (p.price >= (settings.peak_threshold_cents || 20.0) || p.price >= avgP * 1.4) {
-        directive = 'SETBACK';
-        reason = `Hintahuippu (${p.price.toFixed(1)} snt/kWh)`;
-        bufferShift = settings.buffer_setback_c || -2;
-        dhwTarget = settings.dhw_min_c || 45;
-      } else if (settings.mode === 'eco' && p.price > avgP) {
-        directive = 'ECO';
-        reason = `Säästötila / keskiarvoa kalliimpi (${p.price.toFixed(1)} snt)`;
-        bufferShift = -1;
-      } else if (isDhwSlot) {
-        directive = 'DHW_CYCLE';
-        reason = `Ajoitettu käyttöveden lataus (${p.price.toFixed(1)} snt)`;
-        dhwTarget = settings.dhw_target_c || 55;
+      } else if (isFlatHorizon) {
+        // Flat price horizon: thermal shifting does not save money due to Carnot COP penalty
+        if (isDhwSlot) {
+          directive = 'DHW_CYCLE';
+          reason = `Tasainen hintataso (ero vain ${spread.toFixed(1)} snt) · Käyttöveden lataus`;
+          dhwTarget = settings.dhw_target_c || 55;
+        } else if (p.price < 0) {
+          directive = 'BOOST';
+          reason = `Negatiivinen sähkönhinta (${p.price.toFixed(1)} snt/kWh)`;
+          bufferShift = settings.buffer_boost_c || 3;
+        } else {
+          directive = 'NORMAL';
+          reason = `Tasainen hintataso (${spread.toFixed(1)} snt vaihtelu) · Optimaalinen COP & peruskäynti`;
+          bufferShift = 0;
+          dhwTarget = 50;
+        }
+      } else {
+        // Volatile price horizon with actionable spread
+        if (p.price < 0 || p.price <= (settings.cheap_threshold_cents || 3.0) || p.price <= avgP * 0.75) {
+          directive = 'BOOST';
+          reason = `Edullinen sähkö (${p.price.toFixed(1)} snt/kWh · ka. ${avgP.toFixed(1)})`;
+          bufferShift = settings.buffer_boost_c || 3;
+          dhwTarget = isDhwSlot ? (settings.dhw_target_c || 55) : 50;
+        } else if (p.price >= (settings.peak_threshold_cents || 20.0) || (p.price >= avgP * 1.35 && p.price - minP >= minSpreadRequired)) {
+          directive = 'SETBACK';
+          reason = `Hintahuippu (${p.price.toFixed(1)} snt/kWh · ka. ${avgP.toFixed(1)})`;
+          bufferShift = settings.buffer_setback_c || -2;
+          dhwTarget = settings.dhw_min_c || 45;
+        } else if (settings.mode === 'eco' && p.price > avgP && spread >= minSpreadRequired) {
+          directive = 'ECO';
+          reason = `Säästötila / keskiarvoa kalliimpi (${p.price.toFixed(1)} snt/kWh)`;
+          bufferShift = -1;
+        } else if (isDhwSlot) {
+          directive = 'DHW_CYCLE';
+          reason = `Ajoitettu käyttöveden lataus (${p.price.toFixed(1)} snt/kWh)`;
+          dhwTarget = settings.dhw_target_c || 55;
+        }
       }
 
       return {
@@ -231,6 +262,14 @@ class ApcService {
     const { bufferTemp, dhwTemp, outsideTemp } = this.getCurrentSensors();
     const currentPriceObj = nordpool.getCurrentPrice();
 
+    const prices = this.computedPlan.map(p => p.price);
+    const minP = prices.length ? Math.min(...prices) : 0;
+    const maxP = prices.length ? Math.max(...prices) : 0;
+    const avgP = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+    const spread = Math.round((maxP - minP) * 100) / 100;
+    const minSpreadRequired = settings.mode === 'eco' ? 1.8 : settings.mode === 'comfort' ? 3.5 : 2.5;
+    const isFlatHorizon = spread < minSpreadRequired && maxP < (settings.peak_threshold_cents || 20.0);
+
     return {
       enabled: settings.enabled,
       mode: settings.mode,
@@ -244,6 +283,13 @@ class ApcService {
       overrideUntil: settings.override_until,
       overrideDirective: settings.override_directive,
       devices: deviceManager.getAllStatuses(),
+      stats: {
+        minPrice: minP,
+        maxPrice: maxP,
+        avgPrice: Math.round(avgP * 100) / 100,
+        spread,
+        isFlatHorizon,
+      },
       plan: this.computedPlan.slice(0, 96), // next 24h (96 quarters)
     };
   }

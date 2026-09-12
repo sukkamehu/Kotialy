@@ -302,6 +302,41 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
 
         {/* 24-Hour Timeline visualizer */}
         <div style={{ marginBottom: 16 }}>
+          {status?.stats && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
+              background: status.stats.isFlatHorizon ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+              border: `1px solid ${status.stats.isFlatHorizon ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.06)'}`,
+              borderRadius: 8,
+              padding: '6px 12px',
+              marginBottom: 12,
+              fontSize: 11,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{status.stats.isFlatHorizon ? '⚖️' : '📊'}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  Vuorokauden pörssihinnat: <b>{status.stats.minPrice.toFixed(1)} – {status.stats.maxPrice.toFixed(1)} snt</b> (vaihtelu {status.stats.spread.toFixed(1)} snt · ka. {status.stats.avgPrice.toFixed(1)} snt)
+                </span>
+              </div>
+              <div>
+                <span style={{
+                  color: status.stats.isFlatHorizon ? '#38bdf8' : '#34d399',
+                  fontWeight: 600,
+                  fontSize: 10,
+                  backgroundColor: status.stats.isFlatHorizon ? 'rgba(56, 189, 248, 0.15)' : 'rgba(52, 211, 153, 0.15)',
+                  padding: '2px 8px',
+                  borderRadius: 10,
+                }}>
+                  {status.stats.isFlatHorizon ? '✨ Tasainen hintataso → Optimaalinen COP & peruskäynti' : '⚡ Dynaaminen pörssiohjaus aktiivinen'}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Optimointiaikataulu (Seuraavat 24h / 15 min vartit)

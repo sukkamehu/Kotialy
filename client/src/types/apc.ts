@@ -39,6 +39,14 @@ export interface ApcDeviceStatus {
   targetOffset?: number;
 }
 
+export interface ApcPriceStats {
+  minPrice: number;
+  maxPrice: number;
+  avgPrice: number;
+  spread: number;
+  isFlatHorizon: boolean;
+}
+
 export interface ApcStatus {
   enabled: boolean;
   mode: ApcMode;
@@ -56,6 +64,7 @@ export interface ApcStatus {
   overrideUntil: number;
   overrideDirective: ApcDirective | null;
   devices: ApcDeviceStatus[];
+  stats?: ApcPriceStats;
   plan: ApcPlanSlot[];
 }
 
