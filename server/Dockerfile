@@ -1,9 +1,10 @@
-FROM node:22.19-alpine
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 make g++ && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
-RUN apk add --no-cache ffmpeg
 RUN npm ci --omit=dev
 
 COPY . .
