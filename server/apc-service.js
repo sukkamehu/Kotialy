@@ -77,13 +77,13 @@ class ApcService {
       const prices = nordpool.getPrices(startWindow, endWindow);
 
       const currentPriceObj = nordpool.getCurrentPrice();
-      const currentPrice = currentPriceObj ? currentPriceObj.price : null;
+      const currentPrice = currentPriceObj ? currentPriceObj.price / 10 : null;
 
       // Find cheapest DHW window in the next 24h
       const dhwHours = settings.dhw_duration_hours || 2;
       const cheapestDhw = nordpool.findCheapestWindow(dhwHours, now, now + 24 * 60 * 60 * 1000);
 
-      // Compute 24h forecast plan
+      // Compute 24h forecast plan (converts prices to c/kWh internally)
       this.computedPlan = this.generatePlan(prices, settings, cheapestDhw);
 
       // Check for active override
@@ -124,7 +124,7 @@ class ApcService {
       // Dispatch to device drivers
       const context = {
         settings,
-        price: currentPriceObj,
+        price: currentPriceObj ? { ...currentPriceObj, price: currentPrice } : null,
         outsideTemp,
         bufferTemp,
         dhwTemp,
@@ -162,10 +162,16 @@ class ApcService {
   /**
    * Generates a 24-hour visual plan of quarters with directives
    */
-  generatePlan(prices, settings, cheapestDhw) {
-    if (!prices || !prices.length) return [];
+  generatePlan(rawPrices, settings, cheapestDhw) {
+    if (!rawPrices || !rawPrices.length) return [];
 
-    // Calculate stats for current 24h horizon
+    // Convert raw Nord Pool EUR/MWh prices to cents/kWh (snt/kWh)
+    const prices = rawPrices.map(p => ({
+      ...p,
+      price: Math.round((p.price / 10) * 100) / 100,
+    }));
+
+    // Calculate stats for current 24h horizon in c/kWh
     const priceVals = prices.map(p => p.price);
     const minP = Math.min(...priceVals);
     const maxP = Math.max(...priceVals);
@@ -231,7 +237,7 @@ class ApcService {
       currentDirective: this.currentDirective,
       activeDhwSlot: this.activeDhwSlot,
       lastEvaluatedAt: this.lastEvaluatedAt,
-      currentPrice: currentPriceObj ? currentPriceObj.price : null,
+      currentPrice: currentPriceObj ? currentPriceObj.price / 10 : null,
       sensors: { bufferTemp, dhwTemp, outsideTemp },
       settings,
       overrideActive: settings.override_until > Date.now(),
