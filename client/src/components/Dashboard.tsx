@@ -4,9 +4,9 @@ import { StatusBar } from './StatusBar';
 import { HeatpumpCard } from './HeatpumpCard';
 import { DHWCard } from './DHWCard';
 import { BufferTankCard } from './BufferTankCard';
-import { PowerCard } from './PowerCard';
 import { OutdoorCard } from './OutdoorCard';
 import { ThreeWayValveCard } from './ThreeWayValveCard';
+import { EnergyStatsCard } from './EnergyStatsCard';
 import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
 import { NordpoolPanel } from './NordpoolPanel';
@@ -20,9 +20,25 @@ interface DashboardProps {
   lastUpdate: number | null;
   zigbeeDevices: ZigbeeRegistry;
   zigbeeConnected: boolean;
+  isLocal?: boolean;
+  authenticated?: boolean;
+  username?: string | null;
+  onLogout?: () => void;
 }
 
-export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdate, zigbeeDevices, zigbeeConnected }: DashboardProps) {
+export function Dashboard({
+  state,
+  mqtt,
+  heishamonOnline,
+  wsConnected,
+  lastUpdate,
+  zigbeeDevices,
+  zigbeeConnected,
+  isLocal,
+  authenticated,
+  username,
+  onLogout,
+}: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
 
   return (
@@ -33,6 +49,10 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
         heishamonOnline={heishamonOnline}
         wsConnected={wsConnected}
         lastUpdate={lastUpdate}
+        isLocal={isLocal}
+        authenticated={authenticated}
+        username={username}
+        onLogout={onLogout}
       />
 
       <main className="dashboard-main">
@@ -78,7 +98,6 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
               <HeatpumpCard state={state} />
               <DHWCard state={state} />
               <BufferTankCard state={state} />
-              <PowerCard state={state} />
             </div>
 
             {/* Row 2: Outdoor + Valve — each card carries its own controls */}
@@ -87,7 +106,12 @@ export function Dashboard({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
               <ThreeWayValveCard state={state} />
             </div>
 
-            {/* Row 3: History chart (full width) */}
+            {/* Row 3: Energy & Lifecycle Analytics */}
+            <div style={{ marginBottom: 20 }}>
+              <EnergyStatsCard state={state} />
+            </div>
+
+            {/* Row 4: History chart (full width) */}
             <HistoryChart />
 
             {/* Row 4: Electricity price + Weather */}

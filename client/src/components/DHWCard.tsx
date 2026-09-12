@@ -1,7 +1,9 @@
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
+import { useElectricityPrice } from '../hooks/useElectricityPrice';
 import { SetpointControl } from './SetpointControl';
+import { ToggleRow } from './SegmentedControl';
 
 interface DHWCardProps {
   state: HeishamonState;
@@ -60,6 +62,8 @@ export function DHWCard({ state }: DHWCardProps) {
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
   const heaterEnabled = state['main/DHW_Heater_State']?.value === '1';
   const forceHeater = state['main/Force_Heater_State']?.value === '1';
+  const internalHeater = state['main/Internal_Heater_State']?.value === '1';
+  const externalHeater = state['main/External_Heater_State']?.value === '1';
 
   // Power – prefer XTOP, fallback to TOP
   const dhwProdXtop = numVal(state, 'extra/DHW_Power_Production');
@@ -70,15 +74,12 @@ export function DHWCard({ state }: DHWCardProps) {
   const cop = dhwCons && dhwCons > 0 && dhwProd ? (dhwProd / dhwCons).toFixed(2) : null;
 
   const { send, pending, error, success } = useCommand();
-
-  function toggleForceDHW() {
-    send('commands/SetForceDHW', forceDHW ? 0 : 1,
-      forceDHW ? 'Tehostus lopetettu' : 'Tehostus aloitettu');
-  }
+  const { calcCostPerHour } = useElectricityPrice();
+  const cost = calcCostPerHour(dhwCons);
 
   function toggleForceHeater() {
     send('commands/SetForceHeater', forceHeater ? 0 : 1,
-      forceHeater ? 'Lisävastus pois päältä' : 'Lisävastus pakotettu päälle');
+      forceHeater ? 'Lisävastus pois' : 'Lisävastus pakotettu päälle');
   }
 
   function setDHWTarget(v: number) {
@@ -141,20 +142,18 @@ export function DHWCard({ state }: DHWCardProps) {
 
         <div className="divider" style={{ marginTop: 16 }} />
 
-        {/* Power */}
-        <div className="metrics-grid metrics-grid-3" style={{ marginTop: 12 }}>
+        {/* Power & Cost */}
+        <div className="metrics-grid metrics-grid-4" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
             <span className="metric-label">Tuotto</span>
             <span className="metric-value" style={{ color: 'var(--dhw-primary)' }}>
-              {dhwProd !== null ? Math.round(dhwProd) : '—'}
-              <span className="metric-unit">W</span>
+              {dhwProd !== null ? (dhwProd >= 1000 ? `${(dhwProd / 1000).toFixed(2)}kW` : `${Math.round(dhwProd)}W`) : '—'}
             </span>
           </div>
           <div className="metric metric-sm">
             <span className="metric-label">Kulutus</span>
             <span className="metric-value">
-              {dhwCons !== null ? Math.round(dhwCons) : '—'}
-              <span className="metric-unit">W</span>
+              {dhwCons !== null ? (dhwCons >= 1000 ? `${(dhwCons / 1000).toFixed(2)}kW` : `${Math.round(dhwCons)}W`) : '—'}
             </span>
           </div>
           <div className="metric metric-sm">
@@ -163,34 +162,41 @@ export function DHWCard({ state }: DHWCardProps) {
               {cop ?? '—'}
             </span>
           </div>
+          <div className="metric metric-sm">
+            <span className="metric-label">Hinta / h</span>
+            <span className="metric-value" style={{ color: 'var(--text-secondary)' }}>
+              {cost.formatted}
+            </span>
+          </div>
         </div>
 
         <div className="divider" />
 
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Lisävastus {heaterEnabled ? 'käytössä' : 'pois'}
+        <div style={{ marginTop: 12 }}>
+          <ToggleRow
+            label="🔥 Pakota lisävastus (Force Heater)"
+            description="Käynnistää sähköisen varavastuksen"
+            on={forceHeater}
+            onToggle={toggleForceHeater}
+            pending={pending}
+            idPrefix="btn-dhw-force-heater"
+            onLabel="🔥 Pakotettu"
+            offLabel="○ Pois"
+            danger={true}
+          />
+
+          <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: internalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
+              {internalHeater ? '● ' : '○ '}Sisäinen vastus
             </span>
-            <button
-              className={`btn btn-sm ${forceHeater ? 'btn-danger' : 'btn-ghost'}`}
-              onClick={toggleForceHeater}
-              disabled={pending}
-              id="btn-force-heater"
-              title="Pakota sähkövastus päälle"
-            >
-              {forceHeater ? '🔥 Pakotettu' : 'Pakota vastus'}
-            </button>
+            <span style={{ fontSize: 11, color: externalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
+              {externalHeater ? '● ' : '○ '}Ulkoinen vastus
+            </span>
+            <span style={{ fontSize: 11, color: heaterEnabled ? 'var(--dhw-primary)' : 'var(--text-muted)', marginLeft: 'auto' }}>
+              Säiliövastus: {heaterEnabled ? 'Käytössä' : 'Pois'}
+            </span>
           </div>
-          <button
-            className={`btn btn-sm ${forceDHW ? 'btn-danger' : 'btn-ghost'}`}
-            onClick={toggleForceDHW}
-            disabled={pending}
-            id="btn-force-dhw"
-          >
-            {pending ? '...' : forceDHW ? '⏹ Lopeta tehostus' : '⚡ Pakota KV'}
-          </button>
         </div>
 
         {(error || success) && (

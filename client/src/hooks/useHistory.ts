@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../lib/api';
 
 interface HistoryPoint {
   topic: string;
@@ -25,7 +26,7 @@ export function useHistory(topic: string, hours = 24): UseHistoryReturn {
     setLoading(true);
     setError(null);
 
-    fetch(`/api/history?topic=${encodeURIComponent(topic)}&hours=${hours}`)
+    apiFetch(`/api/history?topic=${encodeURIComponent(topic)}&hours=${hours}`)
       .then((r) => {
         if (!r.ok) throw new Error(`History request failed (${r.status})`);
         return r.json();

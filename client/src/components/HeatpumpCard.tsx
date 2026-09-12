@@ -124,9 +124,6 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
   const operatingMode = numVal(state, 'main/Operating_Mode_State');
   const powerfulTime = numVal(state, 'main/Powerful_Mode_Time');
   const holidayOn = (numVal(state, 'main/Holiday_Mode_State') ?? 0) > 0;
-  const forceHeater = state['main/Force_Heater_State']?.value === '1';
-  const internalHeater = state['main/Internal_Heater_State']?.value === '1';
-  const externalHeater = state['main/External_Heater_State']?.value === '1';
 
   const { send, pending, error, success } = useCommand();
 
@@ -248,34 +245,11 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
           offLabel="○ Pois"
         />
 
-        <ToggleRow
-          label="🔥 Pakota lisävastus (Force Heater)"
-          description="Käynnistää sähköisen varavastuksen"
-          on={forceHeater}
-          onToggle={() => send('commands/SetForceHeater', forceHeater ? 0 : 1,
-            forceHeater ? 'Lisävastus pois' : 'Lisävastus pakotettu päälle')}
-          pending={pending}
-          idPrefix="btn-hp-force-heater"
-          onLabel="🔥 Pakotettu"
-          offLabel="○ Pois"
-          danger={true}
-        />
-
         {(error || success) && (
           <div className={`control-msg ${error ? 'error' : 'ok'}`}>
             {error ? `⚠ ${error}` : `✓ ${success}`}
           </div>
         )}
-
-        {/* Backup heater activity */}
-        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-          <span style={{ fontSize: 11, color: internalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
-            {internalHeater ? '● ' : '○ '}Sisäinen vastus
-          </span>
-          <span style={{ fontSize: 11, color: externalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
-            {externalHeater ? '● ' : '○ '}Ulkoinen vastus
-          </span>
-        </div>
       </div>
     </div>
   );

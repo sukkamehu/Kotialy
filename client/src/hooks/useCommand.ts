@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { getAuthHeaders } from './useAuth';
 
 interface UseCommandReturn {
   /** Publish a command. Resolves true when the heat pump accepted it. */
@@ -36,7 +37,10 @@ export function useCommand(): UseCommandReturn {
     try {
       const res = await fetch('/api/command', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({ setTopic, value }),
       });
       if (!res.ok) {

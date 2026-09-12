@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { apiFetch } from '../lib/api';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -20,6 +21,11 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'main/DHW_Temp', label: 'Käyttövesi', color: '#10b981', unit: '°C', yAxisId: 'left' },
   { key: 'main/Buffer_Temp', label: 'Puskuri', color: '#a78bfa', unit: '°C', yAxisId: 'left' },
   { key: 'main/Compressor_Freq', label: 'Komp. Hz', color: '#fb923c', unit: 'Hz', yAxisId: 'right' },
+  { key: 'main/Pump_Flow', label: 'Virtaus', color: '#34d399', unit: 'L/min', yAxisId: 'right' },
+  { key: 'main/Heat_Power_Production', label: 'Lämmitysteho', color: '#f97316', unit: 'W', yAxisId: 'right' },
+  { key: 'main/Heat_Power_Consumption', label: 'Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right' },
+  { key: 'main/DHW_Power_Production', label: 'KV-teho', color: '#059669', unit: 'W', yAxisId: 'right' },
+  { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3' },
   { key: 'electricity_price', label: '⚡ Pörssisähkö', color: '#facc15', unit: 'snt/kWh', yAxisId: 'right', dash: '4 2' },
 ];
 
@@ -55,12 +61,20 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       {payload.map((p: any) => {
         const topic = CHART_TOPICS.find((t) => t.key === p.dataKey);
         const unit = topic?.unit ?? '';
+        let valStr = typeof p.value === 'number' ? p.value.toFixed(1) : String(p.value);
+        if (p.dataKey === 'main/Defrosting_State') {
+          valStr = p.value === 1 ? 'Käynnissä' : 'Pois';
+        } else if (unit === 'W' && typeof p.value === 'number' && p.value >= 1000) {
+          valStr = `${(p.value / 1000).toFixed(2)} kW`;
+        } else if (unit !== '') {
+          valStr = `${valStr} ${unit}`;
+        }
         return (
           <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: p.color }} />
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.name}</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: p.color, marginLeft: 'auto' }}>
-              {typeof p.value === 'number' ? p.value.toFixed(1) : p.value} {unit}
+              {valStr}
             </span>
           </div>
         );
@@ -68,6 +82,102 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     </div>
   );
 };
+
+function interpolateTimeline(
+  selectedTopics: string[],
+  sensorsData: Record<string, HistoryRow[]>,
+  priceRows: any[],
+  maxGapMs: number = 30 * 60 * 1000
+): ChartDataPoint[] {
+  const seriesMap = new Map<string, { time: number; value: number }[]>();
+  const timeSet = new Set<number>();
+
+  for (const topic of selectedTopics) {
+    if (topic === 'electricity_price') continue;
+    const rows = sensorsData[topic] || [];
+    const sortedRows = rows
+      .map((r) => ({ time: Number(r.recorded_at), value: Number(r.value) }))
+      .sort((a, b) => a.time - b.time);
+
+    seriesMap.set(topic, sortedRows);
+    sortedRows.forEach((r) => timeSet.add(r.time));
+  }
+
+  const parsedPrices = (priceRows || []).map((p) => ({
+    start: Number(p.start_time),
+    end: Number(p.end_time),
+    priceCents: Number(p.price) / 10,
+  }));
+
+  if (selectedTopics.includes('electricity_price')) {
+    parsedPrices.forEach((p) => {
+      timeSet.add(p.start);
+      if (p.end - 1000 > p.start) timeSet.add(p.end - 1000);
+    });
+  }
+
+  const allTimes = Array.from(timeSet).sort((a, b) => a - b);
+  if (allTimes.length === 0) return [];
+
+  const pointers = new Map<string, number>();
+  for (const topic of selectedTopics) {
+    pointers.set(topic, 0);
+  }
+
+  const result: ChartDataPoint[] = [];
+
+  for (const t of allTimes) {
+    const pt: ChartDataPoint = { time: t };
+
+    for (const topic of selectedTopics) {
+      if (topic === 'electricity_price') {
+        const found = parsedPrices.find((p) => t >= p.start && t < p.end);
+        if (found) {
+          pt['electricity_price'] = found.priceCents;
+        }
+        continue;
+      }
+
+      const series = seriesMap.get(topic);
+      if (!series || series.length === 0) continue;
+
+      let idx = pointers.get(topic) || 0;
+      while (idx + 1 < series.length && series[idx + 1].time <= t) {
+        idx++;
+      }
+      pointers.set(topic, idx);
+
+      const p0 = series[idx];
+      const p1 = series[idx + 1];
+
+      if (p0.time === t) {
+        pt[topic] = p0.value;
+      } else if (t < p0.time) {
+        if (p0.time - t <= maxGapMs) {
+          pt[topic] = p0.value;
+        }
+      } else if (!p1) {
+        if (t - p0.time <= maxGapMs) {
+          pt[topic] = p0.value;
+        }
+      } else {
+        const gap = p1.time - p0.time;
+        if (gap <= maxGapMs) {
+          if (topic === 'main/Defrosting_State') {
+            pt[topic] = p0.value;
+          } else {
+            const ratio = (t - p0.time) / gap;
+            pt[topic] = p0.value + ratio * (p1.value - p0.value);
+          }
+        }
+      }
+    }
+
+    result.push(pt);
+  }
+
+  return result;
+}
 
 export function HistoryChart() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([
@@ -106,7 +216,7 @@ export function HistoryChart() {
 
     if (sensorTopics.length > 0) {
       fetches.push(
-        fetch(`/api/history/multi?topics=${encodeURIComponent(sensorTopics.join(','))}&hours=${hours}`)
+        apiFetch(`/api/history/multi?topics=${encodeURIComponent(sensorTopics.join(','))}&hours=${hours}`)
           .then((r) => {
             if (!r.ok) throw new Error(`Historiatietojen haku epäonnistui (${r.status})`);
             return r.json();
@@ -117,7 +227,7 @@ export function HistoryChart() {
 
     if (includePrice) {
       fetches.push(
-        fetch(`/api/nordpool/prices?from=${from}&to=${to}`)
+        apiFetch(`/api/nordpool/prices?from=${from}&to=${to}`)
           .then((r) => {
             if (!r.ok) throw new Error(`Sähkön hintatietojen haku epäonnistui (${r.status})`);
             return r.json();
@@ -129,37 +239,19 @@ export function HistoryChart() {
     Promise.all(fetches)
       .then((results) => {
         if (cancelled) return;
-        const byTime = new Map<number, ChartDataPoint>();
+        let sensorsData: Record<string, HistoryRow[]> = {};
+        let pricesData: any[] = [];
 
         for (const res of results) {
           if (res.type === 'sensors') {
-            Object.entries(res.data as Record<string, HistoryRow[]>).forEach(([topic, rows]) => {
-              (rows as any[]).forEach((row) => {
-                const t = Number(row.recorded_at);
-                if (!byTime.has(t)) byTime.set(t, { time: t });
-                byTime.get(t)![topic] = Number(row.value);
-              });
-            });
+            sensorsData = res.data;
           } else if (res.type === 'price') {
-            (res.prices as any[]).forEach((p) => {
-              const start = Number(p.start_time);
-              const end = Number(p.end_time);
-              const priceCents = Number(p.price) / 10; // Convert €/MWh to snt/kWh
-
-              if (!byTime.has(start)) byTime.set(start, { time: start });
-              byTime.get(start)!['electricity_price'] = priceCents;
-
-              const endEdge = end - 1000;
-              if (endEdge > start) {
-                if (!byTime.has(endEdge)) byTime.set(endEdge, { time: endEdge });
-                byTime.get(endEdge)!['electricity_price'] = priceCents;
-              }
-            });
+            pricesData = res.prices;
           }
         }
 
-        const sorted = Array.from(byTime.values()).sort((a, b) => a.time - b.time);
-        setData(sorted);
+        const interpolated = interpolateTimeline(selectedTopics, sensorsData, pricesData);
+        setData(interpolated);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Historiatietojen lataus epäonnistui');

@@ -66,6 +66,9 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
   const fan1 = numVal(state, 'main/Fan1_Motor_Speed');
   const fan2 = numVal(state, 'main/Fan2_Motor_Speed');
   const defrosting = state['main/Defrosting_State']?.value === '1';
+  const baseHeater = state['main/Base_Pan_Heater']?.value === '1' ||
+    state['main/Outdoor_Heater_State']?.value === '1' ||
+    state['main/External_Heater_State']?.value === '1';
   const quietLevel = numVal(state, 'main/Quiet_Mode_Level');
 
   const { send, pending, error, success } = useCommand();
@@ -78,17 +81,24 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
 
   return (
     <div className="card" style={{
-      borderColor: defrosting ? 'rgba(34,211,238,0.3)' : 'var(--border)',
-      boxShadow: defrosting ? 'var(--shadow-glow-cool)' : undefined,
+      borderColor: defrosting ? 'rgba(34,211,238,0.3)' : baseHeater ? 'rgba(245,158,11,0.3)' : 'var(--border)',
+      boxShadow: defrosting ? 'var(--shadow-glow-cool)' : baseHeater ? '0 0 20px rgba(245,158,11,0.08)' : undefined,
     }}>
       <div className="card-header">
         <span className="card-icon">🌤</span>
         <span className="card-title">Ulkoyksikkö</span>
-        {defrosting && (
-          <div className="badge" style={{ marginLeft: 'auto', background: 'rgba(34,211,238,0.15)', color: 'var(--cool-primary)', border: '1px solid rgba(34,211,238,0.3)' }}>
-            ❄️ Sulatus
-          </div>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          {baseHeater && (
+            <div className="badge" style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--heat-primary)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 10 }}>
+              🔥 Pohjavastus
+            </div>
+          )}
+          {defrosting && (
+            <div className="badge" style={{ background: 'rgba(34,211,238,0.15)', color: 'var(--cool-primary)', border: '1px solid rgba(34,211,238,0.3)', fontSize: 10 }}>
+              ❄️ Sulatus
+            </div>
+          )}
+        </div>
       </div>
       <div className="card-body">
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
@@ -158,6 +168,47 @@ export function OutdoorCard({ state }: OutdoorCardProps) {
         </div>
 
         <div className="divider" />
+
+        {/* Pohjavastus -tilarivi */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          background: baseHeater ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.02)',
+          border: `1px solid ${baseHeater ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.05)'}`,
+          borderRadius: 8,
+          marginBottom: 14,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>{baseHeater ? '🔥' : '♨️'}</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: baseHeater ? 'var(--heat-primary)' : 'var(--text-secondary)' }}>
+                Pohjavastus (Base Pan Heater)
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                {baseHeater ? 'Sulanapitovastus päällä' : 'Ei aktiivinen / lepotilassa'}
+              </div>
+            </div>
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 11,
+            fontWeight: 600,
+            color: baseHeater ? 'var(--heat-primary)' : 'var(--text-muted)',
+          }}>
+            <div style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: baseHeater ? 'var(--heat-primary)' : 'rgba(255,255,255,0.2)',
+              boxShadow: baseHeater ? '0 0 8px var(--heat-primary)' : 'none'
+            }} />
+            {baseHeater ? 'PÄÄLLÄ' : 'POIS'}
+          </div>
+        </div>
 
         <SegmentedControl
           label="🤫 Hiljainen tila"

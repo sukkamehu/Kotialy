@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { apiFetch } from '../lib/api';
 import type { NordpoolPrice, NordpoolStats, NordpoolWindow } from '../types/nordpool';
 import type { WeatherForecast } from '../types/weather';
 
@@ -49,12 +50,12 @@ export function NordpoolPanel() {
   const fetchAll = async () => {
     try {
       const [curRes, statsRes, cheap3Res, cheap6Res, pricesRes, weatherRes] = await Promise.all([
-        fetch('/api/nordpool/current'),
-        fetch('/api/nordpool/stats'),
-        fetch('/api/nordpool/cheapest?hours=3'),
-        fetch('/api/nordpool/cheapest?hours=6'),
-        fetch('/api/nordpool/prices'),
-        fetch('/api/weather/forecast?hours=24'),
+        apiFetch('/api/nordpool/current'),
+        apiFetch('/api/nordpool/stats'),
+        apiFetch('/api/nordpool/cheapest?hours=3'),
+        apiFetch('/api/nordpool/cheapest?hours=6'),
+        apiFetch('/api/nordpool/prices'),
+        apiFetch('/api/weather/forecast?hours=24'),
       ]);
 
       const current = await curRes.json();

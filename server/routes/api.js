@@ -9,6 +9,91 @@ const nordpoolClient = require('../nordpool-client');
 const weatherClient = require('../weather-client');
 
 
+const {
+  isLocalIp,
+  getClientIp,
+  generateToken,
+  verifyToken,
+  requireAuthOrLan,
+  checkCredentials,
+  AUTH_USERNAME,
+  AUTH_TOKEN_DAYS,
+} = require('../auth');
+
+/**
+ * GET /api/auth/status
+ * Check if the caller is in LAN or authenticated with a valid token.
+ */
+router.get('/auth/status', (req, res) => {
+  const ip = getClientIp(req);
+  const isLocal = isLocalIp(ip);
+
+  let authenticated = false;
+  let username = null;
+
+  if (isLocal) {
+    authenticated = true;
+    username = 'lan_user';
+  } else {
+    const authHeader = req.headers['authorization'];
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim();
+    } else if (req.query && req.query.token) {
+      token = String(req.query.token).trim();
+    }
+    const valid = verifyToken(token);
+    if (valid) {
+      authenticated = true;
+      username = valid.u;
+    }
+  }
+
+  res.json({
+    isLocal,
+    authenticated,
+    username,
+    clientIp: ip,
+  });
+});
+
+/**
+ * POST /api/auth/login
+ * Body: { username, password }
+ */
+router.post('/auth/login', express.json(), (req, res) => {
+  const { username, password } = req.body || {};
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Käyttäjätunnus ja salasana vaaditaan' });
+  }
+
+  if (!checkCredentials(username, password)) {
+    return res.status(401).json({ error: 'Virheellinen käyttäjätunnus tai salasana' });
+  }
+
+  const token = generateToken(username);
+  const expiresAt = Date.now() + AUTH_TOKEN_DAYS * 24 * 60 * 60 * 1000;
+
+  res.json({
+    ok: true,
+    token,
+    expiresAt,
+    username,
+    isLocal: isLocalIp(getClientIp(req)),
+  });
+});
+
+/**
+ * POST /api/auth/logout
+ */
+router.post('/auth/logout', (req, res) => {
+  res.json({ ok: true });
+});
+
+// Apply authentication middleware to all subsequent API routes
+router.use(requireAuthOrLan);
+
 /**
  * GET /api/state
  * Returns the full current state snapshot.

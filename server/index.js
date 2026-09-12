@@ -36,6 +36,8 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api', apiRoutes);
 
+const { isLocalIp, getClientIp, verifyToken } = require('./auth');
+
 // ─── HTTP + WebSocket Server ──────────────────────────────────────────────────
 
 const server = http.createServer(app);
@@ -44,32 +46,63 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 const wsClients = new Set();
 
 wss.on('connection', (ws, req) => {
-  console.log(`[WS] Client connected (${wss.clients.size} total)`);
+  const ip = getClientIp(req);
+  const isLocal = isLocalIp(ip);
+
+  let token = null;
+  try {
+    const parsedUrl = new URL(req.url, 'http://localhost');
+    token = parsedUrl.searchParams.get('token');
+  } catch {}
+
+  let authenticated = isLocal || (token && verifyToken(token) !== null);
+  ws.isAuth = authenticated;
+  ws.isLocal = isLocal;
+
+  console.log(`[WS] Client connected from ${ip} (Local: ${isLocal}, Auth: ${authenticated})`);
   wsClients.add(ws);
 
-  // Send full state snapshot on connect, with the same metadata /api/state
-  // returns — the frontend reads label/unit/displayValue off every entry.
-  ws.send(
-    JSON.stringify({
-      type: 'snapshot',
-      state: enrichState(getFullState()),
-      mqtt: {
-        connected: mqttClient.isConnected(),
-        lastReceivedAt: mqttClient.getLastReceivedAt(),
-      },
-      zigbee: {
-        connected: zigbeeClient.isConnected(),
-        devices: zigbeeClient.getDeviceRegistry(),
-      },
-      ts: Date.now(),
-    })
-  );
+  const sendSnapshot = () => {
+    ws.send(
+      JSON.stringify({
+        type: 'snapshot',
+        state: enrichState(getFullState()),
+        mqtt: {
+          connected: mqttClient.isConnected(),
+          lastReceivedAt: mqttClient.getLastReceivedAt(),
+        },
+        zigbee: {
+          connected: zigbeeClient.isConnected(),
+          devices: zigbeeClient.getDeviceRegistry(),
+        },
+        auth: {
+          isLocal,
+          authenticated: true,
+        },
+        ts: Date.now(),
+      })
+    );
+  };
+
+  if (authenticated) {
+    sendSnapshot();
+  } else {
+    ws.send(JSON.stringify({ type: 'auth_required', isLocal: false }));
+  }
 
   ws.on('message', (data) => {
-    // Handle client commands via WS (optional, mostly we use REST)
     try {
       const msg = JSON.parse(data.toString());
-      if (msg.type === 'ping') {
+      if (msg.type === 'auth') {
+        const valid = verifyToken(msg.token);
+        if (valid) {
+          ws.isAuth = true;
+          authenticated = true;
+          sendSnapshot();
+        } else {
+          ws.send(JSON.stringify({ type: 'auth_error', error: 'Virheellinen kirjautumistunniste' }));
+        }
+      } else if (msg.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
       }
     } catch {
@@ -89,12 +122,12 @@ wss.on('connection', (ws, req) => {
 });
 
 /**
- * Broadcast a message to all connected WebSocket clients.
+ * Broadcast a message to all authenticated connected WebSocket clients.
  */
 function wsBroadcast(payload) {
   const msg = JSON.stringify(payload);
   for (const ws of wsClients) {
-    if (ws.readyState === ws.OPEN) {
+    if (ws.readyState === ws.OPEN && ws.isAuth) {
       ws.send(msg);
     }
   }

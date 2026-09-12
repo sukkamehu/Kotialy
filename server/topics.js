@@ -97,6 +97,42 @@ const TOPICS = {
     category: 'heatpump',
     type: 'number',
   },
+  'main/Pump_Hours': {
+    label: 'Pumpun käyttötunnit',
+    unit: 'h',
+    category: 'heatpump',
+    type: 'number',
+  },
+  'main/Pump_Counter': {
+    label: 'Pumpun käynnistyskerrat',
+    unit: '',
+    category: 'heatpump',
+    type: 'number',
+  },
+  'main/Heat_Hours': {
+    label: 'Lämmitystunnit',
+    unit: 'h',
+    category: 'heatpump',
+    type: 'number',
+  },
+  'main/DHW_Hours': {
+    label: 'Käyttövesitunnit',
+    unit: 'h',
+    category: 'dhw',
+    type: 'number',
+  },
+  'main/Cool_Hours': {
+    label: 'Jäähdytystunnit',
+    unit: 'h',
+    category: 'heatpump',
+    type: 'number',
+  },
+  'main/Internal_Heater_Operations_Hours': {
+    label: 'Varavastuksen käyttötunnit',
+    unit: 'h',
+    category: 'heatpump',
+    type: 'number',
+  },
   'main/Error': {
     label: 'Virhe',
     unit: '',
@@ -116,6 +152,20 @@ const TOPICS = {
     category: 'heatpump',
     type: 'enum',
     map: { 0: 'Ei käytössä', 1: 'Päällä' },
+  },
+  'main/Base_Pan_Heater': {
+    label: 'Pohjavastus',
+    unit: '',
+    category: 'outdoor',
+    type: 'enum',
+    map: { 0: 'Pois', 1: 'Päällä' },
+  },
+  'main/Outdoor_Heater_State': {
+    label: 'Pohjavastus',
+    unit: '',
+    category: 'outdoor',
+    type: 'enum',
+    map: { 0: 'Pois', 1: 'Päällä' },
   },
 
   // ─── DHW (Domestic Hot Water) Tank ────────────────────────────────────────
@@ -280,6 +330,68 @@ const TOPICS = {
     type: 'number',
   },
 
+  // Cumulative Energies (kWh)
+  'main/Heat_Energy_Production': {
+    label: 'Lämmitysenergia (tuotto)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'main/Heat_Energy_Consumption': {
+    label: 'Lämmitysenergia (kulutus)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'main/DHW_Energy_Production': {
+    label: 'Käyttövesienergia (tuotto)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'main/DHW_Energy_Consumption': {
+    label: 'Käyttövesienergia (kulutus)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'main/Cool_Energy_Production': {
+    label: 'Jäähdytysenergia (tuotto)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'main/Cool_Energy_Consumption': {
+    label: 'Jäähdytysenergia (kulutus)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'extra/Heat_Energy_Production': {
+    label: 'Lämmitysenergia XT (tuotto)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'extra/Heat_Energy_Consumption': {
+    label: 'Lämmitysenergia XT (kulutus)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'extra/DHW_Energy_Production': {
+    label: 'Käyttövesienergia XT (tuotto)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'extra/DHW_Energy_Consumption': {
+    label: 'Käyttövesienergia XT (kulutus)',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+
   // ─── Outdoor Unit ─────────────────────────────────────────────────────────
   'main/Outside_Temp': {
     label: 'Ulkolämpötila',
@@ -427,10 +539,15 @@ const CHART_TOPICS = [
   'main/Buffer_Temp',
   'main/Compressor_Freq',
   'main/Pump_Flow',
+  'main/Defrosting_State',
   'main/Heat_Power_Production',
   'main/Heat_Power_Consumption',
+  'main/DHW_Power_Production',
+  'main/DHW_Power_Consumption',
   'extra/Heat_Power_Consumption',
   'extra/Heat_Power_Production',
+  'extra/DHW_Power_Consumption',
+  'extra/DHW_Power_Production',
 ];
 
 /**

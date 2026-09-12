@@ -87,6 +87,12 @@ ZIGBEE2MQTT_MQTT_PASSWORD=your_secure_z2m_password
 
 MQTT_BASE_TOPIC=panasonic_heat_pump
 ZIGBEE_BASE_TOPIC=zigbee2mqtt
+
+# Remote Authentication (LAN access bypasses login automatically)
+AUTH_USERNAME=admin
+AUTH_PASSWORD=your_secure_remote_password
+AUTH_SECRET=your_long_random_secret_string
+AUTH_TOKEN_DAYS=365
 ```
 
 ### 2. Start the Stack

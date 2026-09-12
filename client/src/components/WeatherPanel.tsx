@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { apiFetch } from '../lib/api';
 import type { WeatherForecast, DailyWeather } from '../types/weather';
 
 interface WeatherData {
@@ -83,9 +84,9 @@ export function WeatherPanel() {
   const fetchAll = async () => {
     try {
       const [currentRes, forecastRes, dailyRes] = await Promise.all([
-        fetch('/api/weather/current'),
-        fetch('/api/weather/forecast?hours=24'),
-        fetch('/api/weather/daily'),
+        apiFetch('/api/weather/current'),
+        apiFetch('/api/weather/forecast?hours=24'),
+        apiFetch('/api/weather/daily'),
       ]);
       const current = await currentRes.json();
       const forecastData = await forecastRes.json();

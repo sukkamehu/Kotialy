@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
+import { useElectricityPrice } from '../hooks/useElectricityPrice';
 import { SetpointControl } from './SetpointControl';
 
 /*
@@ -76,10 +77,29 @@ function BufferSvg({ temp, maxTemp = 70, minTemp = 20 }: {
 export function BufferTankCard({ state }: BufferTankCardProps) {
   const bufferTemp = numVal(state, 'main/Buffer_Temp');
   const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
-  const outletTemp = numVal(state, 'main/Main_Outlet_Temp');
   const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
 
+  // Power – prefer XTOP values, fallback to main topics
+  const heatProdXT = numVal(state, 'extra/Heat_Power_Production');
+  const heatConsXT = numVal(state, 'extra/Heat_Power_Consumption');
+  const coolProdXT = numVal(state, 'extra/Cool_Power_Production');
+  const coolConsXT = numVal(state, 'extra/Cool_Power_Consumption');
+
+  const heatProd = heatProdXT ?? numVal(state, 'main/Heat_Power_Production');
+  const heatCons = heatConsXT ?? numVal(state, 'main/Heat_Power_Consumption');
+  const coolProd = coolProdXT ?? numVal(state, 'main/Cool_Power_Production');
+  const coolCons = coolConsXT ?? numVal(state, 'main/Cool_Power_Consumption');
+
+  const isCooling = (coolCons ?? 0) > 0 || (coolProd ?? 0) > 0;
+  const prod = isCooling ? coolProd : heatProd;
+  const cons = isCooling ? coolCons : heatCons;
+
+  const cop = cons && cons > 0 && prod ? (prod / cons).toFixed(2) : null;
+
   const { send, pending, error, success } = useCommand();
+  const { calcCostPerHour } = useElectricityPrice();
+  const cost = calcCostPerHour(cons);
+
   const [mode, setMode] = useState<Z1Mode>(loadMode);
   const cfg = Z1_MODES[mode];
 
@@ -196,20 +216,30 @@ export function BufferTankCard({ state }: BufferTankCardProps) {
 
         <div className="divider" style={{ marginTop: 16 }} />
 
-        {/* Context temps */}
-        <div className="metrics-grid metrics-grid-2" style={{ marginTop: 12 }}>
+        {/* Power & Cost */}
+        <div className="metrics-grid metrics-grid-4" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
-            <span className="metric-label">Järjestelmän tulo</span>
-            <span className="metric-value" style={{ color: 'var(--cool-primary)' }}>
-              {inletTemp !== null ? inletTemp.toFixed(1) : '—'}
-              <span className="metric-unit">°C</span>
+            <span className="metric-label">{isCooling ? 'Jäähd. tuotto' : 'Tuotto'}</span>
+            <span className="metric-value" style={{ color: isCooling ? 'var(--cool-primary)' : 'var(--heat-primary)' }}>
+              {prod !== null ? (prod >= 1000 ? `${(prod / 1000).toFixed(2)}kW` : `${Math.round(prod)}W`) : '—'}
             </span>
           </div>
           <div className="metric metric-sm">
-            <span className="metric-label">Järjestelmän meno</span>
-            <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
-              {outletTemp !== null ? outletTemp.toFixed(1) : '—'}
-              <span className="metric-unit">°C</span>
+            <span className="metric-label">Kulutus</span>
+            <span className="metric-value">
+              {cons !== null ? (cons >= 1000 ? `${(cons / 1000).toFixed(2)}kW` : `${Math.round(cons)}W`) : '—'}
+            </span>
+          </div>
+          <div className="metric metric-sm">
+            <span className="metric-label">COP</span>
+            <span className="metric-value" style={{ color: isCooling ? 'var(--cool-primary)' : 'var(--heat-primary)' }}>
+              {cop ?? '—'}
+            </span>
+          </div>
+          <div className="metric metric-sm">
+            <span className="metric-label">Hinta / h</span>
+            <span className="metric-value" style={{ color: 'var(--text-secondary)' }}>
+              {cost.formatted}
             </span>
           </div>
         </div>

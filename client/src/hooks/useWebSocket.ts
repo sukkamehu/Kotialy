@@ -7,7 +7,18 @@ import type {
 } from '../types/heishamon';
 import type { ZigbeeRegistry } from '../types/zigbee';
 
-const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+import { getStoredToken } from './useAuth';
+
+function getWsUrl(): string {
+  const base = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+  const token = getStoredToken();
+  if (token) {
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}token=${encodeURIComponent(token)}`;
+  }
+  return base;
+}
+
 const PING_INTERVAL = 20_000; // 20 seconds
 const HEARTBEAT_TIMEOUT = 8_000; // 8 seconds watchdog for pong/activity
 
@@ -132,7 +143,7 @@ export function useWebSocket(): UseWebSocketReturn {
     clearTimers();
 
     try {
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(getWsUrl());
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -253,7 +264,12 @@ export function useWebSocket(): UseWebSocketReturn {
 
       default: {
         const m = msg as any;
-        if (m.type === 'zigbee_update') {
+        if (m.type === 'auth_required') {
+          const token = getStoredToken();
+          if (token && wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'auth', token }));
+          }
+        } else if (m.type === 'zigbee_update') {
           for (const [prop, val] of Object.entries(m.properties as Record<string, string>)) {
             pendingZigbeePropsRef.current[`${m.device}/${prop}`] = val;
           }

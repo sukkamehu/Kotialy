@@ -8,6 +8,10 @@ interface StatusBarProps {
   heishamonOnline: boolean | null;
   wsConnected: boolean;
   lastUpdate: number | null;
+  isLocal?: boolean;
+  authenticated?: boolean;
+  username?: string | null;
+  onLogout?: () => void;
 }
 
 function timeAgo(ts: number | null, now: number): string {
@@ -25,7 +29,17 @@ const MODE_LABELS: Record<string, string> = {
   '6': 'Auto+KV', '7': 'Auto (viilennys)', '8': 'Auto (viilennys)+KV',
 };
 
-export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdate }: StatusBarProps) {
+export function StatusBar({
+  state,
+  mqtt,
+  heishamonOnline,
+  wsConnected,
+  lastUpdate,
+  isLocal,
+  authenticated,
+  username,
+  onLogout,
+}: StatusBarProps) {
   // The clock and the "updated Xs ago" label are derived from Date.now(), so
   // they only advance if something re-renders. Tick once a second.
   const [now, setNow] = useState(() => Date.now());
@@ -42,6 +56,18 @@ export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
 
   const isOn = hpState === '1';
 
+  // Unified connection status
+  const isWarning = wsConnected && (!mqtt.connected || heishamonOnline === false);
+  const connStatusClass = !wsConnected ? 'offline' : isWarning ? 'warning' : 'online';
+  const connLabel = !wsConnected
+    ? 'Ei yhteyttä'
+    : !mqtt.connected
+    ? 'Välittäjä poissa'
+    : heishamonOnline === false
+    ? 'Heishamon poissa'
+    : 'Live';
+  const connTooltip = `WebSocket: ${wsConnected ? 'OK' : 'Ei yhteyttä'} | MQTT-välittäjä: ${mqtt.connected ? 'OK' : 'Ei yhteyttä'} | Heishamon: ${heishamonOnline === true ? 'OK' : heishamonOnline === false ? 'Poissa' : 'Tuntematon'}`;
+
   return (
     <header className="status-bar">
       <div className="status-bar-inner">
@@ -53,34 +79,12 @@ export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
 
         <div className="status-divider status-hide-mobile" />
 
-        {/* Status Indicators Group */}
-        <div className="status-group">
-          {/* WS connection */}
-          <div className="status-indicator" title={wsConnected ? 'WebSocket yhdistetty' : 'WebSocket ei yhteyttä'}>
-            <div className={`status-dot ${wsConnected ? 'online' : 'offline'}`} />
-            <span className="status-label status-hide-mobile">
-              {wsConnected ? 'Live' : 'Ei yhteyttä'}
-            </span>
-          </div>
-
-          {/* Broker online */}
-          <div className="status-indicator status-hide-xs" title={mqtt.connected ? 'MQTT-välittäjä yhdistetty' : 'MQTT-välittäjä ei yhteyttä'}>
-            <div className={`status-dot ${mqtt.connected ? 'online' : 'offline'}`} />
-            <span className="status-label status-hide-mobile">
-              Välittäjä {mqtt.connected ? 'Paikalla' : 'Poissa'}
-            </span>
-          </div>
-
-          {/* Heishamon online */}
-          <div className="status-indicator status-hide-sm" title={`Heishamon ${heishamonOnline === true ? 'Paikalla' : heishamonOnline === false ? 'Poissa' : 'Tuntematon'}`}>
-            <div className={`status-dot ${
-              heishamonOnline === true ? 'online' :
-              heishamonOnline === false ? 'offline' : 'warning'
-            }`} />
-            <span className="status-label status-hide-mobile">
-              Heishamon {heishamonOnline === true ? 'Paikalla' : heishamonOnline === false ? 'Poissa' : '—'}
-            </span>
-          </div>
+        {/* Single Status Indicator */}
+        <div className="status-indicator" title={connTooltip}>
+          <div className={`status-dot ${connStatusClass}`} />
+          <span className="status-label status-hide-mobile">
+            {connLabel}
+          </span>
         </div>
 
         {/* Heat pump state badge */}
@@ -118,6 +122,18 @@ export function StatusBar({ state, mqtt, heishamonOnline, wsConnected, lastUpdat
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
+
+        {/* Auth status & Logout */}
+        {!isLocal && authenticated && onLogout && (
+          <button
+            onClick={onLogout}
+            className="btn btn-sm btn-ghost status-hide-xs"
+            title="Kirjaudu ulos etäistunnosta"
+            style={{ fontSize: 11, padding: '4px 8px', color: 'var(--text-muted)' }}
+          >
+            👤 {username || 'admin'} · Kirjaudu ulos
+          </button>
+        )}
 
         {/* Last update & Clock */}
         <div className="status-meta">
