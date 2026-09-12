@@ -52,11 +52,8 @@ export function LoginView({ onLogin }: LoginViewProps) {
 
         <div className="card-body" style={{ padding: '20px 24px 28px' }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-              🔒 Etäkäytön kirjautuminen
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-              Ulkoverkkoyhteys havaittu. Kirjaudu sisään hallitaksesi lämpöpumpun toimintaa turvallisesti.
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>
+              🔒 Kirjaudu sisään
             </div>
           </div>
 
@@ -150,10 +147,6 @@ export function LoginView({ onLogin }: LoginViewProps) {
               {loading ? 'Kirjaudutaan…' : 'Kirjaudu sisään →'}
             </button>
           </form>
-
-          <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-            Lähiverkosta (LAN) yhdistettäessä kirjautumista ei kysytä.
-          </div>
         </div>
       </div>
     </div>
