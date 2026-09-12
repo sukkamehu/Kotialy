@@ -151,9 +151,16 @@ function publish(setTopic, value) {
     throw new Error('MQTT not connected');
   }
   const fullTopic = `${BASE_TOPIC}/${setTopic}`;
-  client.publish(fullTopic, String(value), { qos: 1 }, (err) => {
-    if (err) console.error(`[MQTT] Publish error to ${fullTopic}:`, err);
-    else console.log(`[MQTT] Published ${fullTopic} = ${value}`);
+  return new Promise((resolve, reject) => {
+    client.publish(fullTopic, String(value), { qos: 1 }, (err) => {
+      if (err) {
+        console.error(`[MQTT] Publish error to ${fullTopic}:`, err);
+        reject(err);
+      } else {
+        console.log(`[MQTT] Published ${fullTopic} = ${value}`);
+        resolve(true);
+      }
+    });
   });
 }
 
@@ -165,4 +172,10 @@ function getLastReceivedAt() {
   return lastReceivedAt;
 }
 
-module.exports = { init, publish, isConnected, getLastReceivedAt };
+module.exports = {
+  init,
+  publish,
+  sendCommand: publish,
+  isConnected,
+  getLastReceivedAt,
+};

@@ -35,7 +35,19 @@ class PanasonicDriver {
       warn('Cannot send command — MQTT client not set');
       return false;
     }
-    return this.mqttClient.sendCommand(setTopic, value);
+    try {
+      if (typeof this.mqttClient.sendCommand === 'function') {
+        await this.mqttClient.sendCommand(setTopic, value);
+        return true;
+      } else if (typeof this.mqttClient.publish === 'function') {
+        await this.mqttClient.publish(setTopic, value);
+        return true;
+      }
+    } catch (err) {
+      warn(`Command failed for ${setTopic} = ${value}:`, err.message);
+      return false;
+    }
+    return false;
   }
 
   /**
