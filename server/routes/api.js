@@ -472,7 +472,7 @@ router.post('/apc/settings', requireAdmin, express.json(), async (req, res) => {
  * Body: { duration_hours: 2, directive: 'NORMAL' | 'BOOST' | 'SETBACK' }
  * Pass duration_hours: 0 to cancel override.
  */
-router.post('/api/apc/override', requireAdmin, express.json(), async (req, res) => {
+router.post('/apc/override', requireAdmin, express.json(), async (req, res) => {
   try {
     const { duration_hours = 2, directive = 'NORMAL' } = req.body || {};
     const updated = await apcService.setOverride(parseFloat(duration_hours), directive);

@@ -342,6 +342,13 @@ function getCostSettings() {
   return settings;
 }
 
+/**
+ * Update single cost setting.
+ */
+function updateCostSetting(key, value) {
+  stmtUpsertCostSetting.run(key, String(value));
+}
+
 const stmtGetApcSettings = db.prepare(`SELECT key, value FROM apc_settings`);
 
 const stmtUpsertApcSetting = db.prepare(`
