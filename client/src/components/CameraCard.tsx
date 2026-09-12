@@ -21,10 +21,15 @@ export function CameraCard() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Default to 1000ms (1.0s) for responsive live feed
+  // Default to 10000ms (10s)
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
     const saved = localStorage.getItem('kotialy_camera_interval');
-    return saved !== null ? parseInt(saved, 10) : 1000;
+    if (saved !== null) {
+      const parsed = parseInt(saved, 10);
+      if (parsed === 500) return 10000; // migrate old 0.5s setting
+      return parsed;
+    }
+    return 10000;
   });
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -232,10 +237,10 @@ export function CameraCard() {
               }}
             >
               {[
-                { label: '0.5s', val: 500 },
                 { label: '1s', val: 1000 },
-                { label: '2s', val: 2000 },
-                { label: '5s', val: 5000 },
+                { label: '3s', val: 3000 },
+                { label: '10s', val: 10000 },
+                { label: '30s', val: 30000 },
                 { label: '⏸', val: 0 },
               ].map((opt) => (
                 <button
