@@ -10,6 +10,7 @@ import type { TrendTopicTarget } from './VariableTrendModal';
 interface DHWCardProps {
   state: HeishamonState;
   onOpenTrend?: (target: TrendTopicTarget) => void;
+  readOnly?: boolean;
 }
 
 function TankSvg({
@@ -89,7 +90,7 @@ function TankSvg({
   );
 }
 
-export function DHWCard({ state, onOpenTrend }: DHWCardProps) {
+export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) {
   const temp = numVal(state, 'main/DHW_Temp');
   const target = numVal(state, 'main/DHW_Target_Temp');
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
@@ -180,6 +181,7 @@ export function DHWCard({ state, onOpenTrend }: DHWCardProps) {
             step={1}
             accentColor="var(--dhw-primary)"
             pending={pending}
+            disabled={readOnly}
             onCommit={setDHWTarget}
             idPrefix="dhw-target"
             hint="legionellakuumennus vaatii ≥60 °C"
@@ -226,6 +228,7 @@ export function DHWCard({ state, onOpenTrend }: DHWCardProps) {
             on={forceHeater}
             onToggle={toggleForceHeater}
             pending={pending}
+            disabled={readOnly}
             idPrefix="btn-dhw-force-heater"
             onLabel="🔥 Pakotettu"
             offLabel="○ Pois"

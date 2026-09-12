@@ -71,11 +71,11 @@ function getClientIp(req) {
 /**
  * Create a signed long-lived token (default 365 days / 1 year).
  */
-function generateToken(username) {
+function generateToken(username, role = 'admin') {
   const secret = process.env.AUTH_SECRET || 'kotialy_default_secret_key_change_in_production';
   const tokenDays = parseInt(process.env.AUTH_TOKEN_DAYS || '365');
   const expiresAt = Date.now() + tokenDays * 24 * 60 * 60 * 1000;
-  const payload = Buffer.from(JSON.stringify({ u: username, exp: expiresAt })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ u: username, role, exp: expiresAt })).toString('base64url');
   const signature = crypto
     .createHmac('sha256', secret)
     .update(payload)
@@ -105,7 +105,11 @@ function verifyToken(tokenStr) {
     if (!data.exp || Date.now() > data.exp) {
       return null; // Expired
     }
-    return data;
+    return {
+      u: data.u,
+      role: data.role || 'admin',
+      exp: data.exp,
+    };
   } catch {
     return null;
   }
@@ -113,7 +117,7 @@ function verifyToken(tokenStr) {
 
 /**
  * Express Middleware:
- * If request is from LAN -> passes through automatically.
+ * If request is from LAN -> passes through automatically as admin.
  * If request is from WAN -> requires valid Bearer token.
  */
 function requireAuthOrLan(req, res, next) {
@@ -122,6 +126,7 @@ function requireAuthOrLan(req, res, next) {
   if (isLocalIp(ip)) {
     req.isLocal = true;
     req.user = 'lan_user';
+    req.role = 'admin';
     return next();
   }
 
@@ -139,6 +144,7 @@ function requireAuthOrLan(req, res, next) {
   const valid = verifyToken(token);
   if (valid) {
     req.user = valid.u;
+    req.role = valid.role || 'admin';
     return next();
   }
 
@@ -150,14 +156,41 @@ function requireAuthOrLan(req, res, next) {
 }
 
 /**
- * Validate credentials.
+ * Express Middleware to restrict mutations to admin role.
+ */
+function requireAdmin(req, res, next) {
+  if (req.role !== 'admin') {
+    return res.status(403).json({
+      error: 'Toiminto vaatii ylläpitäjän oikeudet (vain luku -tunnus)',
+      readOnly: true,
+    });
+  }
+  next();
+}
+
+/**
+ * Validate credentials against Admin or Viewer configuration.
+ * Returns { valid: true, role: 'admin' | 'viewer', username } or { valid: false }.
  */
 function checkCredentials(username, password) {
-  const currentUsername = (process.env.AUTH_USERNAME || 'admin').trim();
-  const currentPassword = process.env.AUTH_PASSWORD || 'kotialy';
   const u = String(username || '').trim();
   const p = String(password || '');
-  return u === currentUsername && p === currentPassword;
+
+  // 1. Check Admin
+  const adminUser = (process.env.AUTH_USERNAME || 'admin').trim();
+  const adminPass = process.env.AUTH_PASSWORD || 'kotialy';
+  if (u === adminUser && p === adminPass) {
+    return { valid: true, role: 'admin', username: u };
+  }
+
+  // 2. Check Viewer (optional)
+  const viewerUser = (process.env.AUTH_VIEWER_USERNAME || '').trim();
+  const viewerPass = process.env.AUTH_VIEWER_PASSWORD || '';
+  if (viewerUser && viewerPass && u === viewerUser && p === viewerPass) {
+    return { valid: true, role: 'viewer', username: u };
+  }
+
+  return { valid: false };
 }
 
 module.exports = {
@@ -166,6 +199,7 @@ module.exports = {
   generateToken,
   verifyToken,
   requireAuthOrLan,
+  requireAdmin,
   checkCredentials,
   AUTH_USERNAME,
   AUTH_TOKEN_DAYS,

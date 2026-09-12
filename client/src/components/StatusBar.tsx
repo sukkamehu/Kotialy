@@ -11,6 +11,7 @@ interface StatusBarProps {
   isLocal?: boolean;
   authenticated?: boolean;
   username?: string | null;
+  role?: 'admin' | 'viewer';
   onLogout?: () => void;
 }
 
@@ -38,6 +39,7 @@ export function StatusBar({
   isLocal,
   authenticated,
   username,
+  role = 'admin',
   onLogout,
 }: StatusBarProps) {
   // The clock and the "updated Xs ago" label are derived from Date.now(), so
@@ -99,6 +101,23 @@ export function StatusBar({
           </div>
         )}
 
+        {/* Role badge if viewer */}
+        {role === 'viewer' && (
+          <div
+            className="badge"
+            style={{
+              background: 'rgba(56, 189, 248, 0.12)',
+              color: '#38bdf8',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+            title="Vain luku -käyttöoikeus (asetusten muokkaus estetty)"
+          >
+            👁️ Vain luku
+          </div>
+        )}
+
         {/* Outside temp */}
         {outsideTempNum !== null && (
           <div className="status-temp">
@@ -131,7 +150,7 @@ export function StatusBar({
             title="Kirjaudu ulos etäistunnosta"
             style={{ fontSize: 11, padding: '4px 8px', color: 'var(--text-muted)' }}
           >
-            👤 {username || 'admin'} · Kirjaudu ulos
+            👤 {username || (role === 'viewer' ? 'katsoja' : 'admin')} · Kirjaudu ulos
           </button>
         )}
 

@@ -51,16 +51,23 @@ wss.on('connection', (ws, req) => {
   const isLocal = isLocalIp(ip);
 
   let token = null;
+  let validToken = null;
   try {
     const parsedUrl = new URL(req.url, 'http://localhost');
     token = parsedUrl.searchParams.get('token');
+    if (token) validToken = verifyToken(token);
   } catch {}
 
-  let authenticated = isLocal || (token && verifyToken(token) !== null);
+  let authenticated = isLocal || validToken !== null;
+  let userRole = isLocal ? 'admin' : (validToken?.role || 'viewer');
+  let userName = isLocal ? 'lan_user' : (validToken?.u || null);
+
   ws.isAuth = authenticated;
   ws.isLocal = isLocal;
+  ws.role = userRole;
+  ws.user = userName;
 
-  console.log(`[WS] Client connected from ${ip} (Local: ${isLocal}, Auth: ${authenticated})`);
+  console.log(`[WS] Client connected from ${ip} (Local: ${isLocal}, Auth: ${authenticated}, Role: ${userRole})`);
   wsClients.add(ws);
 
   const sendSnapshot = () => {
@@ -79,6 +86,8 @@ wss.on('connection', (ws, req) => {
         auth: {
           isLocal,
           authenticated: true,
+          role: ws.role || userRole,
+          username: ws.user || userName,
         },
         ts: Date.now(),
       })
@@ -99,6 +108,8 @@ wss.on('connection', (ws, req) => {
         if (valid) {
           ws.isAuth = true;
           authenticated = true;
+          ws.role = valid.role || 'viewer';
+          ws.user = valid.u;
           sendSnapshot();
         } else {
           ws.send(JSON.stringify({ type: 'auth_error', error: 'Virheellinen kirjautumistunniste' }));

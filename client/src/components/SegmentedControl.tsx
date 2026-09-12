@@ -56,6 +56,7 @@ interface ToggleRowProps {
   on: boolean;
   onToggle: () => void;
   pending?: boolean;
+  disabled?: boolean;
   idPrefix: string;
   onLabel?: string;
   offLabel?: string;
@@ -64,7 +65,7 @@ interface ToggleRowProps {
 
 /** Label + description on the left, an on/off button on the right. */
 export function ToggleRow({
-  label, description, on, onToggle, pending = false, idPrefix,
+  label, description, on, onToggle, pending = false, disabled = false, idPrefix,
   onLabel = '● Päällä', offLabel = '○ Pois', danger = false,
 }: ToggleRowProps) {
   return (
@@ -80,7 +81,7 @@ export function ToggleRow({
       <button
         className={`btn btn-sm ${on ? (danger ? 'btn-danger' : 'btn-primary') : 'btn-ghost'}`}
         onClick={onToggle}
-        disabled={pending}
+        disabled={disabled || pending}
         id={idPrefix}
         style={{ flexShrink: 0 }}
       >

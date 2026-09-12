@@ -34,10 +34,13 @@ export function getAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export type UserRole = 'admin' | 'viewer';
+
 export interface UseAuthReturn {
   isLocal: boolean;
   authenticated: boolean;
   username: string | null;
+  role: UserRole;
   loading: boolean;
   login: (u: string, p: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
@@ -48,6 +51,7 @@ export function useAuth(): UseAuthReturn {
   const [isLocal, setIsLocal] = useState<boolean>(true); // default optimistic LAN
   const [authenticated, setAuthenticated] = useState<boolean>(true);
   const [username, setUsername] = useState<string | null>(null);
+  const [role, setRole] = useState<UserRole>('admin');
   const [loading, setLoading] = useState<boolean>(true);
 
   const checkStatus = useCallback(async () => {
@@ -59,6 +63,7 @@ export function useAuth(): UseAuthReturn {
         setIsLocal(Boolean(data.isLocal));
         setAuthenticated(Boolean(data.authenticated));
         setUsername(data.username || (data.isLocal ? 'Lähiverkko' : null));
+        setRole(data.role || (data.isLocal ? 'admin' : 'viewer'));
         if (!data.authenticated && !data.isLocal) {
           clearStoredToken();
         }
@@ -90,6 +95,7 @@ export function useAuth(): UseAuthReturn {
       setStoredToken(data.token, data.username);
       setAuthenticated(true);
       setUsername(data.username);
+      setRole(data.role || 'admin');
       setIsLocal(Boolean(data.isLocal));
       return { ok: true };
     } catch (err) {
@@ -104,6 +110,7 @@ export function useAuth(): UseAuthReturn {
       clearStoredToken();
       setAuthenticated(false);
       setUsername(null);
+      setRole('viewer');
       checkStatus();
     }
   }, [checkStatus]);
@@ -112,6 +119,7 @@ export function useAuth(): UseAuthReturn {
     isLocal,
     authenticated,
     username,
+    role,
     loading,
     login,
     logout,

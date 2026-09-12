@@ -26,6 +26,7 @@ interface DashboardProps {
   isLocal?: boolean;
   authenticated?: boolean;
   username?: string | null;
+  role?: 'admin' | 'viewer';
   onLogout?: () => void;
 }
 
@@ -40,10 +41,12 @@ export function Dashboard({
   isLocal,
   authenticated,
   username,
+  role,
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
+  const readOnly = role === 'viewer';
 
   return (
     <div className="app-bg" style={{ minHeight: '100vh' }}>
@@ -56,6 +59,7 @@ export function Dashboard({
         isLocal={isLocal}
         authenticated={authenticated}
         username={username}
+        role={role}
         onLogout={onLogout}
       />
 
@@ -99,20 +103,20 @@ export function Dashboard({
           <>
             {/* Row 1: Main monitoring cards */}
             <div className="dashboard-grid dashboard-grid-main">
-              <HeatpumpCard state={state} onOpenTrend={setTrendTarget} />
-              <DHWCard state={state} onOpenTrend={setTrendTarget} />
-              <BufferTankCard state={state} onOpenTrend={setTrendTarget} />
+              <HeatpumpCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+              <DHWCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+              <BufferTankCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
             </div>
 
             {/* Row 2: Outdoor + Valve — each card carries its own controls */}
             <div className="dashboard-grid dashboard-grid-sub">
-              <OutdoorCard state={state} onOpenTrend={setTrendTarget} />
-              <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} />
+              <OutdoorCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+              <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
             </div>
 
             {/* Row 3: Daily Energy Costs & Savings */}
             <div style={{ marginBottom: 20 }}>
-              <DailyCostsCard />
+              <DailyCostsCard readOnly={readOnly} />
             </div>
 
             {/* Row 4: Energy & Lifecycle Analytics */}

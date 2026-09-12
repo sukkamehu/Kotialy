@@ -15,6 +15,7 @@ const QUIET_LEVELS = [
 interface OutdoorCardProps {
   state: HeishamonState;
   onOpenTrend?: (target: TrendTopicTarget) => void;
+  readOnly?: boolean;
 }
 
 function ThermometerSvg({
@@ -83,7 +84,7 @@ function ThermometerSvg({
   );
 }
 
-export function OutdoorCard({ state, onOpenTrend }: OutdoorCardProps) {
+export function OutdoorCard({ state, onOpenTrend, readOnly = false }: OutdoorCardProps) {
   const outsideTemp = numVal(state, 'main/Outside_Temp');
   const outsidePipe = numVal(state, 'main/Outside_Pipe_Temp');
   const discharge = numVal(state, 'main/Discharge_Temp');
@@ -291,6 +292,7 @@ export function OutdoorCard({ state, onOpenTrend }: OutdoorCardProps) {
           onSelect={(v) => send('commands/SetQuietMode', v,
             v === 0 ? 'Hiljainen tila pois' : `Hiljainen tila: Taso ${v}`)}
           pending={pending}
+          disabled={readOnly}
           idPrefix="btn-quiet"
           hint="korkeampi taso = hiljaisempi ääni, alempi maksimiteho"
         />

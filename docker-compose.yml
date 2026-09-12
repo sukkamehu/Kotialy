@@ -39,6 +39,8 @@ services:
       ZIGBEE_MQTT_PASSWORD: ${APP_MQTT_PASSWORD:?set in .env}
       AUTH_USERNAME: ${AUTH_USERNAME:-admin}
       AUTH_PASSWORD: ${AUTH_PASSWORD:-kotialy}
+      AUTH_VIEWER_USERNAME: ${AUTH_VIEWER_USERNAME:-viewer}
+      AUTH_VIEWER_PASSWORD: ${AUTH_VIEWER_PASSWORD:-}
       AUTH_SECRET: ${AUTH_SECRET:-kotialy_default_secret_key_change_in_production}
       AUTH_TOKEN_DAYS: ${AUTH_TOKEN_DAYS:-365}
     volumes:

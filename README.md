@@ -88,12 +88,18 @@ ZIGBEE2MQTT_MQTT_PASSWORD=your_secure_z2m_password
 MQTT_BASE_TOPIC=panasonic_heat_pump
 ZIGBEE_BASE_TOPIC=zigbee2mqtt
 
-# Remote Authentication (LAN access bypasses login automatically)
+# Remote Authentication & Roles (LAN access bypasses login with admin role automatically)
 AUTH_USERNAME=admin
 AUTH_PASSWORD=your_secure_remote_password
+AUTH_VIEWER_USERNAME=viewer
+AUTH_VIEWER_PASSWORD=your_secure_viewer_password
 AUTH_SECRET=your_long_random_secret_string
 AUTH_TOKEN_DAYS=365
 ```
+
+> **Käyttäjäroolit (Roles):**
+> - **Admin (`admin`)**: Täydet oikeudet lukea arvoja, muuttaa lämpötila-asetuksia, kytkeä tehostuksia ja ohjata laitteistoa.
+> - **Vain luku / Katsoja (`viewer`)**: Sallii tilatietojen, antureiden, sääennusteiden ja pörssisähkön hintojen tarkastelun. Ohjauskomennot (`POST /api/command`) ja hintaparametrien muokkaus on estetty (403 Forbidden).
 
 ### 2. Start the Stack
 

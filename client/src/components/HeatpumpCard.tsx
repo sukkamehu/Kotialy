@@ -28,6 +28,7 @@ import type { TrendTopicTarget } from './VariableTrendModal';
 interface HeatpumpCardProps {
   state: HeishamonState;
   onOpenTrend?: (target: TrendTopicTarget) => void;
+  readOnly?: boolean;
 }
 
 function CompressorRing({
@@ -168,7 +169,7 @@ function TempFlow({
   );
 }
 
-export function HeatpumpCard({ state, onOpenTrend }: HeatpumpCardProps) {
+export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpCardProps) {
   const isOn = state['main/Heatpump_State']?.value === '1';
   const freq = numVal(state, 'main/Compressor_Freq');
   const inlet = numVal(state, 'main/Main_Inlet_Temp');
@@ -207,9 +208,9 @@ export function HeatpumpCard({ state, onOpenTrend }: HeatpumpCardProps) {
             className={`btn btn-sm ${isOn ? 'btn-primary' : 'btn-ghost'}`}
             style={{ marginLeft: defrost ? 4 : 'auto' }}
             onClick={() => setShowPowerConfirm(true)}
-            disabled={pending}
+            disabled={pending || readOnly}
             id="btn-heatpump-power"
-            title="Kytke lämpöpumppu päälle tai pois"
+            title={readOnly ? 'Vain luku -tila' : 'Kytke lämpöpumppu päälle tai pois'}
           >
             {pending ? '…' : isOn ? '● Päällä' : '○ Pois'}
           </button>
@@ -319,6 +320,7 @@ export function HeatpumpCard({ state, onOpenTrend }: HeatpumpCardProps) {
           onSelect={(v) => send('commands/SetOperationMode', v,
             `Toimintatila: ${OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`)}
           pending={pending}
+          disabled={readOnly}
           idPrefix="btn-mode"
         />
 
@@ -329,6 +331,7 @@ export function HeatpumpCard({ state, onOpenTrend }: HeatpumpCardProps) {
           onSelect={(v) => send('commands/SetPowerfulMode', v,
             v === 0 ? 'Tehotila pois' : `Tehotila päällä ${v * 30} min`)}
           pending={pending}
+          disabled={readOnly}
           idPrefix="btn-powerful"
         />
 
@@ -339,6 +342,7 @@ export function HeatpumpCard({ state, onOpenTrend }: HeatpumpCardProps) {
           onToggle={() => send('commands/SetHolidayMode', holidayOn ? 0 : 1,
             holidayOn ? 'Lomatila pois' : 'Lomatila päällä')}
           pending={pending}
+          disabled={readOnly}
           idPrefix="btn-holiday"
           onLabel="● Päällä"
           offLabel="○ Pois"

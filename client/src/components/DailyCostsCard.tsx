@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import type { CostSummary, DailyCost } from '../types/costs';
 
-export function DailyCostsCard() {
+export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}) {
   const [summary, setSummary] = useState<CostSummary | null>(null);
   const [dailyCosts, setDailyCosts] = useState<DailyCost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,23 +88,25 @@ export function DailyCostsCard() {
               Säästö tässä kuussa: ~{month.savings_eur.toFixed(1)} €
             </div>
           )}
-          <button
-            type="button"
-            className="btn btn-icon"
-            title="Hintaparametrit"
-            onClick={() => setShowSettings(!showSettings)}
-            style={{
-              padding: '4px 8px',
-              fontSize: 13,
-              borderRadius: 6,
-              background: showSettings ? 'var(--heat-primary)' : 'rgba(255,255,255,0.06)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-            }}
-          >
-            ⚙️ Asetukset
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="btn btn-icon"
+              title="Hintaparametrit"
+              onClick={() => setShowSettings(!showSettings)}
+              style={{
+                padding: '4px 8px',
+                fontSize: 13,
+                borderRadius: 6,
+                background: showSettings ? 'var(--heat-primary)' : 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              ⚙️ Asetukset
+            </button>
+          )}
         </div>
       </div>
 

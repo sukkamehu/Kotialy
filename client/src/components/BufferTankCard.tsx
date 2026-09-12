@@ -37,6 +37,7 @@ import type { TrendTopicTarget } from './VariableTrendModal';
 interface BufferTankCardProps {
   state: HeishamonState;
   onOpenTrend?: (target: TrendTopicTarget) => void;
+  readOnly?: boolean;
 }
 
 function BufferSvg({
@@ -105,7 +106,7 @@ function BufferSvg({
   );
 }
 
-export function BufferTankCard({ state, onOpenTrend }: BufferTankCardProps) {
+export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferTankCardProps) {
   const bufferTemp = numVal(state, 'main/Buffer_Temp');
   const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
   const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
@@ -239,6 +240,7 @@ export function BufferTankCard({ state, onOpenTrend }: BufferTankCardProps) {
             signed={cfg.signed}
             accentColor="var(--buffer-primary)"
             pending={pending}
+            disabled={readOnly}
             onCommit={setZ1}
             idPrefix="z1-request"
             hint={cfg.hint}

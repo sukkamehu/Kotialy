@@ -24,6 +24,7 @@ const {
   generateToken,
   verifyToken,
   requireAuthOrLan,
+  requireAdmin,
   checkCredentials,
   AUTH_USERNAME,
   AUTH_TOKEN_DAYS,
@@ -39,10 +40,12 @@ router.get('/auth/status', (req, res) => {
 
   let authenticated = false;
   let username = null;
+  let role = 'viewer';
 
   if (isLocal) {
     authenticated = true;
     username = 'lan_user';
+    role = 'admin';
   } else {
     const authHeader = req.headers['authorization'];
     let token = null;
@@ -55,6 +58,7 @@ router.get('/auth/status', (req, res) => {
     if (valid) {
       authenticated = true;
       username = valid.u;
+      role = valid.role || 'admin';
     }
   }
 
@@ -62,6 +66,7 @@ router.get('/auth/status', (req, res) => {
     isLocal,
     authenticated,
     username,
+    role,
     clientIp: ip,
   });
 });
@@ -77,18 +82,20 @@ router.post('/auth/login', express.json(), (req, res) => {
     return res.status(400).json({ error: 'Käyttäjätunnus ja salasana vaaditaan' });
   }
 
-  if (!checkCredentials(username, password)) {
+  const credCheck = checkCredentials(username, password);
+  if (!credCheck || !credCheck.valid) {
     return res.status(401).json({ error: 'Virheellinen käyttäjätunnus tai salasana' });
   }
 
-  const token = generateToken(username);
+  const token = generateToken(credCheck.username, credCheck.role);
   const expiresAt = Date.now() + AUTH_TOKEN_DAYS * 24 * 60 * 60 * 1000;
 
   res.json({
     ok: true,
     token,
     expiresAt,
-    username,
+    username: credCheck.username,
+    role: credCheck.role,
     isLocal: isLocalIp(getClientIp(req)),
   });
 });
@@ -177,7 +184,7 @@ router.get('/topics', (req, res) => {
  * Publish a command to Heishamon.
  * Body: { setTopic: 'commands/SetForceDHW', value: 1 }
  */
-router.post('/command', express.json(), (req, res) => {
+router.post('/command', requireAdmin, express.json(), (req, res) => {
   const { setTopic, value } = req.body;
 
   if (!setTopic || value === undefined) {
@@ -385,7 +392,7 @@ router.get('/costs/settings', (req, res) => {
  * POST /api/costs/settings
  * Body: { margin_cents_kwh, transfer_cents_kwh, vat_percent }
  */
-router.post('/costs/settings', express.json(), (req, res) => {
+router.post('/costs/settings', requireAdmin, express.json(), (req, res) => {
   const { margin_cents_kwh, transfer_cents_kwh, vat_percent } = req.body || {};
 
   if (margin_cents_kwh != null && !isNaN(parseFloat(margin_cents_kwh))) {
@@ -411,7 +418,7 @@ router.post('/costs/settings', express.json(), (req, res) => {
  * POST /api/costs/recalculate
  * Body: { days: 30 }
  */
-router.post('/costs/recalculate', express.json(), (req, res) => {
+router.post('/costs/recalculate', requireAdmin, express.json(), (req, res) => {
   const days = req.body?.days ? parseInt(req.body.days) : 30;
   const results = costCalculator.recalculateRecentDays(days);
   res.json({

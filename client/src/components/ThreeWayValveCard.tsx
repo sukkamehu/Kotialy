@@ -5,9 +5,10 @@ import type { TrendTopicTarget } from './VariableTrendModal';
 interface ThreeWayValveCardProps {
   state: HeishamonState;
   onOpenTrend?: (target: TrendTopicTarget) => void;
+  readOnly?: boolean;
 }
 
-export function ThreeWayValveCard({ state, onOpenTrend }: ThreeWayValveCardProps) {
+export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: ThreeWayValveCardProps) {
   const valveState = state['main/ThreeWay_Valve_State'];
   const val = valveState?.value;
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
@@ -170,7 +171,7 @@ export function ThreeWayValveCard({ state, onOpenTrend }: ThreeWayValveCardProps
             <button
               className={`toggle-btn ${!forceDHW ? 'active' : ''}`}
               onClick={() => setValveTarget('heating')}
-              disabled={pending}
+              disabled={pending || readOnly}
               id="btn-valve-auto-heating"
             >
               🔄 Automaatti / Lämmitys
@@ -178,7 +179,7 @@ export function ThreeWayValveCard({ state, onOpenTrend }: ThreeWayValveCardProps
             <button
               className={`toggle-btn ${forceDHW ? 'active' : ''}`}
               onClick={() => setValveTarget('dhw')}
-              disabled={pending}
+              disabled={pending || readOnly}
               id="btn-valve-force-dhw"
               style={forceDHW ? { background: 'var(--dhw-primary)', borderColor: 'var(--dhw-primary)', color: '#fff' } : undefined}
             >

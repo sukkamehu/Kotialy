@@ -5,7 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { LoginView } from './components/LoginView';
 
 function App() {
-  const { isLocal, authenticated, username, loading, login, logout } = useAuth();
+  const { isLocal, authenticated, username, role, loading, login, logout } = useAuth();
   const {
     state, mqtt, heishamonOnline, wsConnected, lastUpdate,
     zigbeeDevices, zigbeeConnected,
@@ -28,6 +28,7 @@ function App() {
       isLocal={isLocal}
       authenticated={authenticated}
       username={username}
+      role={role}
       onLogout={logout}
     />
   );
