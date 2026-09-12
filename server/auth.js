@@ -72,10 +72,12 @@ function getClientIp(req) {
  * Create a signed long-lived token (default 365 days / 1 year).
  */
 function generateToken(username) {
-  const expiresAt = Date.now() + AUTH_TOKEN_DAYS * 24 * 60 * 60 * 1000;
+  const secret = process.env.AUTH_SECRET || 'kotialy_default_secret_key_change_in_production';
+  const tokenDays = parseInt(process.env.AUTH_TOKEN_DAYS || '365');
+  const expiresAt = Date.now() + tokenDays * 24 * 60 * 60 * 1000;
   const payload = Buffer.from(JSON.stringify({ u: username, exp: expiresAt })).toString('base64url');
   const signature = crypto
-    .createHmac('sha256', AUTH_SECRET)
+    .createHmac('sha256', secret)
     .update(payload)
     .digest('base64url');
   return `${payload}.${signature}`;
@@ -90,8 +92,9 @@ function verifyToken(tokenStr) {
   if (parts.length !== 2) return null;
 
   const [payload, signature] = parts;
+  const secret = process.env.AUTH_SECRET || 'kotialy_default_secret_key_change_in_production';
   const expectedSig = crypto
-    .createHmac('sha256', AUTH_SECRET)
+    .createHmac('sha256', secret)
     .update(payload)
     .digest('base64url');
 
@@ -150,7 +153,11 @@ function requireAuthOrLan(req, res, next) {
  * Validate credentials.
  */
 function checkCredentials(username, password) {
-  return username === AUTH_USERNAME && password === AUTH_PASSWORD;
+  const currentUsername = (process.env.AUTH_USERNAME || 'admin').trim();
+  const currentPassword = process.env.AUTH_PASSWORD || 'kotialy';
+  const u = String(username || '').trim();
+  const p = String(password || '');
+  return u === currentUsername && p === currentPassword;
 }
 
 module.exports = {
