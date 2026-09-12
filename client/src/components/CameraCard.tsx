@@ -21,7 +21,13 @@ export function CameraCard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshInterval, setRefreshInterval] = useState<number>(3000); // 3s default
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isHd, setIsHd] = useState<boolean>(false);
+  
+  // Default to HD (1080p) for high clarity, saved in localStorage
+  const [isHd, setIsHd] = useState<boolean>(() => {
+    const saved = localStorage.getItem('kotialy_camera_hd');
+    return saved !== null ? saved === 'true' : true;
+  });
+
   const [status, setStatus] = useState<CameraStatus | null>(null);
   const [copiedStream, setCopiedStream] = useState<string | null>(null);
 
@@ -44,7 +50,7 @@ export function CameraCard() {
   }, []);
 
   // Fetch snapshot blob and create ObjectURL
-  const fetchSnapshot = useCallback(async (highRes = false, manual = false) => {
+  const fetchSnapshot = useCallback(async (highRes = isHd, manual = false) => {
     if (manual) setRefreshing(true);
     try {
       const url = `/api/camera/snapshot?t=${Date.now()}${highRes ? '&highRes=1' : ''}`;
@@ -79,7 +85,7 @@ export function CameraCard() {
         if (manual) setRefreshing(false);
       }
     }
-  }, []);
+  }, [isHd]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -99,12 +105,18 @@ export function CameraCard() {
     if (refreshInterval <= 0) return;
 
     const timer = setInterval(() => {
-      // Don't auto-fetch HD continuously to preserve camera bandwidth
-      fetchSnapshot(isModalOpen && isHd);
+      fetchSnapshot(isHd);
     }, refreshInterval);
 
     return () => clearInterval(timer);
-  }, [refreshInterval, fetchSnapshot, isModalOpen, isHd]);
+  }, [refreshInterval, fetchSnapshot, isHd]);
+
+  const toggleHd = () => {
+    const nextVal = !isHd;
+    setIsHd(nextVal);
+    localStorage.setItem('kotialy_camera_hd', String(nextVal));
+    fetchSnapshot(nextVal, true);
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -131,14 +143,14 @@ export function CameraCard() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {/* Live Indicator */}
             <div
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '3px 9px',
+                padding: '3px 8px',
                 borderRadius: 12,
                 fontSize: 11,
                 fontWeight: 600,
@@ -159,6 +171,25 @@ export function CameraCard() {
               />
               {refreshInterval === 0 ? 'PYSÄYTETTY' : error ? 'OFFLINE' : 'LIVE'}
             </div>
+
+            {/* Quality HD/SD toggle */}
+            <button
+              onClick={toggleHd}
+              style={{
+                border: `1px solid ${isHd ? 'rgba(34, 211, 238, 0.5)' : 'var(--border)'}`,
+                background: isHd ? 'rgba(34, 211, 238, 0.18)' : 'rgba(255,255,255,0.05)',
+                color: isHd ? 'var(--cool-primary)' : 'var(--text-secondary)',
+                fontWeight: 700,
+                fontSize: 11,
+                padding: '3px 8px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title={isHd ? '1080p HD päällä (klikkaa vaihtaaksesi nopeaan SD-tilaan)' : 'SD-tila päällä (klikkaa vaihtaaksesi tarkkaan 1080p HD -tilaan)'}
+            >
+              {isHd ? '🌟 1080p HD' : '⚡ SD 640p'}
+            </button>
 
             {/* Refresh Interval Selector */}
             <div
@@ -185,7 +216,7 @@ export function CameraCard() {
                     color: refreshInterval === opt.val ? '#0f172a' : 'var(--text-secondary)',
                     fontWeight: refreshInterval === opt.val ? 700 : 500,
                     fontSize: 11,
-                    padding: '3px 7px',
+                    padding: '3px 6px',
                     borderRadius: 6,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
@@ -199,19 +230,18 @@ export function CameraCard() {
 
             {/* Manual refresh button */}
             <button
-              onClick={() => fetchSnapshot(false, true)}
+              onClick={() => fetchSnapshot(isHd, true)}
               disabled={refreshing}
               style={{
                 border: '1px solid var(--border)',
                 background: 'rgba(255,255,255,0.05)',
                 color: 'var(--text-primary)',
-                padding: '4px 8px',
+                padding: '4px 7px',
                 borderRadius: 8,
                 cursor: refreshing ? 'not-allowed' : 'pointer',
                 fontSize: 12,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4,
               }}
               title="Päivitä kuva heti"
             >
@@ -227,7 +257,7 @@ export function CameraCard() {
                 border: '1px solid var(--border)',
                 background: 'rgba(255,255,255,0.05)',
                 color: 'var(--text-primary)',
-                padding: '4px 8px',
+                padding: '4px 7px',
                 borderRadius: 8,
                 cursor: 'pointer',
                 fontSize: 12,
@@ -304,7 +334,7 @@ export function CameraCard() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    fetchSnapshot(false, true);
+                    fetchSnapshot(isHd, true);
                   }}
                   style={{
                     marginTop: 4,
@@ -328,7 +358,7 @@ export function CameraCard() {
                 position: 'absolute',
                 top: 8,
                 left: 8,
-                background: 'rgba(0,0,0,0.65)',
+                background: 'rgba(0,0,0,0.7)',
                 backdropFilter: 'blur(4px)',
                 padding: '3px 8px',
                 borderRadius: 6,
@@ -341,7 +371,7 @@ export function CameraCard() {
                 border: '1px solid rgba(255,255,255,0.1)',
               }}
             >
-              <span style={{ color: 'var(--cool-primary)' }}>●</span> Pannuhuone
+              <span style={{ color: isHd ? 'var(--heat-primary)' : 'var(--cool-primary)' }}>●</span> {isHd ? '1080p Full HD' : 'SD 640×352'}
             </div>
 
             {/* Bottom Overlay Bar */}
@@ -361,7 +391,7 @@ export function CameraCard() {
               }}
             >
               <div>
-                <span style={{ color: 'var(--text-muted)' }}>Resoluutio:</span> 640×352 (Sub)
+                <span style={{ color: 'var(--text-muted)' }}>Laatu:</span> {isHd ? '1920×1080 (HQ)' : '640×352 (Fast)'}
               </div>
               <div>
                 {lastUpdated ? (
@@ -399,9 +429,9 @@ export function CameraCard() {
               background: 'var(--bg-surface)',
               border: '1px solid var(--border-accent)',
               borderRadius: 16,
-              maxWidth: 960,
+              maxWidth: 1080,
               width: '100%',
-              maxHeight: '90vh',
+              maxHeight: '92vh',
               overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
               display: 'flex',
@@ -433,11 +463,7 @@ export function CameraCard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {/* HD / Sub toggle */}
                 <button
-                  onClick={() => {
-                    const nextHd = !isHd;
-                    setIsHd(nextHd);
-                    fetchSnapshot(nextHd, true);
-                  }}
+                  onClick={toggleHd}
                   style={{
                     padding: '5px 12px',
                     borderRadius: 8,
@@ -449,7 +475,7 @@ export function CameraCard() {
                     cursor: 'pointer',
                   }}
                 >
-                  {isHd ? '🌟 1080p HD Aktiivinen' : '⚡ 640x352 Sub stream'}
+                  {isHd ? '🌟 1080p Full HD' : '⚡ 640x352 Sub stream'}
                 </button>
 
                 <button

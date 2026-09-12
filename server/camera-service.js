@@ -8,11 +8,16 @@ class CameraService {
     this.mainRtspUrl = process.env.CAMERA_MAIN_RTSP_URL || 'rtsp://admin:123456789@192.168.68.57:554/0/av0';
     this.cacheMs = parseInt(process.env.CAMERA_CACHE_MS || '1500', 10);
 
-    this.cachedSnapshot = null;
-    this.lastSnapshotAt = null;
+    // Separate caches for SD (Sub) and HD (1080p)
+    this.cachedSD = null;
+    this.lastSDAt = null;
+    this.cachedHD = null;
+    this.lastHDAt = null;
+
     this.lastError = null;
     this.online = false;
-    this.inFlightPromise = null;
+    this.inFlightSD = null;
+    this.inFlightHD = null;
     this.pollTimer = null;
   }
 
@@ -29,7 +34,7 @@ class CameraService {
   }
 
   /**
-   * Fetch a snapshot as JPEG Buffer.
+   * Fetch a snapshot as high quality JPEG Buffer.
    * Uses in-memory caching and request deduplication.
    */
   async getSnapshot(highRes = false) {
@@ -38,20 +43,23 @@ class CameraService {
     }
 
     const now = Date.now();
-    // Use cached buffer if recent enough (only for standard sub stream)
-    if (!highRes && this.cachedSnapshot && (now - this.lastSnapshotAt < this.cacheMs)) {
+    const cachedBuffer = highRes ? this.cachedHD : this.cachedSD;
+    const lastAt = highRes ? this.lastHDAt : this.lastSDAt;
+
+    // Use cached buffer if recent enough
+    if (cachedBuffer && (now - lastAt < this.cacheMs)) {
       return {
-        data: this.cachedSnapshot,
+        data: cachedBuffer,
         contentType: 'image/jpeg',
-        ts: this.lastSnapshotAt,
+        ts: lastAt,
         cached: true,
+        highRes,
       };
     }
 
-    // If an extraction is already in progress, await it
-    if (!highRes && this.inFlightPromise) {
-      return this.inFlightPromise;
-    }
+    // If an extraction is already in progress for this resolution, await it
+    if (highRes && this.inFlightHD) return this.inFlightHD;
+    if (!highRes && this.inFlightSD) return this.inFlightSD;
 
     const streamUrl = highRes ? this.mainRtspUrl : this.subRtspUrl;
 
@@ -59,13 +67,13 @@ class CameraService {
       const chunks = [];
       const errChunks = [];
 
-      // ffmpeg flags optimized for low latency RTSP single-frame grab over UDP
+      // ffmpeg flags: -q:v 1 for maximum JPEG fidelity and sharpness
       const args = [
         '-y',
         '-rtsp_transport', 'udp',
         '-i', streamUrl,
         '-vframes', '1',
-        '-q:v', '2',
+        '-q:v', '1',
         '-f', 'image2',
         'pipe:1',
       ];
@@ -111,9 +119,12 @@ class CameraService {
         const buffer = Buffer.concat(chunks);
         if (code === 0 && buffer.length > 1000) {
           const timestamp = Date.now();
-          if (!highRes) {
-            this.cachedSnapshot = buffer;
-            this.lastSnapshotAt = timestamp;
+          if (highRes) {
+            this.cachedHD = buffer;
+            this.lastHDAt = timestamp;
+          } else {
+            this.cachedSD = buffer;
+            this.lastSDAt = timestamp;
           }
           this.online = true;
           this.lastError = null;
@@ -122,6 +133,7 @@ class CameraService {
             contentType: 'image/jpeg',
             ts: timestamp,
             cached: false,
+            highRes,
           });
         } else {
           const errMsg = Buffer.concat(errChunks).toString('utf-8').trim();
@@ -129,14 +141,18 @@ class CameraService {
           this.lastError = err.message;
           this.online = false;
 
-          // If we have a previous cached snapshot, fall back gracefully
-          if (this.cachedSnapshot) {
+          // Fall back gracefully if we have an older snapshot
+          const fallback = highRes ? (this.cachedHD || this.cachedSD) : (this.cachedSD || this.cachedHD);
+          const fallbackTs = highRes ? (this.lastHDAt || this.lastSDAt) : (this.lastSDAt || this.lastHDAt);
+
+          if (fallback) {
             resolve({
-              data: this.cachedSnapshot,
+              data: fallback,
               contentType: 'image/jpeg',
-              ts: this.lastSnapshotAt,
+              ts: fallbackTs,
               cached: true,
               stale: true,
+              highRes,
             });
           } else {
             reject(err);
@@ -145,14 +161,17 @@ class CameraService {
       });
     });
 
-    if (!highRes) {
-      this.inFlightPromise = capturePromise.finally(() => {
-        this.inFlightPromise = null;
+    if (highRes) {
+      this.inFlightHD = capturePromise.finally(() => {
+        this.inFlightHD = null;
       });
-      return this.inFlightPromise;
+      return this.inFlightHD;
+    } else {
+      this.inFlightSD = capturePromise.finally(() => {
+        this.inFlightSD = null;
+      });
+      return this.inFlightSD;
     }
-
-    return capturePromise;
   }
 
   /**
@@ -163,33 +182,31 @@ class CameraService {
       enabled: this.enabled,
       online: this.online,
       name: this.name,
-      lastSnapshotAt: this.lastSnapshotAt,
+      lastSnapshotAt: this.lastHDAt || this.lastSDAt,
       error: this.lastError,
-      hasSnapshot: !!this.cachedSnapshot,
+      hasSnapshot: !!(this.cachedHD || this.cachedSD),
       subRtspUrlDisplay: this.getSanitizedUrl(this.subRtspUrl),
       mainRtspUrlDisplay: this.getSanitizedUrl(this.mainRtspUrl),
-      resolution: '640x352 (Sub) / 1920x1080 (Main)',
+      resolution: '640x352 (Sub) / 1920x1080 (1080p Main HD)',
     };
   }
 
   /**
-   * Background poller to keep a fresh thumbnail ready in memory
+   * Background poller to keep fresh snapshots ready in memory
    */
   startScheduler(intervalMs = 30000) {
     if (!this.enabled) return;
 
     // Run first grab after 2 seconds
     setTimeout(() => {
-      this.getSnapshot().catch((err) => {
-        console.warn('[Camera] Initial background snapshot error:', err.message);
-      });
+      this.getSnapshot(true).catch(() => {});
+      this.getSnapshot(false).catch(() => {});
     }, 2000);
 
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = setInterval(() => {
-      this.getSnapshot().catch((err) => {
-        // Silently capture status in this.lastError
-      });
+      // Periodic HD refresh
+      this.getSnapshot(true).catch(() => {});
     }, intervalMs);
   }
 }
