@@ -41,6 +41,12 @@ Built with a dark glassmorphic UI optimized for both desktop displays and mobile
   - Water leak detection with immediate visual alarm alerts.
   - Battery percentages and link quality (LQI / signal bars) per device.
 
+- **📹 Teknisen tilan RTSP-valvontakamera**
+  - Reaaliaikainen tilannekuva ja nopea videopäivitys suoraan kojelaudalla (1s, 3s, 10s tai pysäytetty).
+  - ONVIF- ja RTSP-integraatio (TAS-Tech / EYEPLUS IP-kamera `192.168.68.57:554`).
+  - Suoratoisto-osoitteet suoraan kopioitavissa: 1080p HD (`/0/av0`) ja nopea Sub stream (`/0/av1`).
+  - Täysikokoinen katselutila ja automaattinen tilavahdin valvonta.
+
 - **📱 Mobile-Optimized & Sleep/Wake Resilient**
   - Responsive layout for small screens (320px+).
   - Background/sleep reconnect watchdog to automatically revive WebSocket connections when mobile devices wake up.

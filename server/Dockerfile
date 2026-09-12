@@ -3,6 +3,7 @@ FROM node:22.19-alpine
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+RUN apk add --no-cache ffmpeg
 RUN npm ci --omit=dev
 
 COPY . .

@@ -43,6 +43,10 @@ services:
       AUTH_VIEWER_PASSWORD: ${AUTH_VIEWER_PASSWORD:-}
       AUTH_SECRET: ${AUTH_SECRET:-kotialy_default_secret_key_change_in_production}
       AUTH_TOKEN_DAYS: ${AUTH_TOKEN_DAYS:-365}
+      CAMERA_ENABLED: ${CAMERA_ENABLED:-true}
+      CAMERA_NAME: ${CAMERA_NAME:-Pannuhuone / Tekninen tila}
+      CAMERA_RTSP_URL: ${CAMERA_RTSP_URL:-rtsp://admin:123456789@192.168.68.57:554/0/av1}
+      CAMERA_MAIN_RTSP_URL: ${CAMERA_MAIN_RTSP_URL:-rtsp://admin:123456789@192.168.68.57:554/0/av0}
     volumes:
       - server-data:/app/data
     depends_on:

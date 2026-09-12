@@ -14,6 +14,7 @@ import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
 import { NordpoolPanel } from './NordpoolPanel';
 import { WeatherPanel } from './WeatherPanel';
+import { CameraCard } from './CameraCard';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 
 interface DashboardProps {
@@ -109,10 +110,11 @@ export function Dashboard({
               <BufferTankCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
             </div>
 
-            {/* Row 2: Outdoor + Valve — each card carries its own controls */}
+            {/* Row 2: Outdoor + Valve + Camera — technical room & outdoor monitoring */}
             <div className="dashboard-grid dashboard-grid-sub">
               <OutdoorCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
               <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+              <CameraCard />
             </div>
 
             {/* Row 3: APC Smart Optimizer (Auto Power & Price Controller) */}

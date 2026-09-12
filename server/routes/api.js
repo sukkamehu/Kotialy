@@ -18,6 +18,7 @@ const nordpoolClient = require('../nordpool-client');
 const weatherClient = require('../weather-client');
 const costCalculator = require('../cost-calculator');
 const apcService = require('../apc-service');
+const cameraService = require('../camera-service');
 
 
 const {
@@ -496,5 +497,45 @@ router.get('/apc/logs', (req, res) => {
   });
 });
 
+// ─── Camera / RTSP Monitoring Routes ─────────────────────────────────────────
+
+/**
+ * GET /api/camera/status
+ * Returns camera status and metadata.
+ */
+router.get('/camera/status', (req, res) => {
+  res.json(cameraService.getStatus());
+});
+
+/**
+ * GET /api/camera/snapshot
+ * Query: ?highRes=1
+ * Returns live JPEG image snapshot from the RTSP camera stream.
+ */
+router.get('/camera/snapshot', async (req, res) => {
+  try {
+    const highRes = req.query.highRes === '1' || req.query.highRes === 'true';
+    const snapshot = await cameraService.getSnapshot(highRes);
+
+    res.set({
+      'Content-Type': snapshot.contentType,
+      'Content-Length': snapshot.data.length,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'X-Snapshot-Time': snapshot.ts,
+      'X-Snapshot-Cached': snapshot.cached ? '1' : '0',
+    });
+
+    res.send(snapshot.data);
+  } catch (err) {
+    res.status(502).json({
+      error: 'Kamerakuvan haku epäonnistui',
+      message: err.message,
+    });
+  }
+});
+
 module.exports = router;
+
 
