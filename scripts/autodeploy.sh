@@ -61,12 +61,15 @@ if [ -f "docker-compose.yml" ] && command -v docker &>/dev/null && docker compos
   log "Käynnistetään Docker Compose -päivitys..."
   
   docker compose build --pull
-  docker compose up -d --remove-orphans
+  docker compose up -d --remove-orphans --force-recreate
   
-  # Siivoa vanhat ylimääräiset imaget taustalta
-  docker image prune -f --filter "until=24h" >/dev/null 2>&1 || true
+  # Siivoa heti kaikki vanhat käyttämättömät imaget, pysähtyneet kontit ja build-välimuisti
+  log "Siivotaan vanhat imaget ja roskat..."
+  docker image prune -af || true
+  docker container prune -f || true
+  docker builder prune -f || true
   
-  log "Docker Compose -palvelut päivitetty onnistuneesti!"
+  log "Docker Compose -palvelut päivitetty ja vanhat roskat siivottu onnistuneesti!"
 else
   log "Käynnistetään Node.js / paikallinen päivitys..."
   

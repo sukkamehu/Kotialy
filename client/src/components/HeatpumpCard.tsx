@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { SegmentedControl, ToggleRow } from './SegmentedControl';
+import { ConfirmModal } from './ConfirmModal';
 
 const OPERATING_MODES = [
   { value: 0, label: 'Lämmitys' },
@@ -126,31 +128,33 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
   const holidayOn = (numVal(state, 'main/Holiday_Mode_State') ?? 0) > 0;
 
   const { send, pending, error, success } = useCommand();
+  const [showPowerConfirm, setShowPowerConfirm] = useState(false);
 
   return (
-    <div className="card" style={{
-      borderColor: isOn ? 'rgba(245,158,11,0.3)' : 'var(--border)',
-      boxShadow: isOn ? 'var(--shadow-glow-heat)' : undefined,
-    }}>
-      <div className="card-header">
-        <span className="card-icon">⚙️</span>
-        <span className="card-title">Lämpöpumppu · WH-MXC12J9E8 T-CAP J</span>
-        {defrost && (
-          <span className="badge" style={{ marginLeft: 'auto', background: 'rgba(34,211,238,0.15)', color: 'var(--cool-primary)', border: '1px solid rgba(34,211,238,0.3)', fontSize: 10 }}>
-            ❄️ Sulatus
-          </span>
-        )}
-        <button
-          className={`btn btn-sm ${isOn ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ marginLeft: defrost ? 4 : 'auto' }}
-          onClick={() => send('commands/SetHeatpump', isOn ? 0 : 1, isOn ? 'Lämpöpumppu sammutettu' : 'Lämpöpumppu käynnistetty')}
-          disabled={pending}
-          id="btn-heatpump-power"
-          title="Kytke lämpöpumppu päälle tai pois"
-        >
-          {pending ? '…' : isOn ? '● Päällä' : '○ Pois'}
-        </button>
-      </div>
+    <>
+      <div className="card" style={{
+        borderColor: isOn ? 'rgba(245,158,11,0.3)' : 'var(--border)',
+        boxShadow: isOn ? 'var(--shadow-glow-heat)' : undefined,
+      }}>
+        <div className="card-header">
+          <span className="card-icon">⚙️</span>
+          <span className="card-title">Lämpöpumppu · WH-MXC12J9E8 T-CAP J</span>
+          {defrost && (
+            <span className="badge" style={{ marginLeft: 'auto', background: 'rgba(34,211,238,0.15)', color: 'var(--cool-primary)', border: '1px solid rgba(34,211,238,0.3)', fontSize: 10 }}>
+              ❄️ Sulatus
+            </span>
+          )}
+          <button
+            className={`btn btn-sm ${isOn ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ marginLeft: defrost ? 4 : 'auto' }}
+            onClick={() => setShowPowerConfirm(true)}
+            disabled={pending}
+            id="btn-heatpump-power"
+            title="Kytke lämpöpumppu päälle tai pois"
+          >
+            {pending ? '…' : isOn ? '● Päällä' : '○ Pois'}
+          </button>
+        </div>
       <div className="card-body">
         {/* Compressor + Temps */}
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 20 }}>
@@ -252,6 +256,30 @@ export function HeatpumpCard({ state }: HeatpumpCardProps) {
         )}
       </div>
     </div>
+
+    <ConfirmModal
+      isOpen={showPowerConfirm}
+      title={isOn ? 'Sammutetaanko lämpöpumppu?' : 'Käynnistetäänkö lämpöpumppu?'}
+      message={
+        isOn
+          ? 'Lämpöpumpun sammuttaminen pysäyttää kompressorin, kiertovesipumpun sekä käyttöveden ja tilojen lämmityksen. Haluatko varmasti sammuttaa lämpöpumpun?'
+          : 'Lämpöpumppu kytketään päälle ja se aloittaa lämmityksen valitun käyttötilan mukaisesti. Haluatko käynnistää lämpöpumpun?'
+      }
+      confirmLabel={isOn ? 'Kyllä, sammuta' : 'Kyllä, käynnistä'}
+      cancelLabel="Peruuta"
+      danger={isOn}
+      pending={pending}
+      onCancel={() => setShowPowerConfirm(false)}
+      onConfirm={async () => {
+        const ok = await send(
+          'commands/SetHeatpump',
+          isOn ? 0 : 1,
+          isOn ? 'Lämpöpumppu sammutettu' : 'Lämpöpumppu käynnistetty'
+        );
+        if (ok) setShowPowerConfirm(false);
+      }}
+    />
+  </>
   );
 }
 

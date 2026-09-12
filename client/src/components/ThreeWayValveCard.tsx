@@ -1,4 +1,5 @@
 import type { HeishamonState } from '../types/heishamon';
+import { useCommand } from '../hooks/useCommand';
 
 interface ThreeWayValveCardProps {
   state: HeishamonState;
@@ -7,11 +8,23 @@ interface ThreeWayValveCardProps {
 export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
   const valveState = state['main/ThreeWay_Valve_State'];
   const val = valveState?.value;
+  const forceDHW = state['main/Force_DHW_State']?.value === '1';
   const isRoom = val === '0';
   const isDHW = val === '1';
   // Only 0/1 are meaningful; anything else is an unknown state, not "heating".
   const hasData = isRoom || isDHW;
   const isUnknown = val !== undefined && !hasData;
+
+  const { send, pending, error, success } = useCommand();
+
+  function setValveTarget(target: 'heating' | 'dhw') {
+    const next = target === 'dhw' ? 1 : 0;
+    send(
+      'commands/SetForceDHW',
+      next,
+      target === 'dhw' ? '3-tieventtiili pakotettu käyttövedelle' : '3-tieventtiili palautettu lämmitykselle (Auto)'
+    );
+  }
 
   return (
     <div className="card" style={{
@@ -112,21 +125,54 @@ export function ThreeWayValveCard({ state }: ThreeWayValveCardProps) {
 
         <div className="divider" style={{ marginTop: 16 }} />
 
-        {/* Valve Info / Status explanation */}
-        <div style={{ marginTop: 12, textAlign: 'center' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            {isDHW
-              ? 'Venttiili ohjaa lämmitysveden käyttövesivaraajan kierukkaan.'
-              : isRoom
-              ? 'Venttiili ohjaa lämmitysveden puskurivaraajaan ja tilojen lämmitykseen.'
-              : 'Odotetaan venttiilin tilatietoa Heishamonilta.'}
+        {/* 3-Way Valve Controls */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Ohjaus / Pakotus
+            </span>
+            {forceDHW && (
+              <span className="badge badge-dhw" style={{ fontSize: 10 }}>
+                ⚡ Pakotettu KV
+              </span>
+            )}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-            Lämpöpumppu ohjaa venttiiliä automaattisesti tarpeen mukaan.
+
+          <div className="toggle-group">
+            <button
+              className={`toggle-btn ${!forceDHW ? 'active' : ''}`}
+              onClick={() => setValveTarget('heating')}
+              disabled={pending}
+              id="btn-valve-auto-heating"
+            >
+              🔄 Automaatti / Lämmitys
+            </button>
+            <button
+              className={`toggle-btn ${forceDHW ? 'active' : ''}`}
+              onClick={() => setValveTarget('dhw')}
+              disabled={pending}
+              id="btn-valve-force-dhw"
+              style={forceDHW ? { background: 'var(--dhw-primary)', borderColor: 'var(--dhw-primary)', color: '#fff' } : undefined}
+            >
+              ⚡ Pakota käyttövesi
+            </button>
           </div>
+
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4, textAlign: 'center' }}>
+            {forceDHW
+              ? 'Venttiili on pakotettu käyttövesivaraajalle (Force DHW).'
+              : 'Venttiili seuraa lämpöpumpun normaalia automaattiohjausta.'}
+          </div>
+
+          {(error || success) && (
+            <div className={`control-msg ${error ? 'error' : 'ok'}`}>
+              {error ? `⚠ ${error}` : `✓ ${success}`}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 
