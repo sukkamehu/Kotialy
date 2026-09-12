@@ -522,140 +522,166 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0,0,0,0.65)',
+              background: 'rgba(0,0,0,0.8)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              zIndex: 1000,
+              zIndex: 9999,
               padding: 16,
             }}
+            onClick={() => setShowSettings(false)}
           >
             <div
               style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                maxWidth: 480,
+                background: '#151d30',
+                border: '1px solid rgba(255,255,255,0.18)',
+                borderRadius: 14,
+                maxWidth: 500,
                 width: '100%',
-                padding: 20,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                padding: 24,
+                boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
+                color: '#f8fafc',
               }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>⚙️ APC-optimointiasetukset</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>⚙️</span>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#f8fafc' }}>APC-optimointiasetukset</h3>
+                </div>
                 <button
                   type="button"
                   className="btn btn-sm btn-ghost"
                   onClick={() => setShowSettings(false)}
+                  style={{ fontSize: 16, padding: '4px 8px', color: 'var(--text-muted)' }}
                 >
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Puskurivaraajan esilämmitys (Boost): +{bufferBoost}°C
-                  </label>
+              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: '#0d1322', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: '#f8fafc' }}>
+                      Puskurivaraajan esilämmitys (Boost)
+                    </label>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--online)' }}>
+                      +{bufferBoost}°C
+                    </span>
+                  </div>
                   <input
                     type="range"
                     min="1"
-                    max="5"
+                    max="15"
                     step="1"
                     value={bufferBoost}
                     onChange={(e) => setBufferBoost(Number(e.target.value))}
-                    style={{ width: '100%', marginTop: 4 }}
+                    style={{ width: '100%', marginTop: 8 }}
                   />
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                    Paljonko käyrää tai tavoitelämpöä nostetaan halvoilla varttitunneilla
-                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                    <span>+1°C (Mieto)</span>
+                    <span>+5°C</span>
+                    <span>+10°C</span>
+                    <span>+15°C (Täyslataus)</span>
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Puskurivaraajan säästöpudotus (Setback): {bufferSetback}°C
-                  </label>
+                <div style={{ background: '#0d1322', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: '#f8fafc' }}>
+                      Puskurivaraajan säästöpudotus (Setback)
+                    </label>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>
+                      {bufferSetback}°C
+                    </span>
+                  </div>
                   <input
                     type="range"
-                    min="-4"
+                    min="-10"
                     max="-1"
                     step="1"
                     value={bufferSetback}
                     onChange={(e) => setBufferSetback(Number(e.target.value))}
-                    style={{ width: '100%', marginTop: 4 }}
+                    style={{ width: '100%', marginTop: 8 }}
                   />
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                    Paljonko käyrää lasketaan kalliilla hintahuipuilla
-                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                    <span>-10°C (Syvä säästö)</span>
+                    <span>-5°C</span>
+                    <span>-2°C</span>
+                    <span>-1°C (Kevyt)</span>
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Käyttöveden lataustavoite (°C)</label>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Käyttöveden lataustavoite (°C)</label>
                     <input
                       type="number"
                       min="45"
                       max="65"
                       value={dhwTarget}
                       onChange={(e) => setDhwTarget(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: '#fff', marginTop: 4 }}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>KV Minimilämpötila (°C)</label>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>KV Minimilämpötila (°C)</label>
                     <input
                       type="number"
                       min="40"
                       max="50"
                       value={dhwMin}
                       onChange={(e) => setDhwMin(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: '#fff', marginTop: 4 }}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                     />
                   </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Halvan sähkön raja (snt/kWh)</label>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Halvan sähkön raja (snt/kWh)</label>
                     <input
                       type="number"
                       step="0.5"
                       value={cheapThresh}
                       onChange={(e) => setCheapThresh(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: '#fff', marginTop: 4 }}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hintahuipun raja (snt/kWh)</label>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Hintahuipun raja (snt/kWh)</label>
                     <input
                       type="number"
                       step="0.5"
                       value={peakThresh}
                       onChange={(e) => setPeakThresh(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: '#fff', marginTop: 4 }}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Käyttövesilatauksen kesto (h/vrk)</label>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Käyttövesilatauksen kesto (h/vrk)</label>
                   <input
                     type="number"
                     min="1"
-                    max="4"
+                    max="6"
                     value={dhwHours}
                     onChange={(e) => setDhwHours(Number(e.target.value))}
-                    style={{ width: '100%', padding: '6px 8px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: '#fff', marginTop: 4 }}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
                   <button
                     type="button"
                     className="btn btn-ghost"
                     onClick={() => setShowSettings(false)}
+                    style={{ padding: '8px 16px', borderRadius: 6 }}
                   >
                     Peruuta
                   </button>
@@ -663,6 +689,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                     type="submit"
                     className="btn btn-primary"
                     disabled={saving}
+                    style={{ padding: '8px 20px', borderRadius: 6, fontWeight: 600 }}
                   >
                     {saving ? 'Tallennetaan...' : 'Tallenna asetukset'}
                   </button>

@@ -18,8 +18,9 @@ class PanasonicDriver {
     this.mqttClient = null;
     this.lastAppliedDirective = null;
     this.lastAppliedAt = 0;
-    this.baselineZ1 = null;
-    this.currentOffset = 0;
+    this.currentOffset = null;
+    this.currentDhwTarget = null;
+    this.currentForceDhw = null;
   }
 
   setMqttClient(client) {
@@ -46,15 +47,13 @@ class PanasonicDriver {
     const { settings, price, bufferTemp, dhwTemp, isDhwSlot } = context;
     const now = Date.now();
 
-    log(`Applying directive [${directive}] (Price: ${price?.price?.toFixed(2)} c/kWh, Buffer: ${bufferTemp}°C, DHW: ${dhwTemp}°C, DHW Slot: ${isDhwSlot})`);
-
     let targetShift = 0;
     let targetDhw = settings.dhw_min_c || 45;
     let forceDhw = 0;
 
     switch (directive) {
       case 'BOOST':
-        targetShift = Math.min(Math.max(settings.buffer_boost_c || 3, 1), 5);
+        targetShift = Math.max(1, Math.min(settings.buffer_boost_c || 5, 15));
         if (isDhwSlot) {
           targetDhw = settings.dhw_target_c || 55;
           forceDhw = 1;
@@ -62,7 +61,7 @@ class PanasonicDriver {
         break;
 
       case 'SETBACK':
-        targetShift = Math.max(Math.min(settings.buffer_setback_c || -2, 0), -4);
+        targetShift = Math.min(-1, Math.max(settings.buffer_setback_c || -2, -10));
         targetDhw = settings.dhw_min_c || 45;
         forceDhw = 0;
         break;
@@ -89,16 +88,15 @@ class PanasonicDriver {
 
     // Safeguard: If DHW temp is dangerously low (< dhw_min_c), always ensure DHW heat
     if (dhwTemp != null && dhwTemp < (settings.dhw_min_c || 45)) {
-      log(`DHW temp (${dhwTemp}°C) below minimum safety (${settings.dhw_min_c}°C) -> Forcing DHW heating`);
       targetDhw = Math.max(targetDhw, settings.dhw_target_c || 55);
       forceDhw = 1;
     }
 
     const results = [];
 
-    // 1. Apply Heating / Buffer Tank curve shift (Z1 Heat Request Temp)
+    // 1. Apply Heating / Buffer Tank curve shift (Z1 Heat Request Temp) only if changed
     if (this.currentOffset !== targetShift) {
-      log(`Setting Z1 Heat Request curve shift: ${targetShift > 0 ? '+' : ''}${targetShift}`);
+      log(`Setting Z1 Heat Request offset: ${targetShift > 0 ? '+' : ''}${targetShift}°C`);
       const ok = await this.sendCommand('commands/SetZ1HeatRequestTemperature', targetShift);
       if (ok) {
         this.currentOffset = targetShift;
@@ -106,18 +104,24 @@ class PanasonicDriver {
       }
     }
 
-    // 2. Apply DHW Target
-    log(`Setting DHW Target Temperature: ${targetDhw}°C`);
-    const dhwOk = await this.sendCommand('commands/SetDHWTemp', targetDhw);
-    if (dhwOk) {
-      results.push({ target: 'DHW_Target', value: targetDhw });
+    // 2. Apply DHW Target only if changed
+    if (this.currentDhwTarget !== targetDhw) {
+      log(`Setting DHW Target Temperature: ${targetDhw}°C`);
+      const dhwOk = await this.sendCommand('commands/SetDHWTemp', targetDhw);
+      if (dhwOk) {
+        this.currentDhwTarget = targetDhw;
+        results.push({ target: 'DHW_Target', value: targetDhw });
+      }
     }
 
-    // 3. Apply Force DHW state if scheduled
-    if (forceDhw === 1) {
-      log('Enabling Force DHW for scheduled charging');
-      await this.sendCommand('commands/SetForceDHW', 1);
-      results.push({ target: 'Force_DHW', value: 1 });
+    // 3. Apply Force DHW state only if changed
+    if (this.currentForceDhw !== forceDhw) {
+      log(`Setting Force DHW: ${forceDhw}`);
+      const fOk = await this.sendCommand('commands/SetForceDHW', forceDhw);
+      if (fOk) {
+        this.currentForceDhw = forceDhw;
+        results.push({ target: 'Force_DHW', value: forceDhw });
+      }
     }
 
     this.lastAppliedDirective = directive;
