@@ -11,6 +11,7 @@ const zigbeeClient = require('./zigbee-client');
 const nordpoolClient = require('./nordpool-client');
 const weatherClient = require('./weather-client');
 const costCalculator = require('./cost-calculator');
+const apcService = require('./apc-service');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -89,6 +90,7 @@ wss.on('connection', (ws, req) => {
           role: ws.role || userRole,
           username: ws.user || userName,
         },
+        apc: apcService.getStatus(),
         ts: Date.now(),
       })
     );
@@ -154,6 +156,11 @@ nordpoolClient.startScheduler();
 weatherClient.setDb(require('./db'));
 weatherClient.startScheduler();
 costCalculator.startScheduler();
+
+// ─── APC Smart Optimizer ─────────────────────────────────────────────────────
+apcService.setWsBroadcast(wsBroadcast);
+apcService.setMqttClient(mqttClient);
+apcService.start();
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 

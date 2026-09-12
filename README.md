@@ -16,6 +16,13 @@ Built with a dark glassmorphic UI optimized for both desktop displays and mobile
   - Visual 3-way valve circuit status & flow diagram.
   - Real-time power production/consumption metrics with instant COP calculation.
 
+- **🧠 APC · Älykäs Sähkön Hintaohjain (Auto Power & Price Controller)**
+  - Dynamic 15-minute price optimization utilizing thermal storage tanks as thermal batteries.
+  - **Puskurivaraajan esilämmitys (Boost)**: Halvoilla varttitunneilla nostaa lämmitystavoitetta (+2°C...+4°C) ja kalliilla huipuilla suorittaa säästöpudotuksen (-2°C...-3°C).
+  - **Käyttöveden (DHW) latausaikataulu**: Etsii automaattisesti vuorokauden halvimman yhtenäisen jakson käyttövesivaraajan lämmitykselle.
+  - **Monilaitearkkitehtuuri**: Valmis laiteajurirakenne nykyiselle Panasonic Aquarealle sekä tuleville Mitsubishi-ilmalämpöpumpuille (ILP 1 & 2).
+  - **Käyttäjäohjaus**: Optimointiprofiilit (Tasapaino, Säästö, Mukavuus, Vain käyttövesi) ja manuaalinen ohitus/taukopainike (Override).
+
 - **⚡ Nord Pool Spot Electricity Pricing (Finland / FI)**
   - Real-time 15-minute resolution spot prices (c/kWh).
   - Daily minimum, average, and peak price tracking.
@@ -162,6 +169,11 @@ npm run build
 | `/api/weather/daily` | `GET` | 5-day weather summary |
 | `/api/zigbee/devices` | `GET` | Discovered Zigbee device registry and live properties |
 | `/api/zigbee/history` | `GET` | Historical readings for a Zigbee device property |
+| `/api/apc/status` | `GET` | Current APC state, active directive, device statuses, and plan |
+| `/api/apc/plan` | `GET` | Computed 24h-36h 15-minute optimization plan |
+| `/api/apc/settings` | `POST` | Update APC optimization parameters (Admin only) |
+| `/api/apc/override` | `POST` | Set manual temporary override or snooze (Admin only) |
+| `/api/apc/logs` | `GET` | History of automated optimization events |
 
 ### WebSocket Endpoint (`/ws`)
 

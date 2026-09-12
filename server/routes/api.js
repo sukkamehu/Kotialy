@@ -9,6 +9,7 @@ const {
   getDailyCost,
   getCostSettings,
   updateCostSetting,
+  getApcLogs,
 } = require('../db');
 const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
 const mqttClient = require('../mqtt-client');
@@ -16,6 +17,7 @@ const zigbeeClient = require('../zigbee-client');
 const nordpoolClient = require('../nordpool-client');
 const weatherClient = require('../weather-client');
 const costCalculator = require('../cost-calculator');
+const apcService = require('../apc-service');
 
 
 const {
@@ -425,6 +427,72 @@ router.post('/costs/recalculate', requireAdmin, express.json(), (req, res) => {
     ok: true,
     recalculatedCount: results.length,
     summary: costCalculator.getCostSummary(),
+  });
+});
+
+// ─── APC (Auto Power & Price Controller) Endpoints ───────────────────────────
+
+/**
+ * GET /api/apc/status
+ * Returns live status, active directive, device statuses, and computed plan.
+ */
+router.get('/apc/status', (req, res) => {
+  res.json(apcService.getStatus());
+});
+
+/**
+ * GET /api/apc/plan
+ * Returns computed 24-36h quartile plan.
+ */
+router.get('/apc/plan', (req, res) => {
+  res.json({
+    plan: apcService.computedPlan,
+    currentDirective: apcService.currentDirective,
+  });
+});
+
+/**
+ * POST /api/apc/settings
+ * Body: { enabled, mode, buffer_boost_c, buffer_setback_c, dhw_target_c, dhw_min_c, cheap_threshold_cents, peak_threshold_cents, dhw_duration_hours }
+ */
+router.post('/apc/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const updated = await apcService.updateSettings(req.body || {});
+    res.json({
+      ok: true,
+      status: updated,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/override
+ * Body: { duration_hours: 2, directive: 'NORMAL' | 'BOOST' | 'SETBACK' }
+ * Pass duration_hours: 0 to cancel override.
+ */
+router.post('/api/apc/override', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { duration_hours = 2, directive = 'NORMAL' } = req.body || {};
+    const updated = await apcService.setOverride(parseFloat(duration_hours), directive);
+    res.json({
+      ok: true,
+      status: updated,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/apc/logs
+ * Returns history of automated optimization events.
+ */
+router.get('/apc/logs', (req, res) => {
+  const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+  res.json({
+    logs: getApcLogs(limit),
   });
 });
 

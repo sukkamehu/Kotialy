@@ -9,6 +9,7 @@ import { OutdoorCard } from './OutdoorCard';
 import { ThreeWayValveCard } from './ThreeWayValveCard';
 import { EnergyStatsCard } from './EnergyStatsCard';
 import { DailyCostsCard } from './DailyCostsCard';
+import { ApcCard } from './ApcCard';
 import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
 import { NordpoolPanel } from './NordpoolPanel';
@@ -114,7 +115,12 @@ export function Dashboard({
               <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
             </div>
 
-            {/* Row 3: Daily Energy Costs & Savings */}
+            {/* Row 3: APC Smart Optimizer (Auto Power & Price Controller) */}
+            <div style={{ marginBottom: 20 }}>
+              <ApcCard readOnly={readOnly} />
+            </div>
+
+            {/* Row 4: Daily Energy Costs & Savings */}
             <div style={{ marginBottom: 20 }}>
               <DailyCostsCard readOnly={readOnly} />
             </div>

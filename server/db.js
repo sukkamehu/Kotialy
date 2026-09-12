@@ -92,6 +92,27 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS apc_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS apc_logs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp     INTEGER NOT NULL,
+    action        TEXT NOT NULL,
+    reason        TEXT NOT NULL,
+    price_cents   REAL,
+    outdoor_temp  REAL,
+    buffer_temp   REAL,
+    dhw_temp      REAL,
+    directive     TEXT NOT NULL,
+    details       TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_apc_logs_time
+    ON apc_logs (timestamp);
 `);
 
 // ─── Prepared Statements ─────────────────────────────────────────────────────
@@ -321,11 +342,97 @@ function getCostSettings() {
   return settings;
 }
 
+const stmtGetApcSettings = db.prepare(`SELECT key, value FROM apc_settings`);
+
+const stmtUpsertApcSetting = db.prepare(`
+  INSERT INTO apc_settings (key, value)
+  VALUES (?, ?)
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value
+`);
+
+const stmtInsertApcLog = db.prepare(`
+  INSERT INTO apc_logs (timestamp, action, reason, price_cents, outdoor_temp, buffer_temp, dhw_temp, directive, details)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+const stmtGetApcLogs = db.prepare(`
+  SELECT * FROM apc_logs
+  ORDER BY timestamp DESC
+  LIMIT ?
+`);
+
 /**
- * Update single cost setting.
+ * Get APC settings with defaults.
  */
-function updateCostSetting(key, value) {
-  stmtUpsertCostSetting.run(key, String(value));
+function getApcSettings() {
+  const rows = stmtGetApcSettings.all();
+  const settings = {
+    enabled: true,
+    mode: 'balanced', // 'balanced' | 'eco' | 'comfort' | 'dhw_only'
+    buffer_boost_c: 3,
+    buffer_setback_c: -2,
+    dhw_target_c: 55,
+    dhw_min_c: 45,
+    cheap_threshold_cents: 3.0,
+    peak_threshold_cents: 20.0,
+    dhw_duration_hours: 2,
+    override_until: 0,
+    override_directive: null,
+  };
+
+  for (const r of rows) {
+    if (r.key === 'enabled') {
+      settings.enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'mode' || r.key === 'override_directive') {
+      settings[r.key] = r.value;
+    } else {
+      const n = parseFloat(r.value);
+      if (!isNaN(n)) settings[r.key] = n;
+    }
+  }
+  return settings;
+}
+
+/**
+ * Update single APC setting.
+ */
+function updateApcSetting(key, value) {
+  stmtUpsertApcSetting.run(key, String(value));
+}
+
+/**
+ * Insert an APC activity log entry.
+ */
+function insertApcLog({ action, reason, price_cents = null, outdoor_temp = null, buffer_temp = null, dhw_temp = null, directive = 'NORMAL', details = null }) {
+  stmtInsertApcLog.run(
+    Date.now(),
+    action,
+    reason,
+    price_cents != null ? price_cents : null,
+    outdoor_temp != null ? outdoor_temp : null,
+    buffer_temp != null ? buffer_temp : null,
+    dhw_temp != null ? dhw_temp : null,
+    directive,
+    details ? (typeof details === 'object' ? JSON.stringify(details) : String(details)) : null
+  );
+}
+
+/**
+ * Get recent APC logs.
+ */
+function getApcLogs(limit = 50) {
+  return stmtGetApcLogs.all(limit).map((r) => ({
+    id: r.id,
+    timestamp: Number(r.timestamp),
+    action: r.action,
+    reason: r.reason,
+    price_cents: r.price_cents != null ? Number(r.price_cents) : null,
+    outdoor_temp: r.outdoor_temp != null ? Number(r.outdoor_temp) : null,
+    buffer_temp: r.buffer_temp != null ? Number(r.buffer_temp) : null,
+    dhw_temp: r.dhw_temp != null ? Number(r.dhw_temp) : null,
+    directive: r.directive,
+    details: r.details ? (() => { try { return JSON.parse(r.details); } catch { return r.details; } })() : null,
+  }));
 }
 
 module.exports = {
@@ -341,4 +448,8 @@ module.exports = {
   getDailyCost,
   getCostSettings,
   updateCostSetting,
+  getApcSettings,
+  updateApcSetting,
+  insertApcLog,
+  getApcLogs,
 };
