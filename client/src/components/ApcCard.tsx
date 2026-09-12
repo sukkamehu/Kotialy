@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useApc } from '../hooks/useApc';
 import type { ApcMode, ApcPlanSlot } from '../types/apc';
 
@@ -517,51 +518,82 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
         )}
 
         {/* Settings Modal */}
-        {showSettings && (
+        {/* Settings Modal (Portal to body to guarantee always on top of all cards) */}
+        {showSettings && createPortal(
           <div
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0,0,0,0.8)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              background: 'rgba(0, 0, 0, 0.85)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              zIndex: 9999,
-              padding: 16,
+              zIndex: 999999,
+              padding: '20px 16px',
+              overflowY: 'auto',
             }}
             onClick={() => setShowSettings(false)}
           >
             <div
               style={{
-                background: '#151d30',
+                background: '#13192b',
                 border: '1px solid rgba(255,255,255,0.18)',
-                borderRadius: 14,
-                maxWidth: 500,
+                borderRadius: 16,
+                maxWidth: 520,
                 width: '100%',
-                padding: 24,
-                boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
+                maxHeight: 'min(92vh, 760px)',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 30px 80px rgba(0,0,0,0.95)',
                 color: '#f8fafc',
+                overflow: 'hidden',
+                margin: 'auto',
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              {/* Modal Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '16px 20px',
+                  borderBottom: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.02)',
+                  flexShrink: 0,
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 20 }}>⚙️</span>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#f8fafc' }}>APC-optimointiasetukset</h3>
+                  <span style={{ fontSize: 22 }}>⚙️</span>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#f8fafc' }}>
+                    APC-optimointiasetukset
+                  </h3>
                 </div>
                 <button
                   type="button"
                   className="btn btn-sm btn-ghost"
                   onClick={() => setShowSettings(false)}
-                  style={{ fontSize: 16, padding: '4px 8px', color: 'var(--text-muted)' }}
+                  style={{ fontSize: 18, padding: '4px 8px', color: 'var(--text-muted)' }}
+                  title="Sulje"
                 >
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Scrollable Form Body */}
+              <form
+                onSubmit={handleSaveSettings}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflowY: 'auto',
+                  flex: 1,
+                  padding: '18px 20px',
+                  gap: 16,
+                }}
+              >
                 <div style={{ background: '#0d1322', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <label style={{ fontSize: 13, fontWeight: 600, color: '#f8fafc' }}>
@@ -676,7 +708,17 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+                {/* Fixed Footer Buttons */}
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    justifyContent: 'flex-end',
+                    marginTop: 10,
+                    paddingTop: 14,
+                    borderTop: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
                   <button
                     type="button"
                     className="btn btn-ghost"
@@ -696,7 +738,8 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { apiFetch } from '../lib/api';
 
 interface CameraStatus {
@@ -438,15 +439,16 @@ export function CameraCard() {
       </div>
 
       {/* Fullscreen / Stream Info Modal */}
-      {isModalOpen && (
+      {isModalOpen && createPortal(
         <div
           onClick={() => setIsModalOpen(false)}
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.85)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 9999,
+            background: 'rgba(0, 0, 0, 0.88)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            zIndex: 999999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -653,7 +655,8 @@ export function CameraCard() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
