@@ -14,9 +14,8 @@ class CameraService {
     this.cachedHD = null;
     this.lastHDAt = null;
 
-    this.consecutiveErrors = 0;
     this.lastError = null;
-    this.online = true; // Assume online if service is running
+    this.online = false;
     this.inFlightSD = null;
     this.inFlightHD = null;
     this.pollTimer = null;
@@ -35,27 +34,8 @@ class CameraService {
   }
 
   /**
-   * Return any cached frame as fallback
-   */
-  getFallbackSnapshot(highRes) {
-    const fallback = highRes ? (this.cachedHD || this.cachedSD) : (this.cachedSD || this.cachedHD);
-    const fallbackTs = highRes ? (this.lastHDAt || this.lastSDAt) : (this.lastSDAt || this.lastHDAt);
-    if (fallback) {
-      return {
-        data: fallback,
-        contentType: 'image/jpeg',
-        ts: fallbackTs,
-        cached: true,
-        stale: true,
-        highRes,
-      };
-    }
-    return null;
-  }
-
-  /**
    * Fetch a snapshot as high quality JPEG Buffer.
-   * Uses in-memory caching, request deduplication, and resilient fallback on dropped frames.
+   * Uses in-memory caching and request deduplication.
    */
   async getSnapshot(highRes = true) {
     if (!this.enabled) {
@@ -73,7 +53,6 @@ class CameraService {
         contentType: 'image/jpeg',
         ts: lastAt,
         cached: true,
-        stale: false,
         highRes,
       };
     }
@@ -88,12 +67,11 @@ class CameraService {
       const chunks = [];
       const errChunks = [];
 
-      // ffmpeg flags: low-latency, socket timeout, fast exit on frame capture
+      // ffmpeg flags: low-latency, low buffering, single-frame grab
       const args = [
         '-y',
         '-fflags', 'nobuffer',
         '-flags', 'low_delay',
-        '-stimeout', '3500000', // 3.5s socket timeout
         '-analyzeduration', '100000',
         '-probesize', '100000',
         '-rtsp_transport', 'udp',
@@ -113,20 +91,12 @@ class CameraService {
         if (!finished) {
           finished = true;
           try { ffmpeg.kill('SIGKILL'); } catch {}
-          this.consecutiveErrors++;
-          this.lastError = 'Kamerayhteys aikakatkaistiin (4000ms)';
-          if (this.consecutiveErrors >= 4) {
-            this.online = false;
-          }
-
-          const fallback = this.getFallbackSnapshot(highRes);
-          if (fallback) {
-            resolve(fallback);
-          } else {
-            reject(new Error(this.lastError));
-          }
+          const timeoutErr = new Error('Kamerayhteys aikakatkaistiin (4500ms)');
+          this.lastError = timeoutErr.message;
+          this.online = false;
+          reject(timeoutErr);
         }
-      }, 4000);
+      }, 4500);
 
       ffmpeg.stdout.on('data', (chunk) => {
         chunks.push(chunk);
@@ -140,18 +110,9 @@ class CameraService {
         if (finished) return;
         finished = true;
         clearTimeout(timeout);
-        this.consecutiveErrors++;
         this.lastError = err.message;
-        if (this.consecutiveErrors >= 4) {
-          this.online = false;
-        }
-
-        const fallback = this.getFallbackSnapshot(highRes);
-        if (fallback) {
-          resolve(fallback);
-        } else {
-          reject(err);
-        }
+        this.online = false;
+        reject(err);
       });
 
       ffmpeg.on('close', (code) => {
@@ -170,29 +131,35 @@ class CameraService {
             this.lastSDAt = timestamp;
           }
           this.online = true;
-          this.consecutiveErrors = 0;
           this.lastError = null;
           resolve({
             data: buffer,
             contentType: 'image/jpeg',
             ts: timestamp,
             cached: false,
-            stale: false,
             highRes,
           });
         } else {
-          this.consecutiveErrors++;
           const errMsg = Buffer.concat(errChunks).toString('utf-8').trim();
-          this.lastError = `FFmpeg virhe (${code}): ${errMsg.slice(-150) || 'Ei kuvaa saatu'}`;
-          if (this.consecutiveErrors >= 4) {
-            this.online = false;
-          }
+          const err = new Error(`FFmpeg virhe (koodi ${code}): ${errMsg.slice(-200) || 'Ei kuvaa saatu'}`);
+          this.lastError = err.message;
+          this.online = false;
 
-          const fallback = this.getFallbackSnapshot(highRes);
+          // Fall back gracefully if we have an older snapshot
+          const fallback = highRes ? (this.cachedHD || this.cachedSD) : (this.cachedSD || this.cachedHD);
+          const fallbackTs = highRes ? (this.lastHDAt || this.lastSDAt) : (this.lastSDAt || this.lastHDAt);
+
           if (fallback) {
-            resolve(fallback);
+            resolve({
+              data: fallback,
+              contentType: 'image/jpeg',
+              ts: fallbackTs,
+              cached: true,
+              stale: true,
+              highRes,
+            });
           } else {
-            reject(new Error(this.lastError));
+            reject(err);
           }
         }
       });
@@ -220,7 +187,7 @@ class CameraService {
       online: this.online,
       name: this.name,
       lastSnapshotAt: this.lastHDAt || this.lastSDAt,
-      error: this.consecutiveErrors >= 4 ? this.lastError : null,
+      error: this.lastError,
       hasSnapshot: !!(this.cachedHD || this.cachedSD),
       subRtspUrlDisplay: this.getSanitizedUrl(this.subRtspUrl),
       mainRtspUrlDisplay: this.getSanitizedUrl(this.mainRtspUrl),
