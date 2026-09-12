@@ -514,7 +514,7 @@ router.get('/camera/status', (req, res) => {
  */
 router.get('/camera/snapshot', async (req, res) => {
   try {
-    const highRes = req.query.highRes === '1' || req.query.highRes === 'true';
+    const highRes = req.query.highRes !== '0' && req.query.highRes !== 'false' && req.query.sd !== '1';
     const snapshot = await cameraService.getSnapshot(highRes);
 
     res.set({

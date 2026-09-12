@@ -19,10 +19,16 @@ export function CameraCard() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [refreshInterval, setRefreshInterval] = useState<number>(3000); // 3s default
+
+  // Default to 1000ms (1.0s) for responsive live feed
+  const [refreshInterval, setRefreshInterval] = useState<number>(() => {
+    const saved = localStorage.getItem('kotialy_camera_interval');
+    return saved !== null ? parseInt(saved, 10) : 1000;
+  });
+
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   
-  // Default to HD (1080p) for high clarity, saved in localStorage
+  // Default to 1080p Full HD
   const [isHd, setIsHd] = useState<boolean>(() => {
     const saved = localStorage.getItem('kotialy_camera_hd');
     return saved !== null ? saved === 'true' : true;
@@ -33,6 +39,7 @@ export function CameraCard() {
 
   const prevBlobUrlRef = useRef<string | null>(null);
   const isMountedRef = useRef<boolean>(true);
+  const isFetchingRef = useRef<boolean>(false);
 
   // Fetch camera status info
   const fetchStatus = useCallback(async () => {
@@ -49,11 +56,14 @@ export function CameraCard() {
     }
   }, []);
 
-  // Fetch snapshot blob and create ObjectURL
+  // Fetch snapshot blob and double-buffer to avoid visual flicker
   const fetchSnapshot = useCallback(async (highRes = isHd, manual = false) => {
+    if (isFetchingRef.current && !manual) return;
+    isFetchingRef.current = true;
     if (manual) setRefreshing(true);
+
     try {
-      const url = `/api/camera/snapshot?t=${Date.now()}${highRes ? '&highRes=1' : ''}`;
+      const url = `/api/camera/snapshot?t=${Date.now()}${highRes ? '&highRes=1' : '&highRes=0'}`;
       const res = await apiFetch(url);
 
       if (!res.ok) {
@@ -66,20 +76,33 @@ export function CameraCard() {
 
       const newUrl = URL.createObjectURL(blob);
 
-      // Clean up previous blob URL to prevent memory leaks
-      if (prevBlobUrlRef.current) {
-        URL.revokeObjectURL(prevBlobUrlRef.current);
-      }
-      prevBlobUrlRef.current = newUrl;
+      // Preload image before setting state to prevent flicker
+      const img = new Image();
+      img.onload = () => {
+        if (!isMountedRef.current) {
+          URL.revokeObjectURL(newUrl);
+          return;
+        }
+        if (prevBlobUrlRef.current) {
+          URL.revokeObjectURL(prevBlobUrlRef.current);
+        }
+        prevBlobUrlRef.current = newUrl;
+        setImageUrl(newUrl);
+        setLastUpdated(new Date());
+        setError(null);
+      };
+      img.onerror = () => {
+        if (!isMountedRef.current) return;
+        URL.revokeObjectURL(newUrl);
+      };
+      img.src = newUrl;
 
-      setImageUrl(newUrl);
-      setLastUpdated(new Date());
-      setError(null);
     } catch (err: any) {
       if (isMountedRef.current) {
         setError(err.message || 'Kamerayhteys poikki');
       }
     } finally {
+      isFetchingRef.current = false;
       if (isMountedRef.current) {
         setLoading(false);
         if (manual) setRefreshing(false);
@@ -100,7 +123,7 @@ export function CameraCard() {
     };
   }, [fetchSnapshot, fetchStatus, isHd]);
 
-  // Periodic refresh timer
+  // Periodic rapid refresh timer
   useEffect(() => {
     if (refreshInterval <= 0) return;
 
@@ -110,6 +133,12 @@ export function CameraCard() {
 
     return () => clearInterval(timer);
   }, [refreshInterval, fetchSnapshot, isHd]);
+
+  const handleIntervalChange = (interval: number) => {
+    setRefreshInterval(interval);
+    localStorage.setItem('kotialy_camera_interval', String(interval));
+    if (interval > 0) fetchSnapshot(isHd);
+  };
 
   const toggleHd = () => {
     const nextVal = !isHd;
@@ -166,7 +195,7 @@ export function CameraCard() {
                   borderRadius: '50%',
                   background: isLive ? 'var(--online)' : 'var(--offline)',
                   boxShadow: isLive ? '0 0 6px var(--online)' : undefined,
-                  animation: isLive ? 'pulse 2s infinite' : undefined,
+                  animation: isLive ? 'pulse 1.5s infinite' : undefined,
                 }}
               />
               {refreshInterval === 0 ? 'PYSÄYTETTY' : error ? 'OFFLINE' : 'LIVE'}
@@ -186,7 +215,7 @@ export function CameraCard() {
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
-              title={isHd ? '1080p HD päällä (klikkaa vaihtaaksesi nopeaan SD-tilaan)' : 'SD-tila päällä (klikkaa vaihtaaksesi tarkkaan 1080p HD -tilaan)'}
+              title={isHd ? '1080p Full HD aktiivinen (klikkaa vaihtaaksesi nopeaan SD-tilaan)' : 'SD-tila aktiivinen (klikkaa vaihtaaksesi 1080p HD -tilaan)'}
             >
               {isHd ? '🌟 1080p HD' : '⚡ SD 640p'}
             </button>
@@ -202,14 +231,15 @@ export function CameraCard() {
               }}
             >
               {[
+                { label: '0.5s', val: 500 },
                 { label: '1s', val: 1000 },
-                { label: '3s', val: 3000 },
-                { label: '10s', val: 10000 },
+                { label: '2s', val: 2000 },
+                { label: '5s', val: 5000 },
                 { label: '⏸', val: 0 },
               ].map((opt) => (
                 <button
                   key={opt.val}
-                  onClick={() => setRefreshInterval(opt.val)}
+                  onClick={() => handleIntervalChange(opt.val)}
                   style={{
                     border: 'none',
                     background: refreshInterval === opt.val ? 'var(--cool-primary)' : 'transparent',
@@ -297,7 +327,7 @@ export function CameraCard() {
                   height: '100%',
                   objectFit: 'contain',
                   display: 'block',
-                  transition: 'opacity 0.2s ease',
+                  transition: 'opacity 0.15s ease',
                   opacity: loading && !imageUrl ? 0.4 : 1,
                 }}
               />

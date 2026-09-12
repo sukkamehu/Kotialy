@@ -6,7 +6,7 @@ class CameraService {
     this.name = process.env.CAMERA_NAME || 'Pannuhuone / Tekninen tila';
     this.subRtspUrl = process.env.CAMERA_RTSP_URL || 'rtsp://admin:123456789@192.168.68.57:554/0/av1';
     this.mainRtspUrl = process.env.CAMERA_MAIN_RTSP_URL || 'rtsp://admin:123456789@192.168.68.57:554/0/av0';
-    this.cacheMs = parseInt(process.env.CAMERA_CACHE_MS || '1500', 10);
+    this.cacheMs = parseInt(process.env.CAMERA_CACHE_MS || '600', 10);
 
     // Separate caches for SD (Sub) and HD (1080p)
     this.cachedSD = null;
@@ -37,7 +37,7 @@ class CameraService {
    * Fetch a snapshot as high quality JPEG Buffer.
    * Uses in-memory caching and request deduplication.
    */
-  async getSnapshot(highRes = false) {
+  async getSnapshot(highRes = true) {
     if (!this.enabled) {
       throw new Error('Kamera ei ole käytössä');
     }
@@ -67,13 +67,17 @@ class CameraService {
       const chunks = [];
       const errChunks = [];
 
-      // ffmpeg flags: -q:v 1 for maximum JPEG fidelity and sharpness
+      // ffmpeg flags: low-latency, low buffering, single-frame grab
       const args = [
         '-y',
+        '-fflags', 'nobuffer',
+        '-flags', 'low_delay',
+        '-analyzeduration', '100000',
+        '-probesize', '100000',
         '-rtsp_transport', 'udp',
         '-i', streamUrl,
         '-vframes', '1',
-        '-q:v', '1',
+        '-q:v', '2',
         '-f', 'image2',
         'pipe:1',
       ];
