@@ -184,49 +184,58 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
         {/* Setpoints & APC Dual Target */}
         <div style={{ marginTop: 12 }}>
           {/* 1. Live target indicator if APC is enabled */}
-          {apcEnabled && (
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: 8,
-              padding: '10px 12px',
-              marginBottom: 12,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  ⚡ Nykyhetken aktiivinen pyynti
-                </span>
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: activeDhwSlot ? '#f59e0b' : '#38bdf8',
-                  backgroundColor: activeDhwSlot ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-                  border: `1px solid ${activeDhwSlot ? 'rgba(245, 158, 11, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
-                  padding: '2px 7px',
-                  borderRadius: 6,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}>
-                  <span>{activeDhwSlot ? '🔥' : '⚡'}</span>
-                  <span>{activeDhwSlot ? 'Kuumennusjakso' : 'Säästölämpötila'}</span>
-                </span>
-              </div>
+          {apcEnabled && (() => {
+            const nextDhwSlot = apcStatus?.plan?.find(s => s.is_dhw_slot && s.start_time > Date.now());
+            const nextDhwTimeStr = nextDhwSlot ? new Date(nextDhwSlot.start_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }) : null;
 
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Pumpun nykyinen tavoite:
+            return (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: 8,
+                padding: '10px 12px',
+                marginBottom: 12,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    ⚡ Nykyhetken aktiivinen pyynti
+                  </span>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: activeDhwSlot ? '#f59e0b' : '#38bdf8',
+                    backgroundColor: activeDhwSlot ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                    border: `1px solid ${activeDhwSlot ? 'rgba(245, 158, 11, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
+                    padding: '2px 7px',
+                    borderRadius: 6,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}>
+                    <span>{activeDhwSlot ? '🔥' : '🌡️'}</span>
+                    <span>{activeDhwSlot ? `Tehokuumennus (${baseDhwTarget}°C)` : 'Ylläpitolämpö'}</span>
+                  </span>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                  {target !== null ? `${target} °C` : '—'}
-                </div>
-              </div>
 
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                {activeDhwSlot ? 'Halvan jakson kuumennus käynnissä' : 'Odottaa vuorokauden edullisinta aikaa'}
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Pumpun nykyinen tavoite:
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {target !== null ? `${target} °C` : '—'}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {activeDhwSlot
+                    ? `Halvan pörssijakson kuumennus käynnissä (${baseDhwTarget} °C)`
+                    : nextDhwTimeStr
+                    ? `Odottaa vuorokauden halvinta jaksoa · Seuraava täyskuumennus (${baseDhwTarget} °C) klo ${nextDhwTimeStr}`
+                    : 'Ylläpitotila · Odottaa vuorokauden edullisinta latausjaksoa'}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 2. Base setting stepper */}
           <SetpointControl
