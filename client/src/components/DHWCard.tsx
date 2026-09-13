@@ -130,6 +130,8 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
     }
   }
 
+  const dhwCircActive = state['main/Z2_Pump_State']?.value === '1' || state['main/TwoWay_Valve_State']?.value === '1';
+
   const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
     temp !== null && temp > 45 ? 'var(--heat-secondary)' : 'var(--cool-primary)';
 
@@ -176,6 +178,91 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
                 </span>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* DHW Upstairs Circulation Loop (LKV-kierto) */}
+        <div
+          className="metric-clickable"
+          title="Klikkaa nähdäksesi käyttöveden kiertotiedot"
+          onClick={() =>
+            onOpenTrend?.({
+              topic: 'main/TwoWay_Valve_State',
+              label: 'Käyttövesikierto / 2-tieventtiili (0=Pois, 1=Käytössä)',
+              unit: '',
+              color: '#10b981',
+              currentValue: dhwCircActive ? 'Aktiivinen (1)' : 'Lepotilassa (0)',
+            })
+          }
+          style={{
+            background: dhwCircActive ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+            border: `1px solid ${dhwCircActive ? 'rgba(16, 185, 129, 0.28)' : 'rgba(255, 255, 255, 0.07)'}`,
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: dhwCircActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+              border: `1.5px solid ${dhwCircActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: dhwCircActive ? '0 0 10px rgba(16, 185, 129, 0.25)' : 'none',
+              flexShrink: 0,
+            }}>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={dhwCircActive ? '#10b981' : 'rgba(255, 255, 255, 0.4)'}
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={dhwCircActive ? 'spinning' : ''}
+                style={{ transition: 'stroke 0.3s' }}
+              >
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>Käyttöveden kierto (Yläkerta)</span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>(LKV-kierto)</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {dhwCircActive
+                  ? 'Lämmin vesi kiertää yläkerran hanoille ↗'
+                  : 'Kiertopumpun ohjaus lepotilassa ↗'}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: dhwCircActive ? 'var(--dhw-primary)' : 'var(--text-muted)',
+                boxShadow: dhwCircActive ? '0 0 8px var(--dhw-primary)' : 'none',
+              }}
+            />
+            <span style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: dhwCircActive ? 'var(--dhw-primary)' : 'var(--text-muted)',
+            }}>
+              {dhwCircActive ? 'Käynnissä' : 'Pois päältä'}
+            </span>
           </div>
         </div>
 

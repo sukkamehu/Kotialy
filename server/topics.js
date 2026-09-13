@@ -60,6 +60,18 @@ const TOPICS = {
     category: 'heatpump',
     type: 'number',
   },
+  'main/Pump_Duty': {
+    label: 'Pääpumpun kuormitus',
+    unit: '',
+    category: 'heatpump',
+    type: 'number',
+  },
+  'main/Water_Pressure': {
+    label: 'Vedenpaine',
+    unit: 'bar',
+    category: 'heatpump',
+    type: 'number',
+  },
   'main/Main_Inlet_Temp': {
     label: 'Tulovesi',
     unit: '°C',
@@ -218,7 +230,7 @@ const TOPICS = {
     type: 'number',
   },
 
-  // ─── Buffer Tank (100L) ───────────────────────────────────────────────────
+  // ─── Buffer Tank & Heating Circuits ────────────────────────────────────────
   'main/Buffer_Temp': {
     label: 'Puskurivaraaja',
     unit: '°C',
@@ -250,14 +262,42 @@ const TOPICS = {
       curve:  { min: -5, max: 5,  step: 1, label: 'Lämpökäyrän siirtymä' },
     },
   },
+  'main/Z1_Pump_State': {
+    label: 'Lattialämmityksen kiertopumppu',
+    unit: '',
+    category: 'buffer',
+    type: 'enum',
+    map: { 0: 'Pois päältä', 1: 'Käynnissä' },
+  },
+  'main/Z2_Pump_State': {
+    label: 'Piirin 2 kiertopumppu',
+    unit: '',
+    category: 'buffer',
+    type: 'enum',
+    map: { 0: 'Pois päältä', 1: 'Käynnissä' },
+  },
 
-  // ─── 3-Way Valve ─────────────────────────────────────────────────────────
+  // ─── Valves ─────────────────────────────────────────────────────────
   'main/ThreeWay_Valve_State': {
     label: '3-tieventtiili',
     unit: '',
     category: 'valve',
     type: 'enum',
     map: { 0: 'Lämmitys', 1: 'Käyttövesi' },
+  },
+  'main/ThreeWay_Valve_State2': {
+    label: '3-tieventtiili 2',
+    unit: '',
+    category: 'valve',
+    type: 'enum',
+    map: { 0: 'Lämmitys', 1: 'Käyttövesi' },
+  },
+  'main/TwoWay_Valve_State': {
+    label: '2-tieventtiili',
+    unit: '',
+    category: 'valve',
+    type: 'enum',
+    map: { 0: 'Kiinni', 1: 'Auki' },
   },
 
   // ─── Power & Energy ───────────────────────────────────────────────────────
@@ -539,6 +579,7 @@ const CHART_TOPICS = [
   'main/Buffer_Temp',
   'main/Compressor_Freq',
   'main/Pump_Flow',
+  'main/Z1_Pump_State',
   'main/Defrosting_State',
   'main/Heat_Power_Production',
   'main/Heat_Power_Consumption',
