@@ -293,15 +293,39 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
               <span className="metric-unit">kg</span>
             </span>
           </div>
-          <div className="metric metric-sm">
-            <span className="metric-label">Käyntiaika</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi käyttötuntien trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Operations_Hours',
+                label: 'Kompressorin käyttötunnit',
+                unit: 'h',
+                color: '#f59e0b',
+                currentValue: opHours,
+              })
+            }
+          >
+            <span className="metric-label">Käyntiaika ↗</span>
             <span className="metric-value">
               {opHours !== null ? Math.round(opHours) : '—'}
               <span className="metric-unit">h</span>
             </span>
           </div>
-          <div className="metric metric-sm">
-            <span className="metric-label">Käynnistykset</span>
+          <div
+            className="metric metric-sm metric-clickable"
+            title="Klikkaa nähdäksesi käynnistyskertojen trendi"
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Operations_Counter',
+                label: 'Käynnistyskerrat',
+                unit: 'kpl',
+                color: '#f59e0b',
+                currentValue: opCount,
+              })
+            }
+          >
+            <span className="metric-label">Käynnistykset ↗</span>
             <span className="metric-value">
               {opCount !== null ? Math.round(opCount) : '—'}
             </span>

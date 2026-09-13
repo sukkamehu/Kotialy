@@ -160,7 +160,9 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     ? (bufferTemp - inletTemp).toFixed(1)
     : null;
 
-  const z1PumpActive = state['main/Z1_Pump_State']?.value === '1';
+  const extraPumpActive = state['main/TwoWay_Valve_State']?.value === '1' || state['main/Z1_Pump_State']?.value === '1';
+  const heatHours = numVal(state, 'main/Heat_Hours');
+  const opHours = numVal(state, 'main/Operations_Hours');
 
   const tempColor = bufferTemp !== null && bufferTemp > 45
     ? 'var(--heat-primary)'
@@ -218,7 +220,42 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
       <div className="card-header">
         <span className="card-icon">🗄️</span>
         <span className="card-title">Puskurivaraaja · 100L</span>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {heatHours !== null ? (
+            <span
+              className="metric-clickable"
+              title="Klikkaa nähdäksesi lämmitystuntien trendi"
+              onClick={() =>
+                onOpenTrend?.({
+                  topic: 'main/Heat_Hours',
+                  label: 'Lämmitystunnit',
+                  unit: 'h',
+                  color: 'var(--buffer-primary)',
+                  currentValue: heatHours,
+                })
+              }
+              style={{ fontSize: 11, color: 'var(--text-muted)' }}
+            >
+              ⏱ {Math.round(heatHours)} h
+            </span>
+          ) : opHours !== null ? (
+            <span
+              className="metric-clickable"
+              title="Klikkaa nähdäksesi käyttötuntien trendi"
+              onClick={() =>
+                onOpenTrend?.({
+                  topic: 'main/Operations_Hours',
+                  label: 'Käyttötunnit',
+                  unit: 'h',
+                  color: 'var(--buffer-primary)',
+                  currentValue: opHours,
+                })
+              }
+              style={{ fontSize: 11, color: 'var(--text-muted)' }}
+            >
+              ⏱ {Math.round(opHours)} h
+            </span>
+          ) : null}
           {bufferTemp !== null && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {bufferTemp > 45 ? '🔥 Lämmin' : bufferTemp > 35 ? '🌡 Haalea' : '❄️ Viileä'}
@@ -263,22 +300,22 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
           </div>
         </div>
 
-        {/* Floor heating circulation pump (Extra Pump / Z1 Pump) */}
+        {/* Floor heating circulation pump (Main PCB relay) */}
         <div
           className="metric-clickable"
-          title="Klikkaa nähdäksesi lattialämmityspumpun tilatrendi"
+          title="Klikkaa nähdäksesi kiertovesipumpun tilatrendi"
           onClick={() =>
             onOpenTrend?.({
-              topic: 'main/Z1_Pump_State',
-              label: 'Lattialämmityksen kiertopumppu (0=Pois, 1=Käynnissä)',
+              topic: 'main/TwoWay_Valve_State',
+              label: 'Lattialämmityspumpun ohjaus (0=Pois, 1=Käynnissä)',
               unit: '',
               color: '#22c55e',
-              currentValue: z1PumpActive ? 'Käynnissä (1)' : 'Pois päältä (0)',
+              currentValue: extraPumpActive ? 'Käynnissä (1)' : 'Pois päältä (0)',
             })
           }
           style={{
-            background: z1PumpActive ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-            border: `1px solid ${z1PumpActive ? 'rgba(34, 197, 94, 0.28)' : 'rgba(255, 255, 255, 0.07)'}`,
+            background: extraPumpActive ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+            border: `1px solid ${extraPumpActive ? 'rgba(34, 197, 94, 0.28)' : 'rgba(255, 255, 255, 0.07)'}`,
             borderRadius: 10,
             padding: '10px 14px',
             marginBottom: 14,
@@ -293,12 +330,12 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
               width: 32,
               height: 32,
               borderRadius: '50%',
-              background: z1PumpActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-              border: `1.5px solid ${z1PumpActive ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+              background: extraPumpActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+              border: `1.5px solid ${extraPumpActive ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: z1PumpActive ? '0 0 10px rgba(34, 197, 94, 0.25)' : 'none',
+              boxShadow: extraPumpActive ? '0 0 10px rgba(34, 197, 94, 0.25)' : 'none',
               flexShrink: 0,
             }}>
               <svg
@@ -306,11 +343,11 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                 height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={z1PumpActive ? '#22c55e' : 'rgba(255, 255, 255, 0.4)'}
+                stroke={extraPumpActive ? '#22c55e' : 'rgba(255, 255, 255, 0.4)'}
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={z1PumpActive ? 'spinning' : ''}
+                className={extraPumpActive ? 'spinning' : ''}
                 style={{ transition: 'stroke 0.3s' }}
               >
                 <circle cx="12" cy="12" r="10" strokeDasharray="5 3" />
@@ -320,12 +357,11 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>Lattialämmityksen kiertopumppu</span>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>(Extra Pump)</span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {z1PumpActive
-                  ? 'Kierrättää vettä lattialämmitysverkossa ↗'
-                  : 'Panasonicin lisäpumpun rele lepotilassa ↗'}
+                {extraPumpActive
+                  ? 'Käynnissä · Pyörittää lattiaverkkoa ↗'
+                  : 'Lepotilassa (Rele pois päältä) ↗'}
               </div>
             </div>
           </div>
@@ -335,16 +371,16 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                backgroundColor: z1PumpActive ? 'var(--online)' : 'var(--text-muted)',
-                boxShadow: z1PumpActive ? '0 0 8px var(--online)' : 'none',
+                backgroundColor: extraPumpActive ? 'var(--online)' : 'var(--text-muted)',
+                boxShadow: extraPumpActive ? '0 0 8px var(--online)' : 'none',
               }}
             />
             <span style={{
               fontSize: 12,
               fontWeight: 600,
-              color: z1PumpActive ? 'var(--online)' : 'var(--text-muted)',
+              color: extraPumpActive ? 'var(--online)' : 'var(--text-muted)',
             }}>
-              {z1PumpActive ? 'Käynnissä' : 'Pois päältä'}
+              {extraPumpActive ? 'Käynnissä' : 'Pois päältä'}
             </span>
           </div>
         </div>

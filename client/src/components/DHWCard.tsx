@@ -131,6 +131,7 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   }
 
   const dhwPumpState = state['main/DHW_Pump_State']?.value === '1';
+  const dhwHours = numVal(state, 'main/DHW_Hours');
 
   const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
     temp !== null && temp > 45 ? 'var(--heat-secondary)' : 'var(--cool-primary)';
@@ -143,9 +144,29 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
       <div className="card-header">
         <span className="card-icon">🚿</span>
         <span className="card-title">Käyttövesivaraaja</span>
-        {forceDHW && (
-          <div className="badge badge-heat" style={{ marginLeft: 'auto' }}>⚡ Tehostus</div>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {dhwHours !== null && (
+            <span
+              className="metric-clickable"
+              title="Klikkaa nähdäksesi käyttövesituntien trendi"
+              onClick={() =>
+                onOpenTrend?.({
+                  topic: 'main/DHW_Hours',
+                  label: 'Käyttövesitunnit',
+                  unit: 'h',
+                  color: 'var(--dhw-primary)',
+                  currentValue: dhwHours,
+                })
+              }
+              style={{ fontSize: 11, color: 'var(--text-muted)' }}
+            >
+              ⏱ {Math.round(dhwHours)} h
+            </span>
+          )}
+          {forceDHW && (
+            <div className="badge badge-heat">⚡ Tehostus</div>
+          )}
+        </div>
       </div>
       <div className="card-body">
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>

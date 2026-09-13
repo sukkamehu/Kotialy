@@ -537,6 +537,17 @@ const TOPICS = {
     max: 2,
     step: 1,
   },
+  'main/Heating_Off_Outdoor_Temp': {
+    label: 'Lämmityksen katkaisuraja (Ulko)',
+    unit: '°C',
+    category: 'settings',
+    type: 'number',
+    writable: true,
+    setTopic: 'commands/SetHeatingOffOutdoorTemp',
+    min: 5,
+    max: 35,
+    step: 1,
+  },
   'main/Quiet_Mode_Schedule': {
     label: 'Hiljainen ajastus',
     unit: '',
