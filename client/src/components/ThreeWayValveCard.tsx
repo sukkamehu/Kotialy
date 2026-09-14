@@ -66,53 +66,82 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
           }
           style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 16px' }}
         >
-          <svg width="140" height="80" viewBox="0 0 140 80" fill="none">
-            {/* Heat pump supply side (left) - green */}
+          <svg width="180" height="100" viewBox="0 0 180 100" fill="none">
+            {/* Heating circuit (Left) - Buffer tank */}
             <line
-              x1="0" y1="40" x2="45" y2="40"
-              stroke={hasData ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.2)'}
-              strokeWidth="8"
-              strokeLinecap="round"
-              style={{ transition: 'all 0.5s', filter: hasData ? 'drop-shadow(0 0 6px var(--dhw-glow))' : 'none' }}
-            />
-            <text x="4" y="34" fill={hasData ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.4)'} fontSize="8" fontFamily="Inter,sans-serif">LP</text>
-
-            {/* Valve body */}
-            <circle cx="70" cy="40" r="22" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5"/>
-
-            {/* DHW circuit (right) */}
-            <line x1="92" y1="40" x2="140" y2="40"
-              stroke={isDHW ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.15)'}
-              strokeWidth={isDHW ? 8 : 5}
-              strokeLinecap="round"
-              style={{ transition: 'all 0.5s', filter: isDHW ? 'drop-shadow(0 0 6px var(--dhw-primary))' : 'none' }}
-            />
-            <text x="114" y="34" fill={isDHW ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.4)'}
-              fontSize="8" fontFamily="Inter,sans-serif">KV</text>
-
-            {/* Room / Heating circuit (bottom) */}
-            <line x1="70" y1="62" x2="70" y2="80"
+              x1="62" y1="36" x2="10" y2="36"
               stroke={isRoom ? 'var(--buffer-primary)' : 'rgba(255,255,255,0.15)'}
-              strokeWidth={isRoom ? 8 : 5}
+              strokeWidth={isRoom ? 8 : 4}
               strokeLinecap="round"
               style={{ transition: 'all 0.5s', filter: isRoom ? 'drop-shadow(0 0 6px var(--buffer-primary))' : 'none' }}
             />
-            <text x="36" y="76" fill={isRoom ? 'var(--buffer-primary)' : 'rgba(255,255,255,0.4)'}
-              fontSize="8" fontFamily="Inter,sans-serif">Lämpö</text>
+            <text x="8" y="22" fill={isRoom ? 'var(--buffer-primary)' : 'rgba(255,255,255,0.4)'} fontSize="9" fontWeight="600" fontFamily="Inter,sans-serif">
+              Lämmitys (Puskuri)
+            </text>
+            {isRoom && (
+              <text x="32" y="32" fill="#fff" fontSize="10" fontWeight="700" fontFamily="Inter,sans-serif">◄</text>
+            )}
 
-            {/* Valve indicator dot */}
-            <circle cx="70" cy="40" r="6"
+            {/* DHW circuit (Right) - Domestic Hot Water */}
+            <line
+              x1="118" y1="36" x2="170" y2="36"
+              stroke={isDHW ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.15)'}
+              strokeWidth={isDHW ? 8 : 4}
+              strokeLinecap="round"
+              style={{ transition: 'all 0.5s', filter: isDHW ? 'drop-shadow(0 0 6px var(--dhw-primary))' : 'none' }}
+            />
+            <text x="172" y="22" fill={isDHW ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.4)'} fontSize="9" fontWeight="600" textAnchor="end" fontFamily="Inter,sans-serif">
+              Käyttövesi (LKV)
+            </text>
+            {isDHW && (
+              <text x="140" y="32" fill="#fff" fontSize="10" fontWeight="700" fontFamily="Inter,sans-serif">►</text>
+            )}
+
+            {/* Heat pump supply side (Bottom) - VILP Inflow */}
+            <line
+              x1="90" y1="56" x2="90" y2="82"
+              stroke={hasData ? '#f59e0b' : 'rgba(255,255,255,0.2)'}
+              strokeWidth="8"
+              strokeLinecap="round"
+              style={{ transition: 'all 0.5s', filter: hasData ? 'drop-shadow(0 0 6px rgba(245,158,11,0.35))' : 'none' }}
+            />
+            <text x="90" y="96" fill={hasData ? '#f59e0b' : 'rgba(255,255,255,0.4)'} fontSize="9" fontWeight="600" textAnchor="middle" fontFamily="Inter,sans-serif">
+              ▲ VILP (Tulo)
+            </text>
+
+            {/* Valve body */}
+            <circle cx="90" cy="36" r="20" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+
+            {/* Internal active flow path indicator */}
+            {isRoom && (
+              <path
+                d="M 90 52 Q 90 36 68 36"
+                stroke="var(--buffer-primary)"
+                strokeWidth="6"
+                fill="none"
+                strokeLinecap="round"
+                style={{ filter: 'drop-shadow(0 0 4px var(--buffer-primary))' }}
+              />
+            )}
+            {isDHW && (
+              <path
+                d="M 90 52 Q 90 36 112 36"
+                stroke="var(--dhw-primary)"
+                strokeWidth="6"
+                fill="none"
+                strokeLinecap="round"
+                style={{ filter: 'drop-shadow(0 0 4px var(--dhw-primary))' }}
+              />
+            )}
+
+            {/* Valve center hub */}
+            <circle
+              cx="90"
+              cy="36"
+              r="6"
               fill={isDHW ? 'var(--dhw-primary)' : isRoom ? 'var(--buffer-primary)' : 'rgba(255,255,255,0.3)'}
               style={{ transition: 'fill 0.5s' }}
             />
-
-            {/* Flow direction arrow */}
-            {hasData && (
-              <text x={isDHW ? "80" : "60"} y={isDHW ? "43" : "52"}
-                fill="rgba(255,255,255,0.7)" fontSize="10" fontFamily="Inter,sans-serif">
-                {isDHW ? '→' : '↓'}
-              </text>
-            )}
           </svg>
         </div>
 
@@ -139,11 +168,11 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
           ) : (
             <div>
               <div style={{
-                fontSize: 16, fontWeight: 600,
+                fontSize: 15, fontWeight: 600,
                 color: isDHW ? 'var(--dhw-primary)' : 'var(--buffer-primary)',
                 marginBottom: 4,
               }}>
-                {isDHW ? 'Ohjaa käyttövesivaraajaan (DHW) ↗' : 'Ohjaa lämmityspiiriin (Lämpö) ↗'}
+                {isDHW ? 'Ohjaa käyttövesivaraajaan (Oikealle) ↗' : 'Ohjaa puskurivaraajaan (Vasemmalle) ↗'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 PAW-3WYVLV4HW · Tila {val}
