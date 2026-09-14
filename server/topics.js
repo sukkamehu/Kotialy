@@ -592,6 +592,8 @@ const CHART_TOPICS = [
   'main/Pump_Flow',
   'main/Z1_Pump_State',
   'main/Defrosting_State',
+  'main/DHW_Heater_State',
+  'main/Internal_Heater_State',
   'main/Heat_Power_Production',
   'main/Heat_Power_Consumption',
   'main/DHW_Power_Production',

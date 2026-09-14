@@ -26,6 +26,8 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'main/Heat_Power_Consumption', label: 'Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right' },
   { key: 'main/DHW_Power_Production', label: 'KV-teho', color: '#059669', unit: 'W', yAxisId: 'right' },
   { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3' },
+  { key: 'main/DHW_Heater_State', label: '🔥 KV-vastus', color: '#f43f5e', unit: '', yAxisId: 'right', dash: '3 3' },
+  { key: 'main/Internal_Heater_State', label: '🔥 Varavastus', color: '#ec4899', unit: '', yAxisId: 'right', dash: '3 3' },
   { key: 'electricity_price', label: '⚡ Pörssisähkö', color: '#facc15', unit: 'snt/kWh', yAxisId: 'right', dash: '4 2' },
 ];
 
@@ -64,6 +66,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         let valStr = typeof p.value === 'number' ? p.value.toFixed(1) : String(p.value);
         if (p.dataKey === 'main/Defrosting_State') {
           valStr = p.value === 1 ? 'Käynnissä' : 'Pois';
+        } else if (p.dataKey === 'main/DHW_Heater_State' || p.dataKey === 'main/Internal_Heater_State') {
+          valStr = p.value === 1 ? 'Päällä' : 'Pois';
         } else if (unit === 'W' && typeof p.value === 'number' && p.value >= 1000) {
           valStr = `${(p.value / 1000).toFixed(2)} kW`;
         } else if (unit !== '') {
@@ -163,7 +167,7 @@ function interpolateTimeline(
       } else {
         const gap = p1.time - p0.time;
         if (gap <= maxGapMs) {
-          if (topic === 'main/Defrosting_State') {
+          if (topic === 'main/Defrosting_State' || topic === 'main/DHW_Heater_State' || topic === 'main/Internal_Heater_State') {
             pt[topic] = p0.value;
           } else {
             const ratio = (t - p0.time) / gap;
