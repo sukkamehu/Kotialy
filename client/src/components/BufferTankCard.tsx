@@ -20,7 +20,7 @@ type Z1Mode = 'direct' | 'curve';
 
 const Z1_MODES: Record<Z1Mode, { min: number; max: number; label: string; hint: string; signed: boolean }> = {
   direct: { min: 20, max: 60, label: 'Menoveden tavoitelämpötila', hint: 'absoluuttinen asetusarvo', signed: false },
-  curve:  { min: -5, max: 5,  label: 'Lämpökäyrän siirto',         hint: 'siirtoarvo käyrästä',    signed: true },
+  curve: { min: -5, max: 5, label: 'Lämpökäyrän siirto', hint: 'siirtoarvo käyrästä', signed: true },
 };
 
 const MODE_KEY = 'kotialy.z1Mode';
@@ -81,7 +81,7 @@ function BufferSvg({
         fill="none"
       >
         {/* Cylinder body */}
-        <rect x="5" y="10" width="40" height="58" rx="6" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        <rect x="5" y="10" width="40" height="58" rx="6" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
         {/* Fill */}
         <clipPath id="buf-clip"><rect x="6.5" y="11.5" width="37" height="55" rx="5.5" /></clipPath>
         <g clipPath="url(#buf-clip)">
@@ -96,12 +96,12 @@ function BufferSvg({
           />
         </g>
         {/* Caps */}
-        <ellipse cx="25" cy="10" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-        <ellipse cx="25" cy="68" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        <ellipse cx="25" cy="10" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+        <ellipse cx="25" cy="68" rx="20" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
         {/* Sensor indicator */}
-        <circle cx="25" cy="39" r="3" fill={color} opacity="0.8" style={{ filter: `drop-shadow(0 0 3px ${glow})` }}/>
-        <line x1="25" y1="11.5" x2="25" y2="36" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2"/>
-        <line x1="25" y1="42" x2="25" y2="63" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2"/>
+        <circle cx="25" cy="39" r="3" fill={color} opacity="0.8" style={{ filter: `drop-shadow(0 0 3px ${glow})` }} />
+        <line x1="25" y1="11.5" x2="25" y2="36" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2" />
+        <line x1="25" y1="42" x2="25" y2="63" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,2" />
       </svg>
     </div>
   );
@@ -160,7 +160,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     ? (bufferTemp - inletTemp).toFixed(1)
     : null;
 
-  const extraPumpActive = state['main/Z1_Pump_State']?.value === '1';
+  const extraPumpActive = state['main/TwoWay_Valve_State']?.value === '1' || state['main/Z1_Pump_State']?.value === '1';
   const heatHours = numVal(state, 'main/Heat_Hours');
   const opHours = numVal(state, 'main/Operations_Hours');
 
@@ -306,7 +306,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
           title="Klikkaa nähdäksesi kiertovesipumpun tilatrendi"
           onClick={() =>
             onOpenTrend?.({
-              topic: 'main/Z1_Pump_State',
+              topic: 'main/TwoWay_Valve_State',
               label: 'Lattialämmityspumpun ohjaus (0=Pois, 1=Käynnissä)',
               unit: '',
               color: '#22c55e',

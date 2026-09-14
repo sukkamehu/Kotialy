@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { HeishamonState, MqttStatus } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
+import { useElectricityPrice } from '../hooks/useElectricityPrice';
 
 interface StatusBarProps {
   state: HeishamonState;
@@ -50,6 +51,8 @@ export function StatusBar({
     return () => clearInterval(id);
   }, []);
 
+  const { priceCentsKWh, avgPriceCentsKWh, minPriceCentsKWh, maxPriceCentsKWh, priceLevel } = useElectricityPrice();
+
   const hpState = state['main/Heatpump_State']?.value;
   const opMode = state['main/Operating_Mode_State']?.value;
   const outsideTempNum = numVal(state, 'main/Outside_Temp');
@@ -57,6 +60,13 @@ export function StatusBar({
   const hasError = error && error !== '0' && error !== 'H00';
 
   const isOn = hpState === '1';
+
+  // Daily consumption demand estimation based on outdoor temperature (heating degree approach)
+  // Base DHW consumption: ~3.5 kWh / day
+  // Space heating: (17 - Tout) * 0.85 kWh / day (0 if Tout >= 17)
+  const heatingKwh = outsideTempNum !== null ? Math.max(0, (17 - outsideTempNum) * 0.85) : 0;
+  const dhwKwh = 3.5;
+  const estimatedDailyKwh = outsideTempNum !== null ? (Math.round((heatingKwh + dhwKwh) * 10) / 10).toFixed(1) : null;
 
   // Unified connection status
   const isWarning = wsConnected && (!mqtt.connected || heishamonOnline === false);
@@ -69,6 +79,11 @@ export function StatusBar({
     ? 'Heishamon poissa'
     : 'Live';
   const connTooltip = `WebSocket: ${wsConnected ? 'OK' : 'Ei yhteyttä'} | MQTT-välittäjä: ${mqtt.connected ? 'OK' : 'Ei yhteyttä'} | Heishamon: ${heishamonOnline === true ? 'OK' : heishamonOnline === false ? 'Poissa' : 'Tuntematon'}`;
+
+  // Price colors
+  const priceColor = priceLevel === 'cheap' ? '#10b981' : priceLevel === 'expensive' ? '#f43f5e' : '#facc15';
+  const priceBg = priceLevel === 'cheap' ? 'rgba(16, 185, 129, 0.12)' : priceLevel === 'expensive' ? 'rgba(244, 63, 94, 0.12)' : 'rgba(250, 204, 21, 0.12)';
+  const priceBorder = priceLevel === 'cheap' ? 'rgba(16, 185, 129, 0.3)' : priceLevel === 'expensive' ? 'rgba(244, 63, 94, 0.3)' : 'rgba(250, 204, 21, 0.3)';
 
   return (
     <header className="status-bar">
@@ -98,6 +113,55 @@ export function StatusBar({
         {opMode !== undefined && (
           <div className="badge badge-heat status-hide-xs" style={{ fontSize: 11 }}>
             {MODE_LABELS[opMode] ?? `Tila ${opMode}`}
+          </div>
+        )}
+
+        {/* Electricity Price (Now & Day Average) */}
+        {priceCentsKWh !== null && (
+          <div
+            className="badge"
+            style={{
+              background: priceBg,
+              border: `1px solid ${priceBorder}`,
+              color: priceColor,
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '4px 10px',
+            }}
+            title={`Sähkön pörssihinta nyt: ${priceCentsKWh.toFixed(2)} snt/kWh\nPäivän keskiarvo: ${avgPriceCentsKWh !== null ? avgPriceCentsKWh.toFixed(2) + ' snt/kWh' : '—'}\nMin: ${minPriceCentsKWh !== null ? minPriceCentsKWh.toFixed(2) + ' snt' : '—'} | Max: ${maxPriceCentsKWh !== null ? maxPriceCentsKWh.toFixed(2) + ' snt' : '—'}`}
+          >
+            <span>⚡</span>
+            <span>{priceCentsKWh.toFixed(1)} <span style={{ fontSize: 10, opacity: 0.85 }}>snt/kWh</span></span>
+            {avgPriceCentsKWh !== null && (
+              <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.85, marginLeft: 2 }}>
+                (ka. {avgPriceCentsKWh.toFixed(1)} snt)
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Estimated Daily Consumption Demand */}
+        {estimatedDailyKwh !== null && (
+          <div
+            className="badge status-hide-xs"
+            style={{
+              background: 'rgba(167, 139, 250, 0.12)',
+              border: '1px solid rgba(167, 139, 250, 0.28)',
+              color: '#c4b5fd',
+              fontSize: 11,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '4px 9px',
+            }}
+            title={`Laskennallinen arvio vuorokauden sähköntarpeesta nykyisellä ulkolämpötilalla (${outsideTempNum?.toFixed(1)}°C):\n• Lämmitys: ~${heatingKwh.toFixed(1)} kWh\n• Lämmin käyttövesi: ~${dhwKwh.toFixed(1)} kWh\n= Yhteensä ~${estimatedDailyKwh} kWh/pv\n\n(Arviomalli tarkentuu automaattisesti lämmityskauden aikana kertyvän historiadatan myötä)`}
+          >
+            <span>🔋</span>
+            <span>Arvio: ~{estimatedDailyKwh} <span style={{ fontSize: 10, opacity: 0.85 }}>kWh/pv</span></span>
           </div>
         )}
 

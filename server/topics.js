@@ -259,7 +259,7 @@ const TOPICS = {
     step: 1,
     modes: {
       direct: { min: 20, max: 60, step: 1, label: 'Menoveden tavoitelämpötila' },
-      curve:  { min: -5, max: 5,  step: 1, label: 'Lämpökäyrän siirtymä' },
+      curve: { min: -5, max: 5, step: 1, label: 'Lämpökäyrän siirtymä' },
     },
   },
   'main/Z1_Pump_State': {
@@ -592,8 +592,6 @@ const CHART_TOPICS = [
   'main/Pump_Flow',
   'main/Z1_Pump_State',
   'main/Defrosting_State',
-  'main/DHW_Heater_State',
-  'main/Internal_Heater_State',
   'main/Heat_Power_Production',
   'main/Heat_Power_Consumption',
   'main/DHW_Power_Production',

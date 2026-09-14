@@ -4,6 +4,10 @@ import { apiFetch } from '../lib/api';
 interface ElectricityPriceInfo {
   priceEurMWh: number | null;
   priceCentsKWh: number | null;
+  avgPriceCentsKWh: number | null;
+  minPriceCentsKWh: number | null;
+  maxPriceCentsKWh: number | null;
+  priceLevel: 'cheap' | 'normal' | 'expensive' | 'unknown';
   loading: boolean;
   /** Format cost per hour given power consumption in Watts */
   calcCostPerHour: (watts: number | null) => {
@@ -12,36 +16,49 @@ interface ElectricityPriceInfo {
   };
 }
 
-let cachedPrice: number | null = null;
+interface PriceState {
+  currentPriceEur: number | null;
+  stats: { min: number | null; max: number | null; avg: number | null; count: number } | null;
+}
+
+let cachedData: PriceState = { currentPriceEur: null, stats: null };
 let lastFetch = 0;
 
 export function useElectricityPrice(): ElectricityPriceInfo {
-  const [priceEurMWh, setPriceEurMWh] = useState<number | null>(cachedPrice);
-  const [loading, setLoading] = useState<boolean>(cachedPrice === null);
+  const [data, setData] = useState<PriceState>(cachedData);
+  const [loading, setLoading] = useState<boolean>(cachedData.currentPriceEur === null);
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchPrice = async () => {
-      // Don't refetch more often than every 30 seconds across components
       const now = Date.now();
-      if (cachedPrice !== null && now - lastFetch < 30_000) {
-        setPriceEurMWh(cachedPrice);
+      if (cachedData.currentPriceEur !== null && now - lastFetch < 30_000) {
+        setData(cachedData);
         setLoading(false);
         return;
       }
 
       try {
-        const res = await apiFetch('/api/nordpool/current');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!cancelled && data && typeof data.price === 'number') {
-          cachedPrice = data.price;
+        const [curRes, statsRes] = await Promise.all([
+          apiFetch('/api/nordpool/current'),
+          apiFetch('/api/nordpool/stats'),
+        ]);
+
+        const curJson = curRes.ok ? await curRes.json() : null;
+        const statsJson = statsRes.ok ? await statsRes.json() : null;
+
+        if (!cancelled) {
+          const newState: PriceState = {
+            currentPriceEur: curJson && typeof curJson.price === 'number' ? curJson.price : null,
+            stats: statsJson && typeof statsJson.count === 'number' ? statsJson : null,
+          };
+          cachedData = newState;
           lastFetch = Date.now();
-          setPriceEurMWh(data.price);
+          setData(newState);
         }
       } catch (err) {
-        console.error('Failed to fetch current electricity price:', err);
+        console.error('Failed to fetch electricity prices:', err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -55,7 +72,24 @@ export function useElectricityPrice(): ElectricityPriceInfo {
     };
   }, []);
 
-  const priceCentsKWh = priceEurMWh !== null ? priceEurMWh / 10 : null;
+  const priceCentsKWh = data.currentPriceEur !== null ? data.currentPriceEur / 10 : null;
+  const avgPriceCentsKWh = data.stats?.avg != null ? data.stats.avg / 10 : null;
+  const minPriceCentsKWh = data.stats?.min != null ? data.stats.min / 10 : null;
+  const maxPriceCentsKWh = data.stats?.max != null ? data.stats.max / 10 : null;
+
+  // Determine price level compared to day's range
+  let priceLevel: 'cheap' | 'normal' | 'expensive' | 'unknown' = 'unknown';
+  if (data.currentPriceEur != null && data.stats?.min != null && data.stats?.max != null) {
+    const range = data.stats.max - data.stats.min;
+    if (range > 0) {
+      const pos = (data.currentPriceEur - data.stats.min) / range;
+      if (pos <= 0.33) priceLevel = 'cheap';
+      else if (pos >= 0.67) priceLevel = 'expensive';
+      else priceLevel = 'normal';
+    } else {
+      priceLevel = 'normal';
+    }
+  }
 
   const calcCostPerHour = (watts: number | null) => {
     if (watts === null || priceCentsKWh === null) {
@@ -64,7 +98,6 @@ export function useElectricityPrice(): ElectricityPriceInfo {
     const kw = watts / 1000;
     const centsPerHour = kw * priceCentsKWh;
 
-    // If more than 100 cents/h, show as €/h
     if (Math.abs(centsPerHour) >= 100) {
       return {
         cents: centsPerHour,
@@ -79,8 +112,12 @@ export function useElectricityPrice(): ElectricityPriceInfo {
   };
 
   return {
-    priceEurMWh,
+    priceEurMWh: data.currentPriceEur,
     priceCentsKWh,
+    avgPriceCentsKWh,
+    minPriceCentsKWh,
+    maxPriceCentsKWh,
+    priceLevel,
     loading,
     calcCostPerHour,
   };
