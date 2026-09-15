@@ -10,6 +10,7 @@ const {
   getCostSettings,
   updateCostSetting,
   getApcLogs,
+  getCompressorAnalytics,
 } = require('../db');
 const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
 const mqttClient = require('../mqtt-client');
@@ -19,6 +20,7 @@ const weatherClient = require('../weather-client');
 const costCalculator = require('../cost-calculator');
 const apcService = require('../apc-service');
 const cameraService = require('../camera-service');
+const s3Service = require('../s3-service');
 
 
 const {
@@ -545,6 +547,63 @@ router.get('/camera/snapshot', async (req, res) => {
   }
 });
 
+// ─── Analytics Routes ───────────────────────────────────────────────────────
+
+/**
+ * GET /api/analytics/compressor?days=7
+ * Returns compressor cycles, running hours, daily averages, and forecasts.
+ */
+router.get('/analytics/compressor', (req, res) => {
+  try {
+    const days = req.query.days ? parseInt(req.query.days) : 7;
+    const analytics = getCompressorAnalytics(days);
+    res.json(analytics);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── S3 / Cloud Storage Routes ─────────────────────────────────────────────
+
+/**
+ * GET /api/backup/status
+ * Returns current S3 backup status and configuration.
+ */
+router.get('/backup/status', (req, res) => {
+  res.json(s3Service.getStatus());
+});
+
+/**
+ * POST /api/backup/now
+ * Triggers an immediate SQLite database backup to S3.
+ */
+router.post('/backup/now', requireAuthOrLan('admin'), async (req, res) => {
+  try {
+    const result = await s3Service.backupDatabase();
+    if (result.success) {
+      res.json({ message: 'Varmuuskopiointi S3-pilvitallennustilaan onnistui', ...result });
+    } else {
+      res.status(500).json({ error: 'Varmuuskopiointi epäonnistui', details: result.error });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/backup/list
+ * Returns list of backups stored in S3.
+ */
+router.get('/backup/list', requireAuthOrLan('admin'), async (req, res) => {
+  try {
+    const list = await s3Service.listBackups();
+    res.json({ backups: list, count: list.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+
 
 

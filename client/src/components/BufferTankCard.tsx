@@ -161,9 +161,12 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     : null;
 
   const pumpFlow = numVal(state, 'main/Pump_Flow');
-  const isZeroFlow = pumpFlow !== null && pumpFlow < 0.3;
-  // Floor heating pump is considered active only if Z1_Pump_State is 1 and flow is >= 0.3 L/min
-  const extraPumpActive = state['main/Z1_Pump_State']?.value === '1' && !isZeroFlow;
+  const pumpSpeed = numVal(state, 'main/Pump_Speed');
+  const pumpDuty = numVal(state, 'main/Pump_Duty');
+  // Lattialämmityksen kiertovesipumppu on käynnissä aina kun VILPin vesipumppu pyörii / virtausta havaitaan
+  const extraPumpActive = (pumpFlow !== null && pumpFlow >= 0.3) ||
+    (pumpSpeed !== null && pumpSpeed > 0) ||
+    (pumpDuty !== null && pumpDuty > 0);
   const heatHours = numVal(state, 'main/Heat_Hours');
   const opHours = numVal(state, 'main/Operations_Hours');
 
@@ -184,9 +187,9 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
         };
       case 'SETBACK':
         return {
-          icon: '⚡',
-          label: 'APC Hintahuippusäästö',
-          tag: `${apcStatus?.settings?.buffer_setback_c ?? -2}°C`,
+          icon: '❄️',
+          label: 'APC Säästö / Setback',
+          tag: `-${apcStatus?.settings?.buffer_setback_c ?? 3}°C`,
           bg: 'rgba(56, 189, 248, 0.15)',
           border: 'rgba(56, 189, 248, 0.3)',
           color: '#38bdf8',
@@ -303,17 +306,17 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
           </div>
         </div>
 
-        {/* Floor heating circulation pump (Main PCB relay) */}
+        {/* Floor heating circulation pump */}
         <div
           className="metric-clickable"
-          title="Klikkaa nähdäksesi kiertovesipumpun tilatrendi"
+          title="Klikkaa nähdäksesi virtausnopeuden trendi"
           onClick={() =>
             onOpenTrend?.({
-              topic: 'main/Z1_Pump_State',
-              label: 'Lattialämmityspumpun ohjaus (0=Pois, 1=Käynnissä)',
-              unit: '',
+              topic: 'main/Pump_Flow',
+              label: 'Kiertovesipumpun virtausnopeus',
+              unit: 'L/min',
               color: '#22c55e',
-              currentValue: extraPumpActive ? 'Käynnissä (1)' : 'Pois päältä (0)',
+              currentValue: pumpFlow !== null ? `${pumpFlow.toFixed(1)} L/min` : (extraPumpActive ? 'Käynnissä' : 'Pois päältä'),
             })
           }
           style={{
@@ -363,10 +366,8 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {extraPumpActive
-                  ? `Käynnissä · Virtaus ${pumpFlow !== null ? pumpFlow.toFixed(1) + ' L/min' : 'aktiivinen'} ↗`
-                  : isZeroFlow
-                  ? `Lepotilassa · Ei virtausta (${pumpFlow.toFixed(2)} L/min) ↗`
-                  : 'Lepotilassa (Rele pois päältä) ↗'}
+                  ? `Käynnissä · Virtaus ${pumpFlow !== null && pumpFlow >= 0.3 ? `${pumpFlow.toFixed(1)} L/min` : 'aktiivinen'} ↗`
+                  : 'Lepotilassa (Ei virtausta / rele pois) ↗'}
               </div>
             </div>
           </div>

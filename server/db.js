@@ -448,6 +448,169 @@ function getApcLogs(limit = 50) {
   }));
 }
 
+/**
+ * Calculate compressor cycles, running hours, daily averages, and forecasts.
+ */
+function getCompressorAnalytics(days = 7) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const historyStart = todayStart - (days * 24 * 60 * 60 * 1000);
+
+  // 1. Current state
+  const state = getFullState();
+  const currentCounter = state['main/Operations_Counter']?.value ? parseFloat(state['main/Operations_Counter'].value) : null;
+  const currentHours = state['main/Operations_Hours']?.value ? parseFloat(state['main/Operations_Hours'].value) : null;
+  const currentFreq = state['main/Compressor_Freq']?.value ? parseFloat(state['main/Compressor_Freq'].value) : null;
+  const hpState = state['main/Heatpump_State']?.value ?? '0';
+
+  // 2. Query history
+  const counterRows = getTopicHistory('main/Operations_Counter', historyStart, Date.now());
+  const hoursRows = getTopicHistory('main/Operations_Hours', historyStart, Date.now());
+
+  // 3. Find baseline at midnight
+  let todayStartCounter = null;
+  let todayStartHours = null;
+
+  const beforeTodayCounters = counterRows.filter(r => r.recorded_at <= todayStart);
+  if (beforeTodayCounters.length > 0) {
+    todayStartCounter = beforeTodayCounters[beforeTodayCounters.length - 1].value;
+  } else {
+    const todayCounters = counterRows.filter(r => r.recorded_at >= todayStart);
+    if (todayCounters.length > 0) {
+      todayStartCounter = todayCounters[0].value;
+    } else if (currentCounter != null) {
+      todayStartCounter = currentCounter;
+    }
+  }
+
+  const beforeTodayHours = hoursRows.filter(r => r.recorded_at <= todayStart);
+  if (beforeTodayHours.length > 0) {
+    todayStartHours = beforeTodayHours[beforeTodayHours.length - 1].value;
+  } else {
+    const todayHoursRows = hoursRows.filter(r => r.recorded_at >= todayStart);
+    if (todayHoursRows.length > 0) {
+      todayStartHours = todayHoursRows[0].value;
+    } else if (currentHours != null) {
+      todayStartHours = currentHours;
+    }
+  }
+
+  // Today metrics
+  const cyclesToday = (currentCounter != null && todayStartCounter != null)
+    ? Math.max(0, Math.round(currentCounter - todayStartCounter))
+    : 0;
+  const hoursToday = (currentHours != null && todayStartHours != null)
+    ? Math.max(0, Math.round((currentHours - todayStartHours) * 10) / 10)
+    : 0;
+  const avgCycleHoursToday = (cyclesToday > 0 && hoursToday > 0)
+    ? Math.round((hoursToday / cyclesToday) * 10) / 10
+    : null;
+
+  const elapsedMs = Math.max(60000, Date.now() - todayStart);
+  const elapsedHours = elapsedMs / (3600 * 1000);
+
+  // Daily historical breakdown
+  const dailyBreakdown = [];
+  let totalDailyCycles = 0;
+  let totalDailyHours = 0;
+  let completedDaysCount = 0;
+
+  for (let d = days; d >= 1; d--) {
+    const dStart = todayStart - d * 24 * 60 * 60 * 1000;
+    const dEnd = dStart + 24 * 60 * 60 * 1000;
+    const dDateStr = new Date(dStart).toLocaleDateString('fi-FI', { day: '2-digit', month: '2-digit' });
+
+    const cAtStart = counterRows.filter(r => r.recorded_at <= dStart).pop() || counterRows.find(r => r.recorded_at >= dStart && r.recorded_at <= dEnd);
+    const cAtEnd = counterRows.filter(r => r.recorded_at <= dEnd).pop();
+
+    const hAtStart = hoursRows.filter(r => r.recorded_at <= dStart).pop() || hoursRows.find(r => r.recorded_at >= dStart && r.recorded_at <= dEnd);
+    const hAtEnd = hoursRows.filter(r => r.recorded_at <= dEnd).pop();
+
+    if (cAtStart && cAtEnd && cAtEnd.value >= cAtStart.value) {
+      const dayCycles = Math.round(cAtEnd.value - cAtStart.value);
+      const dayHours = (hAtStart && hAtEnd && hAtEnd.value >= hAtStart.value) ? Math.round((hAtEnd.value - hAtStart.value) * 10) / 10 : 0;
+      const dayAvg = dayCycles > 0 && dayHours > 0 ? Math.round((dayHours / dayCycles) * 10) / 10 : null;
+
+      dailyBreakdown.push({
+        date: dDateStr,
+        cycles: dayCycles,
+        hours: dayHours,
+        avgCycleHours: dayAvg,
+      });
+
+      totalDailyCycles += dayCycles;
+      totalDailyHours += dayHours;
+      completedDaysCount++;
+    }
+  }
+
+  // Daily averages
+  const avgCyclesPerDay = completedDaysCount > 0
+    ? Math.round((totalDailyCycles / completedDaysCount) * 10) / 10
+    : (cyclesToday > 0 && elapsedHours > 4 ? Math.round((cyclesToday / elapsedHours) * 24 * 10) / 10 : null);
+  const avgHoursPerDay = completedDaysCount > 0
+    ? Math.round((totalDailyHours / completedDaysCount) * 10) / 10
+    : (hoursToday > 0 && elapsedHours > 4 ? Math.round((hoursToday / elapsedHours) * 24 * 10) / 10 : null);
+  const avgCycleDuration = (avgHoursPerDay && avgCyclesPerDay && avgCyclesPerDay > 0)
+    ? Math.round((avgHoursPerDay / avgCyclesPerDay) * 10) / 10
+    : null;
+
+  // 24h forecast for today
+  let forecastCycles = null;
+  let forecastHours = null;
+
+  if (elapsedHours >= 1.5) {
+    const rawCycleForecast = (cyclesToday / elapsedHours) * 24;
+    const rawHoursForecast = (hoursToday / elapsedHours) * 24;
+
+    if (avgCyclesPerDay != null && elapsedHours < 14) {
+      const weightToday = elapsedHours / 24;
+      const weightHist = 1 - weightToday;
+      forecastCycles = Math.round(rawCycleForecast * weightToday + avgCyclesPerDay * weightHist);
+      forecastHours = Math.round((rawHoursForecast * weightToday + avgHoursPerDay * weightHist) * 10) / 10;
+    } else {
+      forecastCycles = Math.round(rawCycleForecast);
+      forecastHours = Math.round(rawHoursForecast * 10) / 10;
+    }
+  } else if (avgCyclesPerDay != null) {
+    forecastCycles = Math.round(avgCyclesPerDay);
+    forecastHours = avgHoursPerDay;
+  }
+
+  const lifetimeAvgCycleHours = (currentHours != null && currentCounter != null && currentCounter > 0)
+    ? Math.round((currentHours / currentCounter) * 10) / 10
+    : null;
+
+  return {
+    current: {
+      operationsCounter: currentCounter,
+      operationsHours: currentHours,
+      compressorFreq: currentFreq,
+      heatpumpState: hpState,
+    },
+    today: {
+      cycles: cyclesToday,
+      hours: hoursToday,
+      avgCycleHours: avgCycleHoursToday,
+      elapsedHours: Math.round(elapsedHours * 10) / 10,
+      forecastCycles: Math.max(cyclesToday, forecastCycles ?? cyclesToday),
+      forecastHours: Math.max(hoursToday, forecastHours ?? hoursToday),
+    },
+    dailyAverage: {
+      avgCyclesPerDay: avgCyclesPerDay ?? (cyclesToday > 0 ? cyclesToday : null),
+      avgHoursPerDay: avgHoursPerDay ?? (hoursToday > 0 ? hoursToday : null),
+      avgCycleDuration: avgCycleDuration ?? avgCycleHoursToday ?? lifetimeAvgCycleHours,
+      daysAnalyzed: completedDaysCount,
+    },
+    lifetime: {
+      totalHours: currentHours,
+      totalCycles: currentCounter,
+      avgCycleHours: lifetimeAvgCycleHours,
+    },
+    history: dailyBreakdown,
+  };
+}
+
 module.exports = {
   db,
   updateState,
@@ -465,4 +628,5 @@ module.exports = {
   updateApcSetting,
   insertApcLog,
   getApcLogs,
+  getCompressorAnalytics,
 };

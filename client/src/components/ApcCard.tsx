@@ -135,14 +135,6 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
     if (ok) setShowSettings(false);
   };
 
-  if (loading && !status) {
-    return (
-      <div className="card" style={{ minHeight: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: 'var(--text-muted)' }}>Ladataan APC-älyohjaimen tietoja...</span>
-      </div>
-    );
-  }
-
   const enabled = status?.enabled ?? true;
   const currentDirective = status?.currentDirective ?? 'NORMAL';
   const overrideActive = status?.overrideActive ?? false;
@@ -160,7 +152,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
   const maxPlanPrice = validPrices.length ? Math.max(...validPrices, 15) : 15;
   const minPlanPrice = validPrices.length ? Math.min(...validPrices, 0) : 0;
 
-  // Pick time tick labels (every ~3 hours)
+  // Pick time tick labels (every ~3 hours) - called unconditionally
   const timeTicks = useMemo(() => {
     if (!displayPlan.length) return [];
     const ticks: { time: number; label: string }[] = [];
@@ -182,7 +174,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
     return ticks;
   }, [displayPlan]);
 
-  // Compute upcoming key phase transitions in next 24h
+  // Compute upcoming key phase transitions in next 24h - called unconditionally
   const upcomingDirectives = useMemo(() => {
     if (!displayPlan.length) return [];
     const future = displayPlan.filter((s) => s.end_time > nowTs);
@@ -233,6 +225,14 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
     : overrideActive
     ? { bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: 'rgba(168, 85, 247, 0.35)', label: 'Manuaalinen ohitus', icon: '⏸' }
     : directiveColors[currentDirective] || directiveColors.NORMAL;
+
+  if (loading && !status) {
+    return (
+      <div className="card" style={{ minHeight: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: 'var(--text-muted)' }}>Ladataan APC-älyohjaimen tietoja...</span>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -1,6 +1,6 @@
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
-
+import { useCompressorAnalytics } from '../hooks/useCompressorAnalytics';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
 interface EnergyStatsCardProps {
@@ -9,6 +9,8 @@ interface EnergyStatsCardProps {
 }
 
 export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
+  const { analytics } = useCompressorAnalytics();
+
   // Cumulative energies (prefer XTOP, fallback to main)
   const heatProd = numVal(state, 'extra/Heat_Energy_Production') ?? numVal(state, 'main/Heat_Energy_Production');
   const heatCons = numVal(state, 'extra/Heat_Energy_Consumption') ?? numVal(state, 'main/Heat_Energy_Consumption');
@@ -38,13 +40,23 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
   const pumpHours = numVal(state, 'main/Pump_Hours');
   const pumpCount = numVal(state, 'main/Pump_Counter');
 
-  // Average cycle length in hours
+  // Lifetime average cycle length in hours
   const avgCycleHours = opHours !== null && opCount && opCount > 0 ? (opHours / opCount) : null;
 
   // Total operating hours split percentage
   const totalModeHours = (heatHours ?? 0) + (dhwHours ?? 0) + (coolHours ?? 0);
   const heatPct = totalModeHours > 0 && heatHours ? Math.round((heatHours / totalModeHours) * 100) : null;
   const dhwPct = totalModeHours > 0 && dhwHours ? Math.round((dhwHours / totalModeHours) * 100) : null;
+
+  // Today and analytics data with fallbacks
+  const todayCycles = analytics?.today.cycles ?? 0;
+  const todayHours = analytics?.today.hours ?? 0;
+  const todayAvgCycle = analytics?.today.avgCycleHours;
+  const todayForecastCycles = analytics?.today.forecastCycles;
+  const todayForecastHours = analytics?.today.forecastHours;
+
+  const avgCyclesPerDay = analytics?.dailyAverage.avgCyclesPerDay;
+  const avgHoursPerDay = analytics?.dailyAverage.avgHoursPerDay;
 
   return (
     <div className="card">
@@ -193,51 +205,6 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Right Column: Cycles & Operational Analytics */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Kompressorin syklit & Käyttöajat
-              </span>
-              {avgCycleHours !== null && (
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: avgCycleHours >= 1.5 ? 'var(--online)' : avgCycleHours >= 0.7 ? 'var(--warning)' : 'var(--offline)',
-                }}>
-                  {avgCycleHours >= 1.5 ? '✓ Pitkät syklit (Optimaalinen)' : avgCycleHours >= 0.7 ? '● Normaalit syklit' : '⚠ Lyhyet syklit'}
-                </span>
-              )}
-            </div>
-
-            {/* Cycle KPI Tiles */}
-            <div className="metrics-grid metrics-grid-3">
-              <div className="metric-box">
-                <span className="metric-label">Keskikäyntiaika</span>
-                <span className="metric-value" style={{
-                  color: avgCycleHours !== null && avgCycleHours >= 1.5 ? 'var(--online)' : 'var(--text-primary)',
-                }}>
-                  {avgCycleHours !== null ? `${avgCycleHours.toFixed(1)}` : '—'}
-                  <span className="metric-unit">h / startti</span>
-                </span>
-              </div>
-              <div className="metric-box">
-                <span className="metric-label">Käyttötunnit</span>
-                <span className="metric-value">
-                  {opHours !== null ? `${Math.round(opHours).toLocaleString('fi-FI')}` : '—'}
-                  <span className="metric-unit">h</span>
-                </span>
-              </div>
-              <div className="metric-box">
-                <span className="metric-label">Käynnistykset</span>
-                <span className="metric-value">
-                  {opCount !== null ? `${Math.round(opCount).toLocaleString('fi-FI')}` : '—'}
-                  <span className="metric-unit">kpl</span>
-                </span>
-              </div>
-            </div>
 
             {/* Mode Distribution & Backup Heater */}
             <div style={{
@@ -292,6 +259,153 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Right Column: Cycles & Operational Analytics */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Kompressorin syklit & Käyttöajat
+              </span>
+              {avgCycleHours !== null && (
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: avgCycleHours >= 1.5 ? 'var(--online)' : avgCycleHours >= 0.7 ? 'var(--warning)' : 'var(--offline)',
+                }}>
+                  {avgCycleHours >= 1.5 ? '✓ Pitkät syklit' : avgCycleHours >= 0.7 ? '● Normaalit syklit' : '⚠ Lyhyet syklit'}
+                </span>
+              )}
+            </div>
+
+            {/* Cycle KPI Tiles: Tänään, Ennuste, Päiväkeskiarvo */}
+            <div className="metrics-grid metrics-grid-3">
+              {/* Tänään */}
+              <div className="metric-box" style={{ position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className="metric-label">Tänään (00:00 alkaen)</span>
+                </div>
+                <span className="metric-value" style={{ color: 'var(--text-primary)' }}>
+                  {analytics ? todayCycles : '—'}
+                  <span className="metric-unit">sykliä</span>
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  {analytics ? `${todayHours.toFixed(1)} h` : '—'}
+                  {todayAvgCycle !== null && todayAvgCycle !== undefined ? ` (~${todayAvgCycle.toFixed(1)} h/sykli)` : ''}
+                </span>
+              </div>
+
+              {/* Tänään ennuste (24h) */}
+              <div className="metric-box" style={{ position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className="metric-label">Ennuste (24h)</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>tänään</span>
+                </div>
+                <span className="metric-value" style={{ color: 'var(--online)' }}>
+                  {todayForecastCycles !== undefined ? `~${todayForecastCycles}` : '—'}
+                  <span className="metric-unit">sykliä/vrk</span>
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  {todayForecastHours !== undefined ? `~${todayForecastHours.toFixed(1)} h/vrk` : '—'}
+                </span>
+              </div>
+
+              {/* Päiväkeskiarvo (7 pv) */}
+              <div className="metric-box" style={{ position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className="metric-label">Päiväkeskiarvo</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>7 pv</span>
+                </div>
+                <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                  {avgCyclesPerDay !== null && avgCyclesPerDay !== undefined ? `~${avgCyclesPerDay.toFixed(1)}` : '—'}
+                  <span className="metric-unit">sykliä/pv</span>
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  {avgHoursPerDay !== null && avgHoursPerDay !== undefined ? `~${avgHoursPerDay.toFixed(1)} h/pv` : '—'}
+                </span>
+              </div>
+            </div>
+
+            {/* Lifetime totals box */}
+            <div style={{
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Koko elinkaari yhteensä
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Keskikäyntiaika: <strong style={{ color: 'var(--text-primary)' }}>{avgCycleHours !== null ? `${avgCycleHours.toFixed(1)} h / startti` : '—'}</strong>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <span>
+                    Käyttötunnit: <strong style={{ color: 'var(--text-primary)' }}>{opHours !== null ? `${Math.round(opHours).toLocaleString('fi-FI')} h` : '—'}</strong>
+                  </span>
+                  <span>
+                    Käynnistykset: <strong style={{ color: 'var(--text-primary)' }}>{opCount !== null ? `${Math.round(opCount).toLocaleString('fi-FI')} kpl` : '—'}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 7-day mini-history breakdown if available */}
+            {analytics?.history && analytics.history.length > 0 && (
+              <div style={{
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '10px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Viimeiset 7 päivää (syklit & käyntiaika)
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${analytics.history.length}, 1fr)`, gap: 6 }}>
+                  {analytics.history.map((day) => {
+                    const dayName = new Date(day.date).toLocaleDateString('fi-FI', { weekday: 'short' });
+                    return (
+                      <div
+                        key={day.date}
+                        style={{
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid rgba(255,255,255,0.05)',
+                          borderRadius: 'var(--radius-sm, 6px)',
+                          padding: '6px 4px',
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2,
+                        }}
+                        title={`${day.date}: ${day.cycles} sykliä, ${day.hours.toFixed(1)} h (ka. ${day.avgCycleHours ? day.avgCycleHours.toFixed(1) : 0} h/sykli)`}
+                      >
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                          {dayName}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {day.cycles} <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-muted)' }}>sykliä</span>
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                          {day.hours.toFixed(1)} h
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -25,12 +25,6 @@ function timeAgo(ts: number | null, now: number): string {
   return `${Math.floor(sec / 3600)} h sitten`;
 }
 
-const MODE_LABELS: Record<string, string> = {
-  '0': 'Lämmitys', '1': 'Jäähdytys', '2': 'Auto (lämpö)',
-  '3': 'Käyttövesi', '4': 'Lämmitys+KV', '5': 'Jäähdytys+KV',
-  '6': 'Auto+KV', '7': 'Auto (viilennys)', '8': 'Auto (viilennys)+KV',
-};
-
 export function StatusBar({
   state,
   mqtt,
@@ -53,8 +47,6 @@ export function StatusBar({
 
   const { priceCentsKWh, avgPriceCentsKWh, minPriceCentsKWh, maxPriceCentsKWh, priceLevel } = useElectricityPrice();
 
-  const hpState = state['main/Heatpump_State']?.value;
-  const opMode = state['main/Operating_Mode_State']?.value;
   const isSterilizationActive = state['main/Sterilization_State']?.value === '1';
   const sterilizationTemp = state['main/Sterilization_Temp']?.value;
   const outsideTempNum = numVal(state, 'main/Outside_Temp');
@@ -67,8 +59,6 @@ export function StatusBar({
     error.toLowerCase() !== 'no error' &&
     error.toLowerCase() !== 'ei virhettä'
   );
-
-  const isOn = hpState === '1';
 
   // Daily consumption demand estimation based on outdoor temperature (heating degree approach)
   // Base DHW consumption: ~3.5 kWh / day
@@ -123,18 +113,6 @@ export function StatusBar({
           <span className="status-label status-hide-mobile">
             {connLabel}
           </span>
-        </div>
-
-        {/* Combined Heat pump state & Operating mode badge */}
-        <div className={`badge ${isOn ? 'badge-heat' : 'badge-off'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span>{isOn ? '🔥' : '⏹'}</span>
-          <span>{isOn ? 'Käynnissä' : 'Valmiustila'}</span>
-          {opMode !== undefined && (
-            <>
-              <span style={{ opacity: 0.4 }}>·</span>
-              <span style={{ fontWeight: 600 }}>{MODE_LABELS[opMode] ?? `Tila ${opMode}`}</span>
-            </>
-          )}
         </div>
 
         {/* Legionella Sterilization Active badge */}

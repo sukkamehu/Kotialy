@@ -13,6 +13,7 @@ const weatherClient = require('./weather-client');
 const costCalculator = require('./cost-calculator');
 const apcService = require('./apc-service');
 const cameraService = require('./camera-service');
+const s3Service = require('./s3-service');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -158,6 +159,7 @@ weatherClient.setDb(require('./db'));
 weatherClient.startScheduler();
 costCalculator.startScheduler();
 cameraService.startScheduler();
+s3Service.startScheduler();
 
 // ─── APC Smart Optimizer ─────────────────────────────────────────────────────
 apcService.setWsBroadcast(wsBroadcast);

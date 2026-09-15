@@ -164,10 +164,36 @@ export function CameraCard() {
     fetchSnapshot(nextVal, true);
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, label: string) => {
+    let copied = false;
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+    }
+
+    if (!copied) {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        textArea.setAttribute('readonly', '');
+        document.body.appendChild(textArea);
+        textArea.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch {
+        copied = false;
+      }
+    }
+
     setCopiedStream(label);
-    setTimeout(() => setCopiedStream(null), 2500);
+    setTimeout(() => setCopiedStream(null), 3000);
   };
 
   const isActuallyOffline = consecutiveFailuresRef.current >= 4;
@@ -175,14 +201,14 @@ export function CameraCard() {
 
   return (
     <>
-      <div className="card-glass" style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Card Header */}
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>📹</span>
+            <span className="card-icon">📹</span>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>
-                {status?.name || 'Teknisen tilan kamera'}
+              <div className="card-title">
+                {status?.name || 'Pannuhuone'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 192.168.68.57 • TAS-Tech RTSP (UDP)
@@ -433,28 +459,6 @@ export function CameraCard() {
               </div>
             )}
 
-            {/* Top-Left Overlay Tag */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 8,
-                left: 8,
-                background: 'rgba(0,0,0,0.7)',
-                backdropFilter: 'blur(4px)',
-                padding: '3px 8px',
-                borderRadius: 6,
-                fontSize: 10,
-                fontWeight: 600,
-                color: '#e2e8f0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                border: '1px solid rgba(255,255,255,0.1)',
-              }}
-            >
-              <span style={{ color: isHd ? 'var(--heat-primary)' : 'var(--cool-primary)' }}>●</span> {isHd ? '1080p Full HD' : 'SD 640×352'}
-            </div>
-
             {/* Bottom Overlay Bar */}
             <div
               style={{
@@ -624,85 +628,55 @@ export function CameraCard() {
             {/* RTSP Stream Details & Direct Access Links */}
             <div style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>
-                🔗 Suoratoisto-osoitteet (RTSP over UDP)
+                🔗 Suoratoisto-osoite (RTSP over UDP)
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* 1080p Main Stream */}
-                <div
+              {/* 1080p Main Stream */}
+              <div
+                onClick={() => copyToClipboard('rtsp://admin:123456789@192.168.68.57:554/0/av0', 'main')}
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  border: `1px solid ${copiedStream === 'main' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  cursor: 'pointer',
+                  transition: 'border-color 0.2s',
+                }}
+                title="Klikkaa kopioidaksesi osoite leikepöydälle"
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--cool-primary)', fontWeight: 600 }}>
+                    Päävirta (1080p HD, 1920×1080 @ 15fps):
+                  </div>
+                  <code style={{ fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all', userSelect: 'all' }}>
+                    rtsp://admin:123456789@192.168.68.57:554/0/av0
+                  </code>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyToClipboard('rtsp://admin:123456789@192.168.68.57:554/0/av0', 'main');
+                  }}
                   style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1px solid var(--border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    background: copiedStream === 'main' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255,255,255,0.08)',
+                    border: `1px solid ${copiedStream === 'main' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
+                    color: copiedStream === 'main' ? 'var(--online)' : 'var(--text-primary)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: 'var(--cool-primary)', fontWeight: 600 }}>
-                      Päävirta (1080p HD, 1920×1080 @ 15fps):
-                    </div>
-                    <code style={{ fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
-                      rtsp://admin:123456789@192.168.68.57:554/0/av0
-                    </code>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard('rtsp://admin:123456789@192.168.68.57:554/0/av0', 'main')}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: 6,
-                      background: 'rgba(255,255,255,0.08)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--text-primary)',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {copiedStream === 'main' ? '✓ Kopioitu!' : 'Kopioi URL'}
-                  </button>
-                </div>
-
-                {/* Sub Stream */}
-                <div
-                  style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1px solid var(--border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: 'var(--dhw-primary)', fontWeight: 600 }}>
-                      Alivirta / Nopea katselu (640×352 @ 15fps):
-                    </div>
-                    <code style={{ fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
-                      rtsp://admin:123456789@192.168.68.57:554/0/av1
-                    </code>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard('rtsp://admin:123456789@192.168.68.57:554/0/av1', 'sub')}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: 6,
-                      background: 'rgba(255,255,255,0.08)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--text-primary)',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {copiedStream === 'sub' ? '✓ Kopioitu!' : 'Kopioi URL'}
-                  </button>
-                </div>
+                  {copiedStream === 'main' ? '✓ Kopioitu!' : 'Kopioi URL'}
+                </button>
               </div>
 
               <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
