@@ -160,7 +160,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     ? (bufferTemp - inletTemp).toFixed(1)
     : null;
 
-  const extraPumpActive = state['main/TwoWay_Valve_State']?.value === '1' || state['main/Z1_Pump_State']?.value === '1';
+  const extraPumpActive = state['main/Z1_Pump_State']?.value === '1';
   const heatHours = numVal(state, 'main/Heat_Hours');
   const opHours = numVal(state, 'main/Operations_Hours');
 
@@ -306,7 +306,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
           title="Klikkaa nähdäksesi kiertovesipumpun tilatrendi"
           onClick={() =>
             onOpenTrend?.({
-              topic: 'main/TwoWay_Valve_State',
+              topic: 'main/Z1_Pump_State',
               label: 'Lattialämmityspumpun ohjaus (0=Pois, 1=Käynnissä)',
               unit: '',
               color: '#22c55e',

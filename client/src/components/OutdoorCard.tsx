@@ -2,6 +2,7 @@ import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { SegmentedControl } from './SegmentedControl';
+import { SetpointControl } from './SetpointControl';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
 /* Quiet mode throttles the outdoor fan/compressor, so it lives with the unit. */
@@ -98,6 +99,7 @@ export function OutdoorCard({ state, onOpenTrend, readOnly = false }: OutdoorCar
     state['main/Outdoor_Heater_State']?.value === '1' ||
     state['main/Internal_Heater_State']?.value === '1';
   const quietLevel = numVal(state, 'main/Quiet_Mode_Level');
+  const heatingOffTemp = numVal(state, 'main/Heating_Off_Outdoor_Temp');
 
   const { send, pending, error, success } = useCommand();
 
@@ -295,6 +297,26 @@ export function OutdoorCard({ state, onOpenTrend, readOnly = false }: OutdoorCar
           disabled={readOnly}
           idPrefix="btn-quiet"
           hint="korkeampi taso = hiljaisempi ääni, alempi maksimiteho"
+        />
+
+        <div className="divider" style={{ margin: '14px 0 10px' }} />
+
+        {/* Heating cutoff outdoor temperature slider */}
+        <SetpointControl
+          label="Lämmityksen katkaisuraja (Ulkoilma)"
+          value={heatingOffTemp}
+          min={5}
+          max={25}
+          step={1}
+          unit="°C"
+          accentColor="var(--cool-primary)"
+          hint="Pysäyttää tilojen lämmityksen tämän ulkolämmön yläpuolella (estää pätkäkäyntiä)"
+          disabled={readOnly}
+          pending={pending}
+          onCommit={(v) =>
+            send('commands/SetHeatingOffOutdoorTemp', v, `Lämmityksen ulkokatkaisurajaksi asetettu ${v} °C`)
+          }
+          idPrefix="heating-off-temp"
         />
 
         {(error || success) && (
