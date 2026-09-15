@@ -5,7 +5,7 @@ import { useCommand } from '../hooks/useCommand';
 import { SegmentedControl, ToggleRow } from './SegmentedControl';
 import { ConfirmModal } from './ConfirmModal';
 
-const OPERATING_MODES = [
+const ALL_OPERATING_MODES = [
   { value: 0, label: 'Lämmitys' },
   { value: 1, label: 'Jäähdytys' },
   { value: 2, label: 'Auto' },
@@ -14,6 +14,18 @@ const OPERATING_MODES = [
   { value: 5, label: 'Jäähdytys+KV' },
   { value: 6, label: 'Auto+KV' },
 ];
+
+// Configure allowed modes via VITE_ALLOWED_OPERATING_MODES (e.g. "4,3" for Lämmitys+KV & Käyttövesi)
+const envAllowedModes = import.meta.env.VITE_ALLOWED_OPERATING_MODES;
+const allowedIds: number[] = envAllowedModes
+  ? envAllowedModes.split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n))
+  : [4, 3]; // Default: Lämmitys+KV ja Käyttövesi
+
+const OPERATING_MODES = allowedIds.length > 0
+  ? allowedIds
+      .map((id) => ALL_OPERATING_MODES.find((m) => m.value === id))
+      .filter((m): m is { value: number; label: string } => !!m)
+  : ALL_OPERATING_MODES;
 
 /* Powerful mode is sent as a slot index; each step is 30 minutes. */
 const POWERFUL_TIMES = [
@@ -342,7 +354,7 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
           options={OPERATING_MODES}
           value={operatingMode === null ? null : Math.round(operatingMode)}
           onSelect={(v) => send('commands/SetOperationMode', v,
-            `Toimintatila: ${OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`)}
+            `Toimintatila: ${ALL_OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`)}
           pending={pending}
           disabled={readOnly}
           idPrefix="btn-mode"

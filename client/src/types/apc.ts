@@ -9,7 +9,10 @@ export interface ApcSettings {
   buffer_boost_c: number;
   buffer_setback_c: number;
   dhw_target_c: number;
+  dhw_boost_target_c?: number;
+  dhw_normal_target_c?: number;
   dhw_min_c: number;
+  dhw_boost_on_cheap?: boolean;
   cheap_threshold_cents: number;
   peak_threshold_cents: number;
   dhw_duration_hours: number;

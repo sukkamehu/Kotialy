@@ -31,6 +31,7 @@ interface UseWebSocketReturn {
   zigbeeDevices: ZigbeeRegistry;
   zigbeeConnected: boolean;
   zigbeeState: Record<string, string>; // device -> prop -> value (flat from updates)
+  refresh: () => Promise<void>;
 }
 
 export function useWebSocket(): UseWebSocketReturn {
@@ -344,6 +345,32 @@ export function useWebSocket(): UseWebSocketReturn {
     };
   }, [connect, clearTimers]);
 
-  return { state, mqtt, heishamonOnline, wsConnected, lastUpdate, zigbeeDevices, zigbeeConnected, zigbeeState };
+  const refresh = useCallback(async () => {
+    // 1. Send WebSocket ping if alive, or force reconnect
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ type: 'ping' }));
+      } catch { /* ignore */ }
+    } else {
+      connect();
+    }
+
+    // 2. Fetch fresh snapshot from REST API for guaranteed instant update
+    try {
+      const res = await fetch('/api/state');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.state) {
+          setState(json.state);
+          if (json.mqtt) setMqtt(json.mqtt);
+          if (json.ts) setLastUpdate(json.ts);
+        }
+      }
+    } catch {
+      // Ignore network errors on pull
+    }
+  }, [connect]);
+
+  return { state, mqtt, heishamonOnline, wsConnected, lastUpdate, zigbeeDevices, zigbeeConnected, zigbeeState, refresh };
 }
 

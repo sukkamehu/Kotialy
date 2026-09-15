@@ -55,9 +55,18 @@ export function StatusBar({
 
   const hpState = state['main/Heatpump_State']?.value;
   const opMode = state['main/Operating_Mode_State']?.value;
+  const isSterilizationActive = state['main/Sterilization_State']?.value === '1';
+  const sterilizationTemp = state['main/Sterilization_Temp']?.value;
   const outsideTempNum = numVal(state, 'main/Outside_Temp');
   const error = state['main/Error']?.value;
-  const hasError = error && error !== '0' && error !== 'H00';
+  const hasError = Boolean(
+    error &&
+    error.trim() !== '' &&
+    error !== '0' &&
+    error.toUpperCase() !== 'H00' &&
+    error.toLowerCase() !== 'no error' &&
+    error.toLowerCase() !== 'ei virhettä'
+  );
 
   const isOn = hpState === '1';
 
@@ -88,8 +97,20 @@ export function StatusBar({
   return (
     <header className="status-bar">
       <div className="status-bar-inner">
-        {/* Logo */}
-        <div className="status-logo">
+        {/* Logo (Click to scroll top) */}
+        <div
+          className="status-logo"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }}
+          title="Takaisin alkuun (Sivun alku)"
+          role="button"
+          tabIndex={0}
+        >
           <span style={{ fontSize: 22 }}>🏠</span>
           <span className="status-logo-text">Kotiäly</span>
         </div>
@@ -104,15 +125,37 @@ export function StatusBar({
           </span>
         </div>
 
-        {/* Heat pump state badge */}
-        <div className={`badge ${isOn ? 'badge-heat' : 'badge-off'}`}>
-          {isOn ? '🔥' : '⏹'} {isOn ? 'Käynnissä' : 'Valmiustila'}
+        {/* Combined Heat pump state & Operating mode badge */}
+        <div className={`badge ${isOn ? 'badge-heat' : 'badge-off'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span>{isOn ? '🔥' : '⏹'}</span>
+          <span>{isOn ? 'Käynnissä' : 'Valmiustila'}</span>
+          {opMode !== undefined && (
+            <>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span style={{ fontWeight: 600 }}>{MODE_LABELS[opMode] ?? `Tila ${opMode}`}</span>
+            </>
+          )}
         </div>
 
-        {/* Operating mode */}
-        {opMode !== undefined && (
-          <div className="badge badge-heat status-hide-xs" style={{ fontSize: 11 }}>
-            {MODE_LABELS[opMode] ?? `Tila ${opMode}`}
+        {/* Legionella Sterilization Active badge */}
+        {isSterilizationActive && (
+          <div
+            className="badge"
+            style={{
+              background: 'rgba(236, 72, 153, 0.18)',
+              border: '1px solid rgba(236, 72, 153, 0.45)',
+              color: '#f472b6',
+              fontWeight: 700,
+              fontSize: 11,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              boxShadow: '0 0 10px rgba(236, 72, 153, 0.25)',
+            }}
+            title={`Käyttöveden legionellatappo / sterilointiohjelma käynnissä${sterilizationTemp ? ` (Tavoite ${sterilizationTemp} °C)` : ''}`}
+          >
+            <span>🧼</span>
+            <span>Sterilointi käynnissä {sterilizationTemp ? `(${sterilizationTemp}°C)` : ''}</span>
           </div>
         )}
 

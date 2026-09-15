@@ -380,7 +380,10 @@ function getApcSettings() {
     buffer_boost_c: 3,
     buffer_setback_c: -2,
     dhw_target_c: 55,
+    dhw_boost_target_c: 55,
+    dhw_normal_target_c: 50,
     dhw_min_c: 45,
+    dhw_boost_on_cheap: true,
     cheap_threshold_cents: 3.0,
     peak_threshold_cents: 20.0,
     dhw_duration_hours: 2,
@@ -391,6 +394,8 @@ function getApcSettings() {
   for (const r of rows) {
     if (r.key === 'enabled') {
       settings.enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'dhw_boost_on_cheap') {
+      settings.dhw_boost_on_cheap = r.value === '1' || r.value === 'true';
     } else if (r.key === 'mode' || r.key === 'override_directive') {
       settings[r.key] = r.value;
     } else {

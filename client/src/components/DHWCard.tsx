@@ -130,6 +130,8 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
     }
   }
 
+  const isSterilization = state['main/Sterilization_State']?.value === '1';
+  const sterilizationTemp = state['main/Sterilization_Temp']?.value;
   const dhwPumpState = state['main/DHW_Pump_State']?.value === '1';
   const dhwHours = numVal(state, 'main/DHW_Hours');
 
@@ -138,13 +140,18 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
 
   return (
     <div className="card" style={{
-      borderColor: forceDHW ? 'rgba(245,158,11,0.4)' : 'var(--border)',
-      boxShadow: forceDHW ? '0 0 20px rgba(245,158,11,0.1)' : undefined,
+      borderColor: isSterilization ? 'rgba(236,72,153,0.5)' : forceDHW ? 'rgba(245,158,11,0.4)' : 'var(--border)',
+      boxShadow: isSterilization ? '0 0 20px rgba(236,72,153,0.15)' : forceDHW ? '0 0 20px rgba(245,158,11,0.1)' : undefined,
     }}>
       <div className="card-header">
         <span className="card-icon">🚿</span>
         <span className="card-title">Käyttövesivaraaja</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isSterilization && (
+            <div className="badge" style={{ background: 'rgba(236,72,153,0.18)', color: '#f472b6', border: '1px solid rgba(236,72,153,0.45)', fontWeight: 700 }}>
+              🧼 Sterilointi {sterilizationTemp ? `(${sterilizationTemp}°C)` : ''}
+            </div>
+          )}
           {dhwHours !== null && (
             <span
               className="metric-clickable"

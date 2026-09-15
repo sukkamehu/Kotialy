@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useApc } from '../hooks/useApc';
 import type { ApcMode, ApcPlanSlot } from '../types/apc';
@@ -46,12 +46,15 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<ApcPlanSlot | null>(null);
+  const [hoveredSlot, setHoveredSlot] = useState<ApcPlanSlot | null>(null);
 
   // Settings form draft state
   const [bufferBoost, setBufferBoost] = useState<number>(status?.settings?.buffer_boost_c ?? 3);
   const [bufferSetback, setBufferSetback] = useState<number>(status?.settings?.buffer_setback_c ?? -2);
-  const [dhwTarget, setDhwTarget] = useState<number>(status?.settings?.dhw_target_c ?? 55);
+  const [dhwBoostTarget, setDhwBoostTarget] = useState<number>(status?.settings?.dhw_boost_target_c ?? status?.settings?.dhw_target_c ?? 55);
+  const [dhwNormalTarget, setDhwNormalTarget] = useState<number>(status?.settings?.dhw_normal_target_c ?? 50);
   const [dhwMin, setDhwMin] = useState<number>(status?.settings?.dhw_min_c ?? 45);
+  const [dhwBoostOnCheap, setDhwBoostOnCheap] = useState<boolean>(status?.settings?.dhw_boost_on_cheap ?? true);
   const [cheapThresh, setCheapThresh] = useState<number>(status?.settings?.cheap_threshold_cents ?? 3.0);
   const [peakThresh, setPeakThresh] = useState<number>(status?.settings?.peak_threshold_cents ?? 20.0);
   const [dhwHours, setDhwHours] = useState<number>(status?.settings?.dhw_duration_hours ?? 2);
@@ -60,8 +63,10 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
     if (status?.settings) {
       setBufferBoost(status.settings.buffer_boost_c);
       setBufferSetback(status.settings.buffer_setback_c);
-      setDhwTarget(status.settings.dhw_target_c);
+      setDhwBoostTarget(status.settings.dhw_boost_target_c ?? status.settings.dhw_target_c ?? 55);
+      setDhwNormalTarget(status.settings.dhw_normal_target_c ?? 50);
       setDhwMin(status.settings.dhw_min_c);
+      setDhwBoostOnCheap(status.settings.dhw_boost_on_cheap !== false);
       setCheapThresh(status.settings.cheap_threshold_cents);
       setPeakThresh(status.settings.peak_threshold_cents);
       setDhwHours(status.settings.dhw_duration_hours);
@@ -69,13 +74,60 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
     setShowSettings(true);
   };
 
+  const applyPreset = (type: 'compressor_save' | 'balanced' | 'max_savings' | 'comfort') => {
+    if (type === 'compressor_save') {
+      setCheapThresh(3.0);
+      setPeakThresh(20.0);
+      setDhwBoostTarget(55);
+      setDhwNormalTarget(50);
+      setDhwMin(45);
+      setDhwBoostOnCheap(true);
+      setBufferBoost(3);
+      setBufferSetback(-2);
+      setDhwHours(2);
+    } else if (type === 'balanced') {
+      setCheapThresh(3.0);
+      setPeakThresh(20.0);
+      setDhwBoostTarget(55);
+      setDhwNormalTarget(50);
+      setDhwMin(45);
+      setDhwBoostOnCheap(true);
+      setBufferBoost(3);
+      setBufferSetback(-2);
+      setDhwHours(2);
+    } else if (type === 'max_savings') {
+      setCheapThresh(2.5);
+      setPeakThresh(15.0);
+      setDhwBoostTarget(55);
+      setDhwNormalTarget(48);
+      setDhwMin(42);
+      setDhwBoostOnCheap(true);
+      setBufferBoost(5);
+      setBufferSetback(-4);
+      setDhwHours(2);
+    } else if (type === 'comfort') {
+      setCheapThresh(4.0);
+      setPeakThresh(25.0);
+      setDhwBoostTarget(52);
+      setDhwNormalTarget(50);
+      setDhwMin(46);
+      setDhwBoostOnCheap(false);
+      setBufferBoost(2);
+      setBufferSetback(-1);
+      setDhwHours(3);
+    }
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await updateSettings({
       buffer_boost_c: Number(bufferBoost),
       buffer_setback_c: Number(bufferSetback),
-      dhw_target_c: Number(dhwTarget),
+      dhw_target_c: Number(dhwBoostTarget),
+      dhw_boost_target_c: Number(dhwBoostTarget),
+      dhw_normal_target_c: Number(dhwNormalTarget),
       dhw_min_c: Number(dhwMin),
+      dhw_boost_on_cheap: Boolean(dhwBoostOnCheap),
       cheap_threshold_cents: Number(cheapThresh),
       peak_threshold_cents: Number(peakThresh),
       dhw_duration_hours: Number(dhwHours),
@@ -95,10 +147,74 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
   const currentDirective = status?.currentDirective ?? 'NORMAL';
   const overrideActive = status?.overrideActive ?? false;
   const plan = status?.plan || [];
+  const displayPlan = plan.slice(0, 96); // Full 24-hour horizon (96 quarters)
+  const nowTs = Date.now();
 
-  // Find maximum price for timeline normalization
-  const maxPlanPrice = Math.max(...plan.map((p) => p.price), 15);
-  const minPlanPrice = Math.min(...plan.map((p) => p.price), 0);
+  const currentSlot = displayPlan.find((s) => s.start_time <= nowTs && s.end_time > nowTs) || displayPlan[0] || null;
+  const activeInspectSlot = hoveredSlot || selectedSlot || currentSlot;
+
+  // Find maximum & minimum price for timeline normalization
+  const maxPlanPrice = Math.max(...displayPlan.map((p) => p.price), 15);
+  const minPlanPrice = Math.min(...displayPlan.map((p) => p.price), 0);
+
+  // Pick time tick labels (every ~3 hours)
+  const timeTicks = useMemo(() => {
+    if (!displayPlan.length) return [];
+    const ticks: { time: number; label: string }[] = [];
+    const step = Math.max(1, Math.floor(displayPlan.length / 8));
+    for (let i = 0; i < displayPlan.length; i += step) {
+      const slot = displayPlan[i];
+      ticks.push({
+        time: slot.start_time,
+        label: new Date(slot.start_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+    const last = displayPlan[displayPlan.length - 1];
+    if (last) {
+      ticks.push({
+        time: last.end_time,
+        label: new Date(last.end_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+    return ticks;
+  }, [displayPlan]);
+
+  // Compute upcoming key phase transitions in next 24h
+  const upcomingDirectives = useMemo(() => {
+    if (!displayPlan.length) return [];
+    const future = displayPlan.filter((s) => s.end_time > nowTs);
+    const events: { slot: ApcPlanSlot; label: string; time: string; icon: string; color: string }[] = [];
+    let prevDir = currentSlot?.directive;
+    for (const s of future) {
+      if (s.directive !== 'NORMAL' && s.directive !== prevDir) {
+        let icon = '⚡';
+        let label = 'Esilämmitys';
+        let color = '#34d399';
+        if (s.is_dhw_slot || s.directive === 'DHW_CYCLE') {
+          icon = '🚿';
+          label = 'Käyttövesi';
+          color = '#38bdf8';
+        } else if (s.directive === 'SETBACK') {
+          icon = '💤';
+          label = 'Säästöjakso';
+          color = '#f87171';
+        } else if (s.directive === 'ECO') {
+          icon = '🌱';
+          label = 'Ekotila';
+          color = '#fbbf24';
+        }
+        events.push({
+          slot: s,
+          icon,
+          label,
+          color,
+          time: new Date(s.start_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }),
+        });
+        prevDir = s.directive;
+      }
+    }
+    return events.slice(0, 3);
+  }, [displayPlan, currentSlot, nowTs]);
 
   // Badge colors and text
   const directiveColors: Record<string, { bg: string; color: string; border: string; label: string; icon: string }> = {
@@ -337,135 +453,281 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Optimointiaikataulu (Seuraavat 24h / 15 min vartit)
-            </span>
-            <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399' }} /> Esilämmitys
+          {/* Action Plan & Upcoming Events Banner */}
+          <div style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 12,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                📌 TÄLLÄ HETKELLÄ:
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: '#38bdf8' }} /> Käyttövesi
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: '#f87171' }} /> Säästöjakso
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: activeStyle.color,
+                background: activeStyle.bg,
+                border: `1px solid ${activeStyle.border}`,
+                padding: '2px 8px',
+                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}>
+                <span>{activeStyle.icon}</span>
+                <span>{currentSlot ? currentSlot.reason : activeStyle.label}</span>
               </span>
             </div>
+
+            {/* Upcoming highlight events */}
+            {upcomingDirectives.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>🔜 SEURAAVAKSI:</span>
+                {upcomingDirectives.map((evt, idx) => (
+                  <span
+                    key={evt.slot.start_time}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: 'rgba(255,255,255,0.05)',
+                      padding: '2px 7px',
+                      borderRadius: 5,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    <span>{evt.icon}</span>
+                    <strong style={{ color: evt.color }}>{evt.time}</strong>
+                    <span>{evt.label}</span>
+                    {idx < upcomingDirectives.length - 1 && <span style={{ opacity: 0.35, marginLeft: 2 }}>→</span>}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
-          {plan.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: 12 }}>
-              Odotetaan Nord Pool -hintatietoja...
+          {/* Interactive 24h Timeline Chart & Live Inspector */}
+          <div style={{
+            background: 'rgba(0,0,0,0.25)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '12px 14px',
+            marginBottom: 12,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  📊 24h Optimointiaikataulu (15 min vartit)
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  (Vie hiiri palkkien päälle)
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)' }} /> Esilämmitys (Lataus)
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#38bdf8', boxShadow: '0 0 6px rgba(56,189,248,0.5)' }} /> Käyttövesi
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#f87171', boxShadow: '0 0 6px rgba(248,113,113,0.5)' }} /> Säästö (Pudotus)
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }} /> Normaali
+                </span>
+              </div>
             </div>
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'flex-end',
-                height: 100,
-                gap: 2,
-                background: 'rgba(0,0,0,0.3)',
-                padding: '8px 8px 0 8px',
+
+            {/* Dynamic Live Inspector Bar (Follows mouse hover immediately) */}
+            {activeInspectSlot && (
+              <div style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: 8,
-                border: '1px solid var(--border)',
-                overflowX: 'auto',
-              }}
-            >
-              {plan.slice(0, 48).map((slot) => {
-                const heightPct = Math.max(12, Math.min(100, ((slot.price - minPlanPrice) / (maxPlanPrice - minPlanPrice || 1)) * 90));
-                const isNow = Date.now() >= slot.start_time && Date.now() < slot.end_time;
-                const isSelected = selectedSlot?.start_time === slot.start_time;
-
-                let barBg = 'rgba(255, 255, 255, 0.2)';
-                if (slot.directive === 'BOOST') barBg = '#34d399';
-                else if (slot.is_dhw_slot) barBg = '#38bdf8';
-                else if (slot.directive === 'SETBACK') barBg = '#f87171';
-                else if (slot.directive === 'ECO') barBg = '#fbbf24';
-
-                const timeStr = new Date(slot.start_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
-
-                return (
-                  <div
-                    key={slot.start_time}
-                    onClick={() => setSelectedSlot(isSelected ? null : slot)}
-                    style={{
-                      flex: 1,
-                      minWidth: 10,
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'flex-end',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      position: 'relative',
-                    }}
-                    title={`${timeStr} · ${slot.price.toFixed(2)} snt/kWh\nTila: ${slot.directive} (${slot.reason})`}
-                  >
-                    {isNow && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: -6,
-                          width: 4,
-                          height: 4,
-                          borderRadius: '50%',
-                          background: '#fff',
-                          boxShadow: '0 0 6px #fff',
-                        }}
-                      />
-                    )}
-                    <div
-                      style={{
-                        width: '100%',
-                        height: `${heightPct}%`,
-                        background: barBg,
-                        borderRadius: '2px 2px 0 0',
-                        opacity: isNow ? 1 : isSelected ? 1 : 0.75,
-                        outline: isSelected ? '1px solid #fff' : isNow ? '1px solid rgba(255,255,255,0.6)' : 'none',
-                        transition: 'height 0.3s, opacity 0.2s',
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Selected slot info popup */}
-          {selectedSlot && (
-            <div
-              style={{
-                marginTop: 8,
                 padding: '8px 12px',
-                borderRadius: 6,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid var(--border)',
+                marginBottom: 10,
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                fontSize: 12,
-              }}
-            >
-              <div>
-                <strong>{new Date(selectedSlot.start_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })} – {new Date(selectedSlot.end_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}</strong>
-                {' · '}
-                <span style={{ color: selectedSlot.price < 3 ? 'var(--online)' : selectedSlot.price > 15 ? 'var(--offline)' : 'var(--text-primary)' }}>
-                  {selectedSlot.price.toFixed(2)} snt/kWh
-                </span>
-                {' · '}
-                <span style={{ color: 'var(--text-secondary)' }}>{selectedSlot.reason}</span>
+                flexWrap: 'wrap',
+                gap: 8,
+                transition: 'all 0.15s ease',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    background: 'rgba(255,255,255,0.08)',
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                  }}>
+                    🕒 {new Date(activeInspectSlot.start_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })} – {new Date(activeInspectSlot.end_time).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: activeInspectSlot.price <= (status?.settings?.cheap_threshold_cents ?? 3) ? 'var(--online)' : activeInspectSlot.price >= (status?.settings?.peak_threshold_cents ?? 20) ? 'var(--offline)' : '#facc15',
+                  }}>
+                    ⚡ {activeInspectSlot.price.toFixed(2)} snt/kWh
+                  </span>
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: activeInspectSlot.directive === 'BOOST' ? '#34d399' : activeInspectSlot.is_dhw_slot || activeInspectSlot.directive === 'DHW_CYCLE' ? '#38bdf8' : activeInspectSlot.directive === 'SETBACK' ? '#f87171' : 'var(--text-secondary)',
+                  }}>
+                    {activeInspectSlot.directive === 'BOOST' ? '⚡ Esilämmitys / Lataus (+3°C)' : activeInspectSlot.is_dhw_slot || activeInspectSlot.directive === 'DHW_CYCLE' ? '🚿 Käyttövesilataus (55°C)' : activeInspectSlot.directive === 'SETBACK' ? '💤 Säästötila / Setback (-2°C)' : activeInspectSlot.directive === 'ECO' ? '🌱 Ekotila (-1°C)' : '⚖️ Normaali peruskäynti'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {activeInspectSlot.reason}
+                </div>
               </div>
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => setSelectedSlot(null)}
-                style={{ fontSize: 11, padding: '2px 6px' }}
+            )}
+
+            {/* Tall, Responsive Bar Chart (Height: 180px) */}
+            {displayPlan.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 12 }}>
+                Odotetaan Nord Pool -hintatietoja...
+              </div>
+            ) : (
+              <div
+                onMouseLeave={() => setHoveredSlot(null)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  height: 180,
+                  gap: 1.5,
+                  background: 'rgba(0,0,0,0.35)',
+                  padding: '16px 8px 0 8px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  position: 'relative',
+                }}
               >
-                ✕
-              </button>
+                {/* Reference Grid lines */}
+                <div style={{ position: 'absolute', top: 16, left: 8, right: 8, bottom: 0, pointerEvents: 'none' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.08)' }} />
+                  <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.08)' }} />
+                </div>
+
+                {displayPlan.map((slot) => {
+                  const heightPct = Math.max(12, Math.min(100, ((slot.price - minPlanPrice) / (maxPlanPrice - minPlanPrice || 1)) * 92));
+                  const isNow = Date.now() >= slot.start_time && Date.now() < slot.end_time;
+                  const isHovered = (hoveredSlot?.start_time === slot.start_time) || (selectedSlot?.start_time === slot.start_time);
+
+                  let barGradient = 'linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 100%)';
+                  let barShadow = 'none';
+
+                  if (slot.directive === 'BOOST') {
+                    barGradient = 'linear-gradient(180deg, #34d399 0%, #059669 100%)';
+                    barShadow = '0 0 8px rgba(52, 211, 153, 0.45)';
+                  } else if (slot.is_dhw_slot || slot.directive === 'DHW_CYCLE') {
+                    barGradient = 'linear-gradient(180deg, #38bdf8 0%, #0284c7 100%)';
+                    barShadow = '0 0 8px rgba(56, 189, 248, 0.45)';
+                  } else if (slot.directive === 'SETBACK') {
+                    barGradient = 'linear-gradient(180deg, #f87171 0%, #dc2626 100%)';
+                    barShadow = '0 0 8px rgba(248, 113, 113, 0.35)';
+                  } else if (slot.directive === 'ECO') {
+                    barGradient = 'linear-gradient(180deg, #fbbf24 0%, #d97706 100%)';
+                  }
+
+                  return (
+                    <div
+                      key={slot.start_time}
+                      onMouseEnter={() => setHoveredSlot(slot)}
+                      onClick={() => setSelectedSlot(selectedSlot?.start_time === slot.start_time ? null : slot)}
+                      style={{
+                        flex: 1,
+                        minWidth: 5,
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-end',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        zIndex: isHovered || isNow ? 10 : 1,
+                      }}
+                    >
+                      {/* Glowing Now Line / Marker */}
+                      {isNow && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: -12,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            zIndex: 20,
+                          }}
+                        >
+                          <span style={{
+                            fontSize: 8,
+                            fontWeight: 800,
+                            color: '#fff',
+                            background: '#ef4444',
+                            padding: '1px 3px',
+                            borderRadius: 3,
+                            textTransform: 'uppercase',
+                            boxShadow: '0 0 6px #ef4444',
+                          }}>
+                            NYT
+                          </span>
+                          <div style={{
+                            width: 2,
+                            height: 12,
+                            background: '#ef4444',
+                            boxShadow: '0 0 6px #ef4444',
+                          }} />
+                        </div>
+                      )}
+
+                      {/* Bar Pillar */}
+                      <div
+                        style={{
+                          width: '100%',
+                          height: `${heightPct}%`,
+                          background: barGradient,
+                          borderRadius: '3px 3px 0 0',
+                          opacity: isHovered ? 1 : isNow ? 1 : 0.8,
+                          transform: isHovered ? 'scaleY(1.04) scaleX(1.15)' : 'none',
+                          transformOrigin: 'bottom',
+                          boxShadow: isHovered ? (barShadow !== 'none' ? barShadow : '0 0 10px rgba(255,255,255,0.3)') : (isNow ? barShadow : 'none'),
+                          outline: isHovered ? '1.5px solid #fff' : isNow ? '1.5px solid rgba(255,255,255,0.7)' : 'none',
+                          transition: 'transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease',
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* X-Axis Time Markers (Hours) */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginTop: 6,
+              padding: '0 4px',
+              fontSize: 10,
+              color: 'var(--text-muted)',
+              fontWeight: 500,
+            }}>
+              {timeTicks.map((tick) => (
+                <span key={tick.time}>{tick.label}</span>
+              ))}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Registered Devices row */}
@@ -629,6 +891,221 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                   gap: 16,
                 }}
               >
+                {/* Strategy Presets */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>
+                    ⚡ Valitse valmis optimointistrategia:
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('compressor_save')}
+                      className="btn btn-sm"
+                      style={{
+                        background: 'rgba(56, 189, 248, 0.12)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        color: '#38bdf8',
+                        fontSize: 11,
+                        padding: '6px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2,
+                      }}
+                      title="Lataa käyttöveden 55°C halvan sähkön aikana kompressorin säästämiseksi"
+                    >
+                      <span style={{ fontSize: 14 }}>🚀 Kompressorin säästö</span>
+                      <span style={{ fontSize: 9, opacity: 0.8 }}>55°C lataus &lt; 3 snt</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('balanced')}
+                      className="btn btn-sm"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: 'var(--text-primary)',
+                        fontSize: 11,
+                        padding: '6px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2,
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>⚖️ Tasapaino</span>
+                      <span style={{ fontSize: 9, opacity: 0.8 }}>Oletusasetukset</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('max_savings')}
+                      className="btn btn-sm"
+                      style={{
+                        background: 'rgba(52, 211, 153, 0.12)',
+                        border: '1px solid rgba(52, 211, 153, 0.35)',
+                        color: '#34d399',
+                        fontSize: 11,
+                        padding: '6px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2,
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>🌱 Suuri säästö</span>
+                      <span style={{ fontSize: 9, opacity: 0.8 }}>Syvät pudotukset</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('comfort')}
+                      className="btn btn-sm"
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        color: '#fbbf24',
+                        fontSize: 11,
+                        padding: '6px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2,
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>🛋️ Mukavuus</span>
+                      <span style={{ fontSize: 9, opacity: 0.8 }}>Tasainen lämpö</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Strategy highlight card */}
+                <div style={{
+                  background: 'rgba(56, 189, 248, 0.08)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                  color: '#bae6fd',
+                }}>
+                  💡 <strong>Käyttöveden kompressoristrategia:</strong> Kun sähkö on halpaa (≤ {cheapThresh} snt/kWh), käyttövesi ladataan {dhwBoostTarget} °C:een asti. Varaajaan varastoituu jopa 20 % enemmän lämpöä, jolloin lämpöpumppu tekee harvempia ja pidempiä käyntijaksoja, mikä pidentää kompressorin elinikää ja välttää kalliin sähkön jaksoja.
+                </div>
+
+                {/* Section: Käyttöveden ohjaus */}
+                <div style={{ background: '#0d1322', padding: 14, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>
+                        🚿 Käyttöveden lataus ja lämpötilat
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Automaattinen lämpövarasto halvalle sähkölle
+                      </div>
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: dhwBoostOnCheap ? '#34d399' : 'var(--text-muted)' }}>
+                      <input
+                        type="checkbox"
+                        checked={dhwBoostOnCheap}
+                        onChange={(e) => setDhwBoostOnCheap(e.target.checked)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span>{dhwBoostOnCheap ? 'Boost aktiivinen' : 'Vain peruslämpö'}</span>
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                        🔥 Halvan sähkön pyynti (°C)
+                      </label>
+                      <input
+                        type="number"
+                        min="50"
+                        max="65"
+                        value={dhwBoostTarget}
+                        onChange={(e) => setDhwBoostTarget(Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#fff', fontSize: 13, fontWeight: 600 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                        ⚖️ Peruspyynti normaalihinnalla (°C)
+                      </label>
+                      <input
+                        type="number"
+                        min="45"
+                        max="55"
+                        value={dhwNormalTarget}
+                        onChange={(e) => setDhwNormalTarget(Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: '#f87171', display: 'block', marginBottom: 4 }}>
+                        🛡️ Minimilämpötila / säästö (°C)
+                      </label>
+                      <input
+                        type="number"
+                        min="40"
+                        max="50"
+                        value={dhwMin}
+                        onChange={(e) => setDhwMin(Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                      Vuorokauden halvimman käyttövesijakson kesto (h)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="6"
+                      value={dhwHours}
+                      onChange={(e) => setDhwHours(Number(e.target.value))}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Section: Sähkön hintarajat */}
+                <div style={{ background: '#0d1322', padding: 14, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>
+                    ⚡ Sähkön hintarajat (Nord Pool)
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--online)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                        Halvan sähkön raja (snt/kWh)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={cheapThresh}
+                        onChange={(e) => setCheapThresh(Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(52, 211, 153, 0.3)', color: '#fff', fontSize: 13, fontWeight: 600 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: '#f87171', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                        Hintahuipun raja (snt/kWh)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={peakThresh}
+                        onChange={(e) => setPeakThresh(Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(248, 113, 113, 0.3)', color: '#fff', fontSize: 13, fontWeight: 600 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Puskurivaraajan säätö */}
                 <div style={{ background: '#0d1322', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <label style={{ fontSize: 13, fontWeight: 600, color: '#f8fafc' }}>
@@ -649,8 +1126,8 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                   />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
                     <span>+1°C (Mieto)</span>
+                    <span>+3°C (Suositus)</span>
                     <span>+5°C</span>
-                    <span>+10°C</span>
                     <span>+15°C (Täyslataus)</span>
                   </div>
                 </div>
@@ -676,71 +1153,9 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
                     <span>-10°C (Syvä säästö)</span>
                     <span>-5°C</span>
-                    <span>-2°C</span>
+                    <span>-2°C (Suositus)</span>
                     <span>-1°C (Kevyt)</span>
                   </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Käyttöveden lataustavoite (°C)</label>
-                    <input
-                      type="number"
-                      min="45"
-                      max="65"
-                      value={dhwTarget}
-                      onChange={(e) => setDhwTarget(Number(e.target.value))}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>KV Minimilämpötila (°C)</label>
-                    <input
-                      type="number"
-                      min="40"
-                      max="50"
-                      value={dhwMin}
-                      onChange={(e) => setDhwMin(Number(e.target.value))}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Halvan sähkön raja (snt/kWh)</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={cheapThresh}
-                      onChange={(e) => setCheapThresh(Number(e.target.value))}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Hintahuipun raja (snt/kWh)</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={peakThresh}
-                      onChange={(e) => setPeakThresh(Number(e.target.value))}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Käyttövesilatauksen kesto (h/vrk)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="6"
-                    value={dhwHours}
-                    onChange={(e) => setDhwHours(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#0d1322', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
-                  />
                 </div>
 
                 {/* Fixed Footer Buttons */}

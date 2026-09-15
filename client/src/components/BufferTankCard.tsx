@@ -160,7 +160,10 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     ? (bufferTemp - inletTemp).toFixed(1)
     : null;
 
-  const extraPumpActive = state['main/Z1_Pump_State']?.value === '1';
+  const pumpFlow = numVal(state, 'main/Pump_Flow');
+  const isZeroFlow = pumpFlow !== null && pumpFlow < 0.3;
+  // Floor heating pump is considered active only if Z1_Pump_State is 1 and flow is >= 0.3 L/min
+  const extraPumpActive = state['main/Z1_Pump_State']?.value === '1' && !isZeroFlow;
   const heatHours = numVal(state, 'main/Heat_Hours');
   const opHours = numVal(state, 'main/Operations_Hours');
 
@@ -360,7 +363,9 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {extraPumpActive
-                  ? 'Käynnissä · Pyörittää lattiaverkkoa ↗'
+                  ? `Käynnissä · Virtaus ${pumpFlow !== null ? pumpFlow.toFixed(1) + ' L/min' : 'aktiivinen'} ↗`
+                  : isZeroFlow
+                  ? `Lepotilassa · Ei virtausta (${pumpFlow.toFixed(2)} L/min) ↗`
                   : 'Lepotilassa (Rele pois päältä) ↗'}
               </div>
             </div>

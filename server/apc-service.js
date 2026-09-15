@@ -189,55 +189,67 @@ class ApcService {
     const minSpreadRequired = settings.mode === 'eco' ? 1.8 : settings.mode === 'comfort' ? 3.5 : 2.5;
     const isFlatHorizon = spread < minSpreadRequired && maxP < (settings.peak_threshold_cents || 20.0);
 
+    const dhwBoostTarget = settings.dhw_boost_target_c || settings.dhw_target_c || 55;
+    const dhwNormalTarget = settings.dhw_normal_target_c || 50;
+    const dhwMinTarget = settings.dhw_min_c || 45;
+    const boostDhwOnCheap = settings.dhw_boost_on_cheap !== false;
+
     return prices.map((p) => {
       const isDhwSlot = cheapestDhw && p.start_time >= cheapestDhw.start && p.end_time <= cheapestDhw.end;
       let directive = 'NORMAL';
       let reason = 'Normaali hintataso';
       let bufferShift = 0;
-      let dhwTarget = 50;
+      let dhwTarget = dhwNormalTarget;
 
       if (settings.mode === 'dhw_only') {
         if (isDhwSlot) {
           directive = 'DHW_CYCLE';
-          reason = `Vuorokauden halvin käyttövesiaika (${p.price.toFixed(1)} snt/kWh)`;
-          dhwTarget = settings.dhw_target_c || 55;
+          reason = `Vuorokauden halvin käyttövesiaika (${p.price.toFixed(1)} snt/kWh) · KV ${dhwBoostTarget}°C`;
+          dhwTarget = dhwBoostTarget;
         }
       } else if (isFlatHorizon) {
         // Flat price horizon: thermal shifting does not save money due to Carnot COP penalty
         if (isDhwSlot) {
           directive = 'DHW_CYCLE';
-          reason = `Tasainen hintataso (ero vain ${spread.toFixed(1)} snt) · Käyttöveden lataus`;
-          dhwTarget = settings.dhw_target_c || 55;
-        } else if (p.price < 0) {
+          reason = `Tasainen hintataso (ero vain ${spread.toFixed(1)} snt) · Käyttöveden lataus ${dhwBoostTarget}°C`;
+          dhwTarget = dhwBoostTarget;
+        } else if (p.price < 0 || (p.price <= (settings.cheap_threshold_cents || 3.0) && boostDhwOnCheap)) {
           directive = 'BOOST';
-          reason = `Negatiivinen sähkönhinta (${p.price.toFixed(1)} snt/kWh)`;
+          reason = p.price < 0
+            ? `Negatiivinen sähkönhinta (${p.price.toFixed(1)} snt/kWh) · KV ${dhwBoostTarget}°C + Puskuri +${settings.buffer_boost_c || 3}°C`
+            : `Halpa sähkö (${p.price.toFixed(1)} snt/kWh) · KV ${dhwBoostTarget}°C lataus (kompressorin säästö)`;
           bufferShift = settings.buffer_boost_c || 3;
+          dhwTarget = dhwBoostTarget;
         } else {
           directive = 'NORMAL';
           reason = `Tasainen hintataso (${spread.toFixed(1)} snt vaihtelu) · Optimaalinen COP & peruskäynti`;
           bufferShift = 0;
-          dhwTarget = 50;
+          dhwTarget = dhwNormalTarget;
         }
       } else {
         // Volatile price horizon with actionable spread
         if (p.price < 0 || p.price <= (settings.cheap_threshold_cents || 3.0) || p.price <= avgP * 0.75) {
           directive = 'BOOST';
-          reason = `Edullinen sähkö (${p.price.toFixed(1)} snt/kWh · ka. ${avgP.toFixed(1)})`;
+          const isSuperCheap = p.price <= (settings.cheap_threshold_cents || 3.0);
+          reason = isSuperCheap
+            ? `Erittäin halpa sähkö (${p.price.toFixed(1)} snt/kWh) · KV ${dhwBoostTarget}°C (kompressorin säästö) + Puskuri +${settings.buffer_boost_c || 3}°C`
+            : `Edullinen sähkö (${p.price.toFixed(1)} snt/kWh · ka. ${avgP.toFixed(1)})`;
           bufferShift = settings.buffer_boost_c || 3;
-          dhwTarget = isDhwSlot ? (settings.dhw_target_c || 55) : 50;
+          dhwTarget = (boostDhwOnCheap && isSuperCheap) || isDhwSlot ? dhwBoostTarget : dhwNormalTarget;
         } else if (p.price >= (settings.peak_threshold_cents || 20.0) || (p.price >= avgP * 1.35 && p.price - minP >= minSpreadRequired)) {
           directive = 'SETBACK';
           reason = `Hintahuippu (${p.price.toFixed(1)} snt/kWh · ka. ${avgP.toFixed(1)})`;
           bufferShift = settings.buffer_setback_c || -2;
-          dhwTarget = settings.dhw_min_c || 45;
+          dhwTarget = dhwMinTarget;
         } else if (settings.mode === 'eco' && p.price > avgP && spread >= minSpreadRequired) {
           directive = 'ECO';
           reason = `Säästötila / keskiarvoa kalliimpi (${p.price.toFixed(1)} snt/kWh)`;
           bufferShift = -1;
+          dhwTarget = dhwMinTarget;
         } else if (isDhwSlot) {
           directive = 'DHW_CYCLE';
-          reason = `Ajoitettu käyttöveden lataus (${p.price.toFixed(1)} snt/kWh)`;
-          dhwTarget = settings.dhw_target_c || 55;
+          reason = `Ajoitettu käyttöveden lataus (${p.price.toFixed(1)} snt/kWh) · KV ${dhwBoostTarget}°C`;
+          dhwTarget = dhwBoostTarget;
         }
       }
 

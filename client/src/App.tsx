@@ -8,7 +8,7 @@ function App() {
   const { isLocal, authenticated, username, role, loading, login, logout } = useAuth();
   const {
     state, mqtt, heishamonOnline, wsConnected, lastUpdate,
-    zigbeeDevices, zigbeeConnected,
+    zigbeeDevices, zigbeeConnected, refresh,
   } = useWebSocket();
 
   // If remote and unauthenticated, show login view
@@ -25,6 +25,7 @@ function App() {
       lastUpdate={lastUpdate}
       zigbeeDevices={zigbeeDevices}
       zigbeeConnected={zigbeeConnected}
+      refresh={refresh}
       isLocal={isLocal}
       authenticated={authenticated}
       username={username}

@@ -229,6 +229,25 @@ const TOPICS = {
     category: 'dhw',
     type: 'number',
   },
+  'main/Sterilization_State': {
+    label: 'Sterilointi (Legionella)',
+    unit: '',
+    category: 'dhw',
+    type: 'enum',
+    map: { 0: 'Pois', 1: 'Käynnissä' },
+  },
+  'main/Sterilization_Temp': {
+    label: 'Sterilointilämpötila',
+    unit: '°C',
+    category: 'dhw',
+    type: 'number',
+  },
+  'main/Sterilization_Max_Time': {
+    label: 'Sterilointiaika',
+    unit: 'min',
+    category: 'dhw',
+    type: 'number',
+  },
 
   // ─── Buffer Tank & Heating Circuits ────────────────────────────────────────
   'main/Buffer_Temp': {

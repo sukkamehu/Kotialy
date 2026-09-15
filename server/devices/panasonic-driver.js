@@ -60,48 +60,55 @@ class PanasonicDriver {
     const now = Date.now();
 
     const baseShift = settings.base_z1_shift ?? 0;
+    const dhwBoostTarget = settings.dhw_boost_target_c || settings.dhw_target_c || 55;
+    const dhwNormalTarget = settings.dhw_normal_target_c || 50;
+    const dhwMinTarget = settings.dhw_min_c || 45;
+    const boostDhwOnCheap = settings.dhw_boost_on_cheap !== false;
+
     let targetShift = baseShift;
-    let targetDhw = settings.dhw_min_c || 45;
+    let targetDhw = dhwNormalTarget;
     let forceDhw = 0;
 
     switch (directive) {
       case 'BOOST':
         targetShift = Math.max(-5, Math.min(15, baseShift + (settings.buffer_boost_c || 3)));
+        if (boostDhwOnCheap || isDhwSlot) {
+          targetDhw = dhwBoostTarget;
+        }
         if (isDhwSlot) {
-          targetDhw = settings.dhw_target_c || 55;
           forceDhw = 1;
         }
         break;
 
       case 'SETBACK':
         targetShift = Math.max(-10, Math.min(5, baseShift + (settings.buffer_setback_c || -2)));
-        targetDhw = settings.dhw_min_c || 45;
+        targetDhw = dhwMinTarget;
         forceDhw = 0;
         break;
 
       case 'ECO':
         targetShift = baseShift - 1;
-        targetDhw = settings.dhw_min_c || 45;
+        targetDhw = dhwMinTarget;
         forceDhw = 0;
         break;
 
       case 'DHW_CYCLE':
         targetShift = baseShift;
-        targetDhw = settings.dhw_target_c || 55;
+        targetDhw = dhwBoostTarget;
         forceDhw = 1;
         break;
 
       case 'NORMAL':
       default:
         targetShift = baseShift;
-        targetDhw = 50;
+        targetDhw = dhwNormalTarget;
         forceDhw = 0;
         break;
     }
 
     // Safeguard: If DHW temp is dangerously low (< dhw_min_c), always ensure DHW heat
-    if (dhwTemp != null && dhwTemp < (settings.dhw_min_c || 45)) {
-      targetDhw = Math.max(targetDhw, settings.dhw_target_c || 55);
+    if (dhwTemp != null && dhwTemp < dhwMinTarget) {
+      targetDhw = Math.max(targetDhw, dhwNormalTarget);
       forceDhw = 1;
     }
 

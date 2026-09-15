@@ -16,6 +16,7 @@ import { NordpoolPanel } from './NordpoolPanel';
 import { WeatherPanel } from './WeatherPanel';
 import { CameraCard } from './CameraCard';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
+import { PullToRefresh } from './PullToRefresh';
 
 interface DashboardProps {
   state: HeishamonState;
@@ -25,6 +26,7 @@ interface DashboardProps {
   lastUpdate: number | null;
   zigbeeDevices: ZigbeeRegistry;
   zigbeeConnected: boolean;
+  refresh?: () => Promise<void> | void;
   isLocal?: boolean;
   authenticated?: boolean;
   username?: string | null;
@@ -40,6 +42,7 @@ export function Dashboard({
   lastUpdate,
   zigbeeDevices,
   zigbeeConnected,
+  refresh,
   isLocal,
   authenticated,
   username,
@@ -65,7 +68,8 @@ export function Dashboard({
         onLogout={onLogout}
       />
 
-      <main className="dashboard-main">
+      <PullToRefresh onRefresh={refresh || (() => window.location.reload())}>
+        <main className="dashboard-main">
         {/* Waiting for data */}
         {!hasAnyData && (
           <div style={{
@@ -147,7 +151,8 @@ export function Dashboard({
             </div>
           </>
         )}
-      </main>
+        </main>
+      </PullToRefresh>
 
       {/* Quick Variable Daily Trend Modal */}
       <VariableTrendModal target={trendTarget} onClose={() => setTrendTarget(null)} />
