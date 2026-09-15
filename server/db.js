@@ -16,6 +16,7 @@ const db = new DatabaseSync(dbPath);
 // Enable WAL mode for better performance
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA synchronous = NORMAL');
+db.exec('PRAGMA busy_timeout = 5000');
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -225,7 +226,11 @@ const stmtUpsertCostSetting = db.prepare(`
  * Update the current state for a topic.
  */
 function updateState(topic, value) {
-  stmtUpsertState.run(topic, String(value), Date.now());
+  try {
+    stmtUpsertState.run(topic, String(value), Date.now());
+  } catch (err) {
+    console.error(`[DB] updateState failed for ${topic}:`, err.message);
+  }
 }
 
 /**
@@ -234,17 +239,25 @@ function updateState(topic, value) {
 function appendHistory(topic, value) {
   const numVal = parseFloat(value);
   if (isNaN(numVal)) return;
-  stmtInsertHistory.run(topic, numVal, Date.now());
+  try {
+    stmtInsertHistory.run(topic, numVal, Date.now());
+  } catch (err) {
+    console.error(`[DB] appendHistory failed for ${topic}:`, err.message);
+  }
 }
 
 /**
  * Append history only if enough time has passed since the last record.
  */
 function maybeAppendHistory(topic, value, intervalMs) {
-  const last = stmtGetLatestHistory.get(topic);
-  if (!last || Date.now() - Number(last.recorded_at) >= intervalMs) {
-    appendHistory(topic, value);
-    return true;
+  try {
+    const last = stmtGetLatestHistory.get(topic);
+    if (!last || Date.now() - Number(last.recorded_at) >= intervalMs) {
+      appendHistory(topic, value);
+      return true;
+    }
+  } catch (err) {
+    console.error(`[DB] maybeAppendHistory failed for ${topic}:`, err.message);
   }
   return false;
 }
