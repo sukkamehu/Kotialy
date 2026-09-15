@@ -577,7 +577,7 @@ router.get('/backup/status', (req, res) => {
  * POST /api/backup/now
  * Triggers an immediate SQLite database backup to S3.
  */
-router.post('/backup/now', requireAuthOrLan('admin'), async (req, res) => {
+router.post('/backup/now', requireAdmin, async (req, res) => {
   try {
     const result = await s3Service.backupDatabase();
     if (result.success) {
@@ -594,7 +594,7 @@ router.post('/backup/now', requireAuthOrLan('admin'), async (req, res) => {
  * GET /api/backup/list
  * Returns list of backups stored in S3.
  */
-router.get('/backup/list', requireAuthOrLan('admin'), async (req, res) => {
+router.get('/backup/list', requireAdmin, async (req, res) => {
   try {
     const list = await s3Service.listBackups();
     res.json({ backups: list, count: list.length });
