@@ -17,6 +17,7 @@ import { WeatherPanel } from './WeatherPanel';
 import { CameraCard } from './CameraCard';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 import { PullToRefresh } from './PullToRefresh';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface DashboardProps {
   state: HeishamonState;
@@ -108,47 +109,63 @@ export function Dashboard({
         {hasAnyData && (
           <>
             {/* Row 1: Main monitoring cards */}
-            <div className="dashboard-grid dashboard-grid-main">
-              <HeatpumpCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              <DHWCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              <BufferTankCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-            </div>
+            <ErrorBoundary>
+              <div className="dashboard-grid dashboard-grid-main">
+                <HeatpumpCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                <DHWCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                <BufferTankCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+              </div>
+            </ErrorBoundary>
 
             {/* Row 2: Outdoor + Valve + Camera — technical room & outdoor monitoring */}
-            <div className="dashboard-grid dashboard-grid-sub">
-              <OutdoorCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              <CameraCard />
-            </div>
+            <ErrorBoundary>
+              <div className="dashboard-grid dashboard-grid-sub">
+                <OutdoorCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                <CameraCard />
+              </div>
+            </ErrorBoundary>
 
             {/* Row 3: APC Smart Optimizer (Auto Power & Price Controller) */}
-            <div style={{ marginBottom: 20 }}>
-              <ApcCard readOnly={readOnly} />
-            </div>
+            <ErrorBoundary>
+              <div style={{ marginBottom: 20 }}>
+                <ApcCard readOnly={readOnly} />
+              </div>
+            </ErrorBoundary>
 
             {/* Row 4: Daily Energy Costs & Savings */}
-            <div style={{ marginBottom: 20 }}>
-              <DailyCostsCard readOnly={readOnly} />
-            </div>
+            <ErrorBoundary>
+              <div style={{ marginBottom: 20 }}>
+                <DailyCostsCard readOnly={readOnly} />
+              </div>
+            </ErrorBoundary>
 
             {/* Row 4: Energy & Lifecycle Analytics */}
-            <div style={{ marginBottom: 20 }}>
-              <EnergyStatsCard state={state} onOpenTrend={setTrendTarget} />
-            </div>
+            <ErrorBoundary>
+              <div style={{ marginBottom: 20 }}>
+                <EnergyStatsCard state={state} onOpenTrend={setTrendTarget} />
+              </div>
+            </ErrorBoundary>
 
             {/* Row 5: History chart (full width) */}
-            <HistoryChart />
+            <ErrorBoundary>
+              <HistoryChart />
+            </ErrorBoundary>
 
-            {/* Row 4: Electricity price + Weather */}
-            <div className="dashboard-grid dashboard-grid-sub" style={{ marginTop: 24 }}>
-              <NordpoolPanel />
-              <WeatherPanel />
-            </div>
+            {/* Row 6: Electricity price + Weather */}
+            <ErrorBoundary>
+              <div className="dashboard-grid dashboard-grid-sub" style={{ marginTop: 24 }}>
+                <NordpoolPanel />
+                <WeatherPanel />
+              </div>
+            </ErrorBoundary>
 
-            {/* Row 5: Zigbee Sensors */}
-            <div style={{ marginTop: 24 }}>
-              <ZigbeePanel devices={zigbeeDevices} connected={zigbeeConnected} />
-            </div>
+            {/* Row 7: Zigbee Sensors */}
+            <ErrorBoundary>
+              <div style={{ marginTop: 24 }}>
+                <ZigbeePanel devices={zigbeeDevices} connected={zigbeeConnected} />
+              </div>
+            </ErrorBoundary>
           </>
         )}
         </main>

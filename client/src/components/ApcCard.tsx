@@ -153,9 +153,12 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
   const currentSlot = displayPlan.find((s) => s.start_time <= nowTs && s.end_time > nowTs) || displayPlan[0] || null;
   const activeInspectSlot = hoveredSlot || selectedSlot || currentSlot;
 
-  // Find maximum & minimum price for timeline normalization
-  const maxPlanPrice = Math.max(...displayPlan.map((p) => p.price), 15);
-  const minPlanPrice = Math.min(...displayPlan.map((p) => p.price), 0);
+  // Find maximum & minimum price for timeline normalization (safely filter valid numbers)
+  const validPrices = displayPlan
+    .map((p) => p.price)
+    .filter((p): p is number => typeof p === 'number' && !isNaN(p));
+  const maxPlanPrice = validPrices.length ? Math.max(...validPrices, 15) : 15;
+  const minPlanPrice = validPrices.length ? Math.min(...validPrices, 0) : 0;
 
   // Pick time tick labels (every ~3 hours)
   const timeTicks = useMemo(() => {
@@ -343,7 +346,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Nykytila & Ohjauskohteet
               </span>
-              {status?.currentPrice != null && (
+              {status?.currentPrice != null && typeof status.currentPrice === 'number' && !isNaN(status.currentPrice) && (
                 <span style={{ fontSize: 12, fontWeight: 700, color: status.currentPrice < 3 ? 'var(--online)' : status.currentPrice > 15 ? 'var(--offline)' : 'var(--text-primary)' }}>
                   {status.currentPrice.toFixed(2)} snt/kWh
                 </span>
@@ -361,14 +364,14 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Käyttövesi (DHW)</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: status?.activeDhwSlot ? 'var(--dhw-primary)' : 'var(--text-secondary)' }}>
-                  {status?.activeDhwSlot ? `${status?.settings?.dhw_target_c ?? 55}°C (Lataus)` : `${status?.settings?.dhw_min_c ?? 45}°C (Ylläpito)`}
+                  {status?.activeDhwSlot ? `${status?.settings?.dhw_target_c ?? 55}°C (Lataus)` : `${status?.settings?.dhw_normal_target_c ?? 50}°C (Ylläpito)`}
                 </div>
               </div>
 
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Puskuri / KV Nyt</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
-                  {status?.sensors.bufferTemp?.toFixed(1) ?? '—'}° / {status?.sensors.dhwTemp?.toFixed(1) ?? '—'}°
+                  {status?.sensors?.bufferTemp != null ? status.sensors.bufferTemp.toFixed(1) : '—'}° / {status?.sensors?.dhwTemp != null ? status.sensors.dhwTemp.toFixed(1) : '—'}°
                 </div>
               </div>
             </div>
@@ -435,7 +438,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>{status.stats.isFlatHorizon ? '⚖️' : '📊'}</span>
                 <span style={{ color: 'var(--text-secondary)' }}>
-                  Vuorokauden pörssihinnat: <b>{status.stats.minPrice.toFixed(1)} – {status.stats.maxPrice.toFixed(1)} snt</b> (vaihtelu {status.stats.spread.toFixed(1)} snt · ka. {status.stats.avgPrice.toFixed(1)} snt)
+                  Vuorokauden pörssihinnat: <b>{status.stats.minPrice != null ? status.stats.minPrice.toFixed(1) : '—'} – {status.stats.maxPrice != null ? status.stats.maxPrice.toFixed(1) : '—'} snt</b> (vaihtelu {status.stats.spread != null ? status.stats.spread.toFixed(1) : '—'} snt · ka. {status.stats.avgPrice != null ? status.stats.avgPrice.toFixed(1) : '—'} snt)
                 </span>
               </div>
               <div>
@@ -576,9 +579,13 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                   <span style={{
                     fontSize: 13,
                     fontWeight: 700,
-                    color: activeInspectSlot.price <= (status?.settings?.cheap_threshold_cents ?? 3) ? 'var(--online)' : activeInspectSlot.price >= (status?.settings?.peak_threshold_cents ?? 20) ? 'var(--offline)' : '#facc15',
+                    color: activeInspectSlot?.price != null && activeInspectSlot.price <= (status?.settings?.cheap_threshold_cents ?? 3)
+                      ? 'var(--online)'
+                      : activeInspectSlot?.price != null && activeInspectSlot.price >= (status?.settings?.peak_threshold_cents ?? 20)
+                      ? 'var(--offline)'
+                      : '#facc15',
                   }}>
-                    ⚡ {activeInspectSlot.price.toFixed(2)} snt/kWh
+                    ⚡ {activeInspectSlot?.price != null && typeof activeInspectSlot.price === 'number' ? activeInspectSlot.price.toFixed(2) : '—'} snt/kWh
                   </span>
                   <span style={{
                     fontSize: 12,
@@ -621,7 +628,9 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                 </div>
 
                 {displayPlan.map((slot) => {
-                  const heightPct = Math.max(12, Math.min(100, ((slot.price - minPlanPrice) / (maxPlanPrice - minPlanPrice || 1)) * 92));
+                  const slotPrice = typeof slot?.price === 'number' && !isNaN(slot.price) ? slot.price : minPlanPrice;
+                  const range = maxPlanPrice - minPlanPrice || 1;
+                  const heightPct = Math.max(12, Math.min(100, ((slotPrice - minPlanPrice) / range) * 92));
                   const isNow = Date.now() >= slot.start_time && Date.now() < slot.end_time;
                   const isHovered = (hoveredSlot?.start_time === slot.start_time) || (selectedSlot?.start_time === slot.start_time);
 
