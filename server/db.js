@@ -531,7 +531,8 @@ function getCompressorAnalytics(days = 7) {
   for (let d = days; d >= 1; d--) {
     const dStart = todayStart - d * 24 * 60 * 60 * 1000;
     const dEnd = dStart + 24 * 60 * 60 * 1000;
-    const dDateStr = new Date(dStart).toLocaleDateString('fi-FI', { day: '2-digit', month: '2-digit' });
+    const dDate = new Date(dStart);
+    const dDateStr = `${dDate.getFullYear()}-${String(dDate.getMonth() + 1).padStart(2, '0')}-${String(dDate.getDate()).padStart(2, '0')}`;
 
     const cAtStart = counterRows.filter(r => r.recorded_at <= dStart).pop() || counterRows.find(r => r.recorded_at >= dStart && r.recorded_at <= dEnd);
     const cAtEnd = counterRows.filter(r => r.recorded_at <= dEnd).pop();
@@ -546,6 +547,7 @@ function getCompressorAnalytics(days = 7) {
 
       dailyBreakdown.push({
         date: dDateStr,
+        timestamp: dStart,
         cycles: dayCycles,
         hours: dayHours,
         avgCycleHours: dayAvg,

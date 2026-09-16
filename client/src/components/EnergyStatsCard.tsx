@@ -1,62 +1,142 @@
+import { useState, useEffect } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCompressorAnalytics } from '../hooks/useCompressorAnalytics';
 import type { TrendTopicTarget } from './VariableTrendModal';
+import { apiFetch } from '../lib/api';
+import type { CostSummary } from '../types/costs';
 
 interface EnergyStatsCardProps {
   state: HeishamonState;
   onOpenTrend?: (target: TrendTopicTarget) => void;
 }
 
+function parseHistoryDate(dateVal?: string | number): Date | null {
+  if (dateVal === undefined || dateVal === null) return null;
+  if (typeof dateVal === 'number') {
+    const d = new Date(dateVal);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof dateVal === 'string') {
+    const isoMatch = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const d = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const fiMatch = dateVal.match(/^(\d{1,2})\.(\d{1,2})\.?(?:(\d{4}))?/);
+    if (fiMatch) {
+      const year = fiMatch[3] ? Number(fiMatch[3]) : new Date().getFullYear();
+      const d = new Date(year, Number(fiMatch[2]) - 1, Number(fiMatch[1]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(dateVal);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+type EnergyViewMode = 'today' | 'month' | 'realtime' | 'lifetime';
+
 export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
   const { analytics } = useCompressorAnalytics();
+  const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
+  const [viewMode, setViewMode] = useState<EnergyViewMode>('today');
 
-  // Cumulative energies (prefer XTOP, fallback to main)
-  const heatProd = numVal(state, 'extra/Heat_Energy_Production') ?? numVal(state, 'main/Heat_Energy_Production');
-  const heatCons = numVal(state, 'extra/Heat_Energy_Consumption') ?? numVal(state, 'main/Heat_Energy_Consumption');
-  const dhwProd = numVal(state, 'extra/DHW_Energy_Production') ?? numVal(state, 'main/DHW_Energy_Production');
-  const dhwCons = numVal(state, 'extra/DHW_Energy_Consumption') ?? numVal(state, 'main/DHW_Energy_Consumption');
-  const coolProd = numVal(state, 'main/Cool_Energy_Production');
-  const coolCons = numVal(state, 'main/Cool_Energy_Consumption');
+  useEffect(() => {
+    let mounted = true;
+    const fetchSummary = async () => {
+      try {
+        const res = await apiFetch('/api/costs/summary');
+        if (res.ok) {
+          const data: CostSummary = await res.json();
+          if (mounted) setCostSummary(data);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchSummary();
+    const id = setInterval(fetchSummary, 60_000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, []);
 
-  const hasEnergyData = heatProd !== null || heatCons !== null || dhwProd !== null || dhwCons !== null;
+  // Hardware cumulative registers (if present on this heatpump)
+  const hwHeatProd = numVal(state, 'extra/Heat_Energy_Production') ?? numVal(state, 'main/Heat_Energy_Production');
+  const hwHeatCons = numVal(state, 'extra/Heat_Energy_Consumption') ?? numVal(state, 'main/Heat_Energy_Consumption');
+  const hwDhwProd = numVal(state, 'extra/DHW_Energy_Production') ?? numVal(state, 'main/DHW_Energy_Production');
+  const hwDhwCons = numVal(state, 'extra/DHW_Energy_Consumption') ?? numVal(state, 'main/DHW_Energy_Consumption');
+  const hwCoolProd = numVal(state, 'main/Cool_Energy_Production');
+  const hwCoolCons = numVal(state, 'main/Cool_Energy_Consumption');
+  const hasHwCumulative = hwHeatProd !== null || hwHeatCons !== null || hwDhwProd !== null || hwDhwCons !== null;
 
-  const totalProd = (heatProd ?? 0) + (dhwProd ?? 0) + (coolProd ?? 0);
-  const totalCons = (heatCons ?? 0) + (dhwCons ?? 0) + (coolCons ?? 0);
+  // Real-time instantaneous powers (Watts)
+  const heatProdW = numVal(state, 'extra/Heat_Power_Production') ?? numVal(state, 'main/Heat_Power_Production');
+  const heatConsW = numVal(state, 'extra/Heat_Power_Consumption') ?? numVal(state, 'main/Heat_Power_Consumption');
+  const dhwProdW = numVal(state, 'extra/DHW_Power_Production') ?? numVal(state, 'main/DHW_Power_Production');
+  const dhwConsW = numVal(state, 'extra/DHW_Power_Consumption') ?? numVal(state, 'main/DHW_Power_Consumption');
+  const coolProdW = numVal(state, 'extra/Cool_Power_Production') ?? numVal(state, 'main/Cool_Power_Production');
+  const coolConsW = numVal(state, 'extra/Cool_Power_Consumption') ?? numVal(state, 'main/Cool_Power_Consumption');
 
-  const totalCop = totalCons > 0 ? (totalProd / totalCons).toFixed(2) : null;
-  const heatCop = heatCons && heatCons > 0 && heatProd ? (heatProd / heatCons).toFixed(2) : null;
-  const dhwCop = dhwCons && dhwCons > 0 && dhwProd ? (dhwProd / dhwCons).toFixed(2) : null;
+  const totalProdW = (heatProdW ?? 0) + (dhwProdW ?? 0) + (coolProdW ?? 0);
+  const totalConsW = (heatConsW ?? 0) + (dhwConsW ?? 0) + (coolConsW ?? 0);
+  const realtimeCop = totalConsW > 0 && totalProdW > 0 ? (totalProdW / totalConsW).toFixed(2) : null;
+  const heatRealCop = heatConsW && heatConsW > 0 && heatProdW ? (heatProdW / heatConsW).toFixed(2) : null;
+  const dhwRealCop = dhwConsW && dhwConsW > 0 && dhwProdW ? (dhwProdW / dhwConsW).toFixed(2) : null;
 
-  const savedKwh = totalProd > totalCons ? Math.round(totalProd - totalCons) : null;
+  // Operational sensors
+  const compressorFreq = numVal(state, 'main/Compressor_Freq');
+  const pumpFlow = numVal(state, 'main/Pump_Flow');
+  const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
+  const outletTemp = numVal(state, 'main/Main_Outlet_Temp');
+  const deltaT = inletTemp !== null && outletTemp !== null ? (outletTemp - inletTemp).toFixed(1) : null;
 
   // Operational hours and counters
   const opHours = numVal(state, 'main/Operations_Hours');
   const opCount = numVal(state, 'main/Operations_Counter');
-  const heatHours = numVal(state, 'main/Heat_Hours');
-  const dhwHours = numVal(state, 'main/DHW_Hours');
-  const coolHours = numVal(state, 'main/Cool_Hours');
   const heaterHours = numVal(state, 'main/Internal_Heater_Operations_Hours');
-  const pumpHours = numVal(state, 'main/Pump_Hours');
-  const pumpCount = numVal(state, 'main/Pump_Counter');
 
   // Lifetime average cycle length in hours
   const avgCycleHours = opHours !== null && opCount && opCount > 0 ? (opHours / opCount) : null;
 
-  // Total operating hours split percentage
-  const totalModeHours = (heatHours ?? 0) + (dhwHours ?? 0) + (coolHours ?? 0);
-  const heatPct = totalModeHours > 0 && heatHours ? Math.round((heatHours / totalModeHours) * 100) : null;
-  const dhwPct = totalModeHours > 0 && dhwHours ? Math.round((dhwHours / totalModeHours) * 100) : null;
+  // Integrated energy data (from costSummary)
+  const todayData = costSummary?.today;
+  const monthData = costSummary?.month;
 
-  // Today and analytics data with fallbacks
+  const todayHeatProd = todayData?.heat_production_kwh ?? 0;
+  const todayHeatCons = todayData?.heat_consumption_kwh ?? 0;
+  const todayDhwProd = todayData?.dhw_production_kwh ?? 0;
+  const todayDhwCons = todayData?.dhw_consumption_kwh ?? 0;
+  const todayTotalProd = todayData?.total_production_kwh ?? (todayHeatProd + todayDhwProd);
+  const todayTotalCons = todayData?.total_consumption_kwh ?? (todayHeatCons + todayDhwCons);
+  const todayCop = todayData?.cop ? todayData.cop.toFixed(2) : todayTotalCons > 0 ? (todayTotalProd / todayTotalCons).toFixed(2) : null;
+  const todayHeatCop = todayHeatCons > 0 ? (todayHeatProd / todayHeatCons).toFixed(2) : null;
+  const todayDhwCop = todayDhwCons > 0 ? (todayDhwProd / todayDhwCons).toFixed(2) : null;
+  const todaySavedKwh = todayTotalProd > todayTotalCons ? Math.round(todayTotalProd - todayTotalCons) : null;
+
+  const monthTotalProd = monthData?.total_production_kwh ?? 0;
+  const monthTotalCons = monthData?.total_consumption_kwh ?? 0;
+  const monthCop = monthData?.cop ? monthData.cop.toFixed(2) : monthTotalCons > 0 ? (monthTotalProd / monthTotalCons).toFixed(2) : null;
+  const monthSavingsEur = monthData?.savings_eur ?? 0;
+
+  // Today cycle analytics
   const todayCycles = analytics?.today.cycles ?? 0;
   const todayHours = analytics?.today.hours ?? 0;
   const todayAvgCycle = analytics?.today.avgCycleHours;
   const todayForecastCycles = analytics?.today.forecastCycles;
   const todayForecastHours = analytics?.today.forecastHours;
-
   const avgCyclesPerDay = analytics?.dailyAverage.avgCyclesPerDay;
   const avgHoursPerDay = analytics?.dailyAverage.avgHoursPerDay;
+
+  // Badge COP display based on active view
+  const activeHeaderCop =
+    viewMode === 'realtime'
+      ? realtimeCop
+      : viewMode === 'month'
+      ? monthCop
+      : todayCop;
 
   return (
     <div className="card">
@@ -64,9 +144,9 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
         <span className="card-icon">⚡</span>
         <span className="card-title">Energiatase & Käyntianalytiikka</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {totalCop && (
+          {activeHeaderCop && (
             <div className="badge badge-heat" style={{ fontSize: 12, fontWeight: 700 }}>
-              Kokonais-COP: {totalCop}
+              {viewMode === 'realtime' ? 'Hetkellinen COP' : viewMode === 'month' ? 'Kuukauden COP' : 'Päivän COP'}: {activeHeaderCop}
             </div>
           )}
         </div>
@@ -74,64 +154,246 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
 
       <div className="card-body">
         <div className="dashboard-grid dashboard-grid-sub" style={{ gap: 20, marginBottom: 0 }}>
-          {/* Left Column: Cumulative Energy & COP */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Kumulatiivinen energia (kWh)
-              </span>
-              {savedKwh !== null && (
+          {/* Left Column: Energy & Power Balance */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* View Mode Switcher Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: 2, gap: 2 }}>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('today')}
+                  style={{
+                    border: 'none',
+                    background: viewMode === 'today' ? 'var(--heat-primary, #f97316)' : 'transparent',
+                    color: viewMode === 'today' ? '#fff' : 'var(--text-muted)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '3px 9px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Tänään
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('month')}
+                  style={{
+                    border: 'none',
+                    background: viewMode === 'month' ? 'var(--heat-primary, #f97316)' : 'transparent',
+                    color: viewMode === 'month' ? '#fff' : 'var(--text-muted)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '3px 9px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Kuluva kk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('realtime')}
+                  style={{
+                    border: 'none',
+                    background: viewMode === 'realtime' ? 'var(--heat-primary, #f97316)' : 'transparent',
+                    color: viewMode === 'realtime' ? '#fff' : 'var(--text-muted)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '3px 9px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Hetkellinen teho
+                </button>
+                {hasHwCumulative && (
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('lifetime')}
+                    style={{
+                      border: 'none',
+                      background: viewMode === 'lifetime' ? 'var(--heat-primary, #f97316)' : 'transparent',
+                      color: viewMode === 'lifetime' ? '#fff' : 'var(--text-muted)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '3px 9px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    Elinkaari
+                  </button>
+                )}
+              </div>
+
+              {viewMode === 'today' && todaySavedKwh !== null && todaySavedKwh > 0 && (
                 <span style={{ fontSize: 11, color: 'var(--online)', fontWeight: 600 }}>
-                  🌱 Säästö: ~{savedKwh.toLocaleString('fi-FI')} kWh
+                  🌱 Säästö: ~{todaySavedKwh} kWh
+                </span>
+              )}
+              {viewMode === 'month' && monthSavingsEur > 0 && (
+                <span style={{ fontSize: 11, color: 'var(--online)', fontWeight: 600 }}>
+                  🌱 Säästö: ~{monthSavingsEur.toFixed(1)} €
+                </span>
+              )}
+              {viewMode === 'realtime' && compressorFreq !== null && (
+                <span style={{ fontSize: 11, color: compressorFreq > 0 ? 'var(--online)' : 'var(--text-muted)', fontWeight: 600 }}>
+                  {compressorFreq > 0 ? `● Kompressori ${compressorFreq} Hz` : '○ Valmiustilassa'}
                 </span>
               )}
             </div>
 
-            {/* Total Energy KPI Tiles */}
-            <div className="metrics-grid metrics-grid-3">
-              <div
-                className="metric-box metric-clickable"
-                title="Klikkaa nähdäksesi lämmitystehon tuottotrendi"
-                onClick={() =>
-                  onOpenTrend?.({
-                    topic: 'main/Heat_Power_Production',
-                    label: 'Lämmitysteho (tuotto)',
-                    unit: 'W',
-                    color: 'var(--heat-primary)',
-                  })
-                }
-              >
-                <span className="metric-label">Tuotettu lämpö ↗</span>
-                <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
-                  {hasEnergyData ? `${Math.round(totalProd).toLocaleString('fi-FI')}` : '—'}
-                  <span className="metric-unit">kWh</span>
-                </span>
+            {/* Main KPI Tiles */}
+            {viewMode === 'today' && (
+              <div className="metrics-grid metrics-grid-3">
+                <div
+                  className="metric-box metric-clickable"
+                  title="Klikkaa nähdäksesi lämmitystehon tuottotrendi"
+                  onClick={() =>
+                    onOpenTrend?.({
+                      topic: 'main/Heat_Power_Production',
+                      label: 'Lämmitysteho (tuotto)',
+                      unit: 'W',
+                      color: 'var(--heat-primary)',
+                    })
+                  }
+                >
+                  <span className="metric-label">Tuotettu lämpö ↗</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {todayTotalProd.toFixed(1)}
+                    <span className="metric-unit">kWh</span>
+                  </span>
+                </div>
+                <div
+                  className="metric-box metric-clickable"
+                  title="Klikkaa nähdäksesi ottotehon trendi"
+                  onClick={() =>
+                    onOpenTrend?.({
+                      topic: 'main/Heat_Power_Consumption',
+                      label: 'Ottoteho (lämmitys)',
+                      unit: 'W',
+                      color: '#f43f5e',
+                    })
+                  }
+                >
+                  <span className="metric-label">Käytetty sähkö ↗</span>
+                  <span className="metric-value">
+                    {todayTotalCons.toFixed(1)}
+                    <span className="metric-unit">kWh</span>
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Päivän COP</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {todayCop ?? '—'}
+                  </span>
+                </div>
               </div>
-              <div
-                className="metric-box metric-clickable"
-                title="Klikkaa nähdäksesi lämmityksen ottotehotrendi"
-                onClick={() =>
-                  onOpenTrend?.({
-                    topic: 'main/Heat_Power_Consumption',
-                    label: 'Ottoteho (lämmitys)',
-                    unit: 'W',
-                    color: '#f43f5e',
-                  })
-                }
-              >
-                <span className="metric-label">Käytetty sähkö ↗</span>
-                <span className="metric-value">
-                  {hasEnergyData ? `${Math.round(totalCons).toLocaleString('fi-FI')}` : '—'}
-                  <span className="metric-unit">kWh</span>
-                </span>
+            )}
+
+            {viewMode === 'month' && (
+              <div className="metrics-grid metrics-grid-3">
+                <div className="metric-box">
+                  <span className="metric-label">Tuotettu lämpö (kk)</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {Math.round(monthTotalProd).toLocaleString('fi-FI')}
+                    <span className="metric-unit">kWh</span>
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Käytetty sähkö (kk)</span>
+                  <span className="metric-value">
+                    {Math.round(monthTotalCons).toLocaleString('fi-FI')}
+                    <span className="metric-unit">kWh</span>
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Kuukauden COP</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {monthCop ?? '—'}
+                  </span>
+                </div>
               </div>
-              <div className="metric-box">
-                <span className="metric-label">Kokonais-COP</span>
-                <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
-                  {totalCop ?? '—'}
-                </span>
+            )}
+
+            {viewMode === 'realtime' && (
+              <div className="metrics-grid metrics-grid-3">
+                <div
+                  className="metric-box metric-clickable"
+                  title="Klikkaa nähdäksesi lämmitystehon tuottotrendi"
+                  onClick={() =>
+                    onOpenTrend?.({
+                      topic: 'main/Heat_Power_Production',
+                      label: 'Lämmitysteho (tuotto)',
+                      unit: 'W',
+                      color: 'var(--heat-primary)',
+                    })
+                  }
+                >
+                  <span className="metric-label">Tuottoteho nyt ↗</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {totalProdW >= 1000 ? (totalProdW / 1000).toFixed(2) : totalProdW}
+                    <span className="metric-unit">{totalProdW >= 1000 ? 'kW' : 'W'}</span>
+                  </span>
+                </div>
+                <div
+                  className="metric-box metric-clickable"
+                  title="Klikkaa nähdäksesi ottotehotrendi"
+                  onClick={() =>
+                    onOpenTrend?.({
+                      topic: 'main/Heat_Power_Consumption',
+                      label: 'Ottoteho (lämmitys)',
+                      unit: 'W',
+                      color: '#f43f5e',
+                    })
+                  }
+                >
+                  <span className="metric-label">Ottoteho nyt ↗</span>
+                  <span className="metric-value">
+                    {totalConsW >= 1000 ? (totalConsW / 1000).toFixed(2) : totalConsW}
+                    <span className="metric-unit">{totalConsW >= 1000 ? 'kW' : 'W'}</span>
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Hetkellinen COP</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {realtimeCop ?? '—'}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
+
+            {viewMode === 'lifetime' && (
+              <div className="metrics-grid metrics-grid-3">
+                <div className="metric-box">
+                  <span className="metric-label">Koko elinkaari tuotto</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {hwHeatProd !== null ? `${Math.round((hwHeatProd ?? 0) + (hwDhwProd ?? 0) + (hwCoolProd ?? 0)).toLocaleString('fi-FI')}` : '—'}
+                    <span className="metric-unit">kWh</span>
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Koko elinkaari kulutus</span>
+                  <span className="metric-value">
+                    {hwHeatCons !== null ? `${Math.round((hwHeatCons ?? 0) + (hwDhwCons ?? 0) + (hwCoolCons ?? 0)).toLocaleString('fi-FI')}` : '—'}
+                    <span className="metric-unit">kWh</span>
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Elinkaari COP</span>
+                  <span className="metric-value" style={{ color: 'var(--heat-primary)' }}>
+                    {hwHeatCons && (hwHeatCons + (hwDhwCons ?? 0)) > 0
+                      ? (((hwHeatProd ?? 0) + (hwDhwProd ?? 0)) / (hwHeatCons + (hwDhwCons ?? 0))).toFixed(2)
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Sub-breakdown: Heating vs DHW */}
             <div style={{
@@ -162,15 +424,31 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                   <span style={{ fontSize: 13, fontWeight: 500 }}>Tilojen lämmitys ↗</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    Tuotto: <strong style={{ color: 'var(--text-primary)' }}>{heatProd !== null ? `${Math.round(heatProd).toLocaleString('fi-FI')} kWh` : '—'}</strong>
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    Kulutus: <strong style={{ color: 'var(--text-primary)' }}>{heatCons !== null ? `${Math.round(heatCons).toLocaleString('fi-FI')} kWh` : '—'}</strong>
-                  </span>
-                  <span style={{ color: 'var(--buffer-primary)', fontWeight: 700 }}>
-                    COP {heatCop ?? '—'}
-                  </span>
+                  {viewMode === 'realtime' ? (
+                    <>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Tuotto: <strong style={{ color: 'var(--text-primary)' }}>{heatProdW !== null ? `${heatProdW} W` : '0 W'}</strong>
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Ottoteho: <strong style={{ color: 'var(--text-primary)' }}>{heatConsW !== null ? `${heatConsW} W` : '0 W'}</strong>
+                      </span>
+                      <span style={{ color: 'var(--buffer-primary)', fontWeight: 700 }}>
+                        COP {heatRealCop ?? '—'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Tuotto: <strong style={{ color: 'var(--text-primary)' }}>{todayHeatProd.toFixed(1)} kWh</strong>
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Kulutus: <strong style={{ color: 'var(--text-primary)' }}>{todayHeatCons.toFixed(1)} kWh</strong>
+                      </span>
+                      <span style={{ color: 'var(--buffer-primary)', fontWeight: 700 }}>
+                        COP {todayHeatCop ?? '—'}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -193,71 +471,64 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                   <span style={{ fontSize: 13, fontWeight: 500 }}>Käyttövesi ↗</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    Tuotto: <strong style={{ color: 'var(--text-primary)' }}>{dhwProd !== null ? `${Math.round(dhwProd).toLocaleString('fi-FI')} kWh` : '—'}</strong>
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    Kulutus: <strong style={{ color: 'var(--text-primary)' }}>{dhwCons !== null ? `${Math.round(dhwCons).toLocaleString('fi-FI')} kWh` : '—'}</strong>
-                  </span>
-                  <span style={{ color: 'var(--dhw-primary)', fontWeight: 700 }}>
-                    COP {dhwCop ?? '—'}
-                  </span>
+                  {viewMode === 'realtime' ? (
+                    <>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Tuotto: <strong style={{ color: 'var(--text-primary)' }}>{dhwProdW !== null ? `${dhwProdW} W` : '0 W'}</strong>
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Ottoteho: <strong style={{ color: 'var(--text-primary)' }}>{dhwConsW !== null ? `${dhwConsW} W` : '0 W'}</strong>
+                      </span>
+                      <span style={{ color: 'var(--dhw-primary)', fontWeight: 700 }}>
+                        COP {dhwRealCop ?? '—'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Tuotto: <strong style={{ color: 'var(--text-primary)' }}>{todayDhwProd.toFixed(1)} kWh</strong>
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Kulutus: <strong style={{ color: 'var(--text-primary)' }}>{todayDhwCons.toFixed(1)} kWh</strong>
+                      </span>
+                      <span style={{ color: 'var(--dhw-primary)', fontWeight: 700 }}>
+                        COP {todayDhwCop ?? '—'}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Mode Distribution & Backup Heater */}
+            {/* Operating Parameters: Flow, Delta T, Freq & Heater */}
             <div style={{
               background: 'rgba(255,255,255,0.02)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              padding: '12px 14px',
+              padding: '10px 14px',
               display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
+              fontSize: 11,
+              color: 'var(--text-muted)',
             }}>
-              {/* Hours split */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Tuntijakauma:</span>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <span>
-                    🔥 Lämmitys: <strong>{heatHours !== null ? `${Math.round(heatHours)} h` : '—'}</strong>
-                    {heatPct !== null && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>({heatPct}%)</span>}
-                  </span>
-                  <span>
-                    🚿 Käyttövesi: <strong>{dhwHours !== null ? `${Math.round(dhwHours)} h` : '—'}</strong>
-                    {dhwPct !== null && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>({dhwPct}%)</span>}
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress bar of split */}
-              {heatPct !== null && dhwPct !== null && (
-                <div style={{
-                  height: 6,
-                  borderRadius: 3,
-                  background: 'rgba(255,255,255,0.08)',
-                  overflow: 'hidden',
-                  display: 'flex',
-                }}>
-                  <div style={{ width: `${heatPct}%`, background: 'var(--buffer-primary)', transition: 'width 0.5s' }} />
-                  <div style={{ width: `${dhwPct}%`, background: 'var(--dhw-primary)', transition: 'width 0.5s' }} />
-                </div>
-              )}
-
-              {/* Pump & Backup heater info */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', paddingTop: 4 }}>
-                <span>
-                  Kiertovesipumppu: {pumpHours !== null ? `${Math.round(pumpHours)} h` : '—'}
-                  {pumpCount !== null && ` (${Math.round(pumpCount)} starttia)`}
-                </span>
-                <span style={{
-                  color: heaterHours && heaterHours > 0 ? 'var(--warning)' : 'var(--online)',
-                  fontWeight: 600,
-                }}>
-                  Varavastus: {heaterHours !== null ? `${Math.round(heaterHours)} h` : '0 h'}
-                </span>
-              </div>
+              <span>
+                Virtaus: <strong style={{ color: 'var(--text-primary)' }}>{pumpFlow !== null ? `${pumpFlow.toFixed(1)} l/min` : '—'}</strong>
+                {deltaT !== null && <span style={{ marginLeft: 6, color: 'var(--text-secondary)' }}>(ΔT {deltaT} °C)</span>}
+              </span>
+              <span>
+                Taajuus: <strong style={{ color: compressorFreq && compressorFreq > 0 ? 'var(--online)' : 'var(--text-primary)' }}>
+                  {compressorFreq !== null && compressorFreq > 0 ? `${compressorFreq} Hz` : '0 Hz'}
+                </strong>
+              </span>
+              <span style={{
+                color: heaterHours && heaterHours > 0 ? 'var(--warning)' : 'var(--online)',
+                fontWeight: 600,
+              }}>
+                Varavastus: {heaterHours !== null ? `${Math.round(heaterHours)} h` : '0 h'}
+              </span>
             </div>
           </div>
 
@@ -374,11 +645,18 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                   </span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${analytics.history.length}, 1fr)`, gap: 6 }}>
-                  {analytics.history.map((day) => {
-                    const dayName = new Date(day.date).toLocaleDateString('fi-FI', { weekday: 'short' });
+                  {analytics.history.map((day, idx) => {
+                    const parsedDate = parseHistoryDate(day.timestamp ?? day.date);
+                    const dayName = parsedDate
+                      ? parsedDate.toLocaleDateString('fi-FI', { weekday: 'short' })
+                      : '—';
+                    const dateLabel = parsedDate
+                      ? parsedDate.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })
+                      : day.date;
+
                     return (
                       <div
-                        key={day.date}
+                        key={day.date || day.timestamp || idx}
                         style={{
                           background: 'rgba(255,255,255,0.03)',
                           border: '1px solid rgba(255,255,255,0.05)',
@@ -389,7 +667,7 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                           flexDirection: 'column',
                           gap: 2,
                         }}
-                        title={`${day.date}: ${day.cycles} sykliä, ${day.hours.toFixed(1)} h (ka. ${day.avgCycleHours ? day.avgCycleHours.toFixed(1) : 0} h/sykli)`}
+                        title={`${dateLabel} (${dayName}): ${day.cycles} sykliä, ${day.hours.toFixed(1)} h (ka. ${day.avgCycleHours ? day.avgCycleHours.toFixed(1) : 0} h/sykli)`}
                       >
                         <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
                           {dayName}

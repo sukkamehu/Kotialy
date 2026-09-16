@@ -29,6 +29,7 @@ export interface CompressorAnalytics {
   };
   history: Array<{
     date: string;
+    timestamp?: number;
     cycles: number;
     hours: number;
     avgCycleHours: number | null;

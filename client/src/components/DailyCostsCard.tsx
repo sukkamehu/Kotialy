@@ -115,8 +115,14 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
         {showSettings && (
           <form
             onSubmit={handleSaveSettings}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                e.preventDefault();
+                (e.target as HTMLElement).blur();
+              }
+            }}
             style={{
-              marginBottom: 18,
+              marginBottom: 16,
               padding: 14,
               borderRadius: 10,
               background: 'rgba(0,0,0,0.25)',

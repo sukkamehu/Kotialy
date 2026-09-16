@@ -48,73 +48,73 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
   const [selectedSlot, setSelectedSlot] = useState<ApcPlanSlot | null>(null);
   const [hoveredSlot, setHoveredSlot] = useState<ApcPlanSlot | null>(null);
 
-  // Settings form draft state
+  // Settings form draft state (use string for inputs to allow smooth editing & clearing)
   const [bufferBoost, setBufferBoost] = useState<number>(status?.settings?.buffer_boost_c ?? 3);
   const [bufferSetback, setBufferSetback] = useState<number>(status?.settings?.buffer_setback_c ?? -2);
-  const [dhwBoostTarget, setDhwBoostTarget] = useState<number>(status?.settings?.dhw_boost_target_c ?? status?.settings?.dhw_target_c ?? 55);
-  const [dhwNormalTarget, setDhwNormalTarget] = useState<number>(status?.settings?.dhw_normal_target_c ?? 50);
-  const [dhwMin, setDhwMin] = useState<number>(status?.settings?.dhw_min_c ?? 45);
+  const [dhwBoostTarget, setDhwBoostTarget] = useState<string>(String(status?.settings?.dhw_boost_target_c ?? status?.settings?.dhw_target_c ?? 55));
+  const [dhwNormalTarget, setDhwNormalTarget] = useState<string>(String(status?.settings?.dhw_normal_target_c ?? 50));
+  const [dhwMin, setDhwMin] = useState<string>(String(status?.settings?.dhw_min_c ?? 45));
   const [dhwBoostOnCheap, setDhwBoostOnCheap] = useState<boolean>(status?.settings?.dhw_boost_on_cheap ?? true);
-  const [cheapThresh, setCheapThresh] = useState<number>(status?.settings?.cheap_threshold_cents ?? 3.0);
-  const [peakThresh, setPeakThresh] = useState<number>(status?.settings?.peak_threshold_cents ?? 20.0);
-  const [dhwHours, setDhwHours] = useState<number>(status?.settings?.dhw_duration_hours ?? 2);
+  const [cheapThresh, setCheapThresh] = useState<string>(String(status?.settings?.cheap_threshold_cents ?? 3.0));
+  const [peakThresh, setPeakThresh] = useState<string>(String(status?.settings?.peak_threshold_cents ?? 20.0));
+  const [dhwHours, setDhwHours] = useState<string>(String(status?.settings?.dhw_duration_hours ?? 2));
 
   const openSettings = () => {
     if (status?.settings) {
-      setBufferBoost(status.settings.buffer_boost_c);
-      setBufferSetback(status.settings.buffer_setback_c);
-      setDhwBoostTarget(status.settings.dhw_boost_target_c ?? status.settings.dhw_target_c ?? 55);
-      setDhwNormalTarget(status.settings.dhw_normal_target_c ?? 50);
-      setDhwMin(status.settings.dhw_min_c);
+      setBufferBoost(status.settings.buffer_boost_c ?? 3);
+      setBufferSetback(status.settings.buffer_setback_c ?? -2);
+      setDhwBoostTarget(String(status.settings.dhw_boost_target_c ?? status.settings.dhw_target_c ?? 55));
+      setDhwNormalTarget(String(status.settings.dhw_normal_target_c ?? 50));
+      setDhwMin(String(status.settings.dhw_min_c ?? 45));
       setDhwBoostOnCheap(status.settings.dhw_boost_on_cheap !== false);
-      setCheapThresh(status.settings.cheap_threshold_cents);
-      setPeakThresh(status.settings.peak_threshold_cents);
-      setDhwHours(status.settings.dhw_duration_hours);
+      setCheapThresh(String(status.settings.cheap_threshold_cents ?? 3.0));
+      setPeakThresh(String(status.settings.peak_threshold_cents ?? 20.0));
+      setDhwHours(String(status.settings.dhw_duration_hours ?? 2));
     }
     setShowSettings(true);
   };
 
   const applyPreset = (type: 'compressor_save' | 'balanced' | 'max_savings' | 'comfort') => {
     if (type === 'compressor_save') {
-      setCheapThresh(3.0);
-      setPeakThresh(20.0);
-      setDhwBoostTarget(55);
-      setDhwNormalTarget(50);
-      setDhwMin(45);
+      setCheapThresh('3.0');
+      setPeakThresh('20.0');
+      setDhwBoostTarget('55');
+      setDhwNormalTarget('50');
+      setDhwMin('45');
       setDhwBoostOnCheap(true);
       setBufferBoost(3);
       setBufferSetback(-2);
-      setDhwHours(2);
+      setDhwHours('2');
     } else if (type === 'balanced') {
-      setCheapThresh(3.0);
-      setPeakThresh(20.0);
-      setDhwBoostTarget(55);
-      setDhwNormalTarget(50);
-      setDhwMin(45);
+      setCheapThresh('3.0');
+      setPeakThresh('20.0');
+      setDhwBoostTarget('55');
+      setDhwNormalTarget('50');
+      setDhwMin('45');
       setDhwBoostOnCheap(true);
       setBufferBoost(3);
       setBufferSetback(-2);
-      setDhwHours(2);
+      setDhwHours('2');
     } else if (type === 'max_savings') {
-      setCheapThresh(2.5);
-      setPeakThresh(15.0);
-      setDhwBoostTarget(55);
-      setDhwNormalTarget(48);
-      setDhwMin(42);
+      setCheapThresh('2.5');
+      setPeakThresh('15.0');
+      setDhwBoostTarget('55');
+      setDhwNormalTarget('48');
+      setDhwMin('42');
       setDhwBoostOnCheap(true);
       setBufferBoost(5);
       setBufferSetback(-4);
-      setDhwHours(2);
+      setDhwHours('2');
     } else if (type === 'comfort') {
-      setCheapThresh(4.0);
-      setPeakThresh(25.0);
-      setDhwBoostTarget(52);
-      setDhwNormalTarget(50);
-      setDhwMin(46);
+      setCheapThresh('4.0');
+      setPeakThresh('25.0');
+      setDhwBoostTarget('52');
+      setDhwNormalTarget('50');
+      setDhwMin('46');
       setDhwBoostOnCheap(false);
       setBufferBoost(2);
       setBufferSetback(-1);
-      setDhwHours(3);
+      setDhwHours('3');
     }
   };
 
@@ -123,14 +123,14 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
     const ok = await updateSettings({
       buffer_boost_c: Number(bufferBoost),
       buffer_setback_c: Number(bufferSetback),
-      dhw_target_c: Number(dhwBoostTarget),
-      dhw_boost_target_c: Number(dhwBoostTarget),
-      dhw_normal_target_c: Number(dhwNormalTarget),
-      dhw_min_c: Number(dhwMin),
+      dhw_target_c: parseFloat(dhwBoostTarget) || 55,
+      dhw_boost_target_c: parseFloat(dhwBoostTarget) || 55,
+      dhw_normal_target_c: parseFloat(dhwNormalTarget) || 50,
+      dhw_min_c: parseFloat(dhwMin) || 45,
       dhw_boost_on_cheap: Boolean(dhwBoostOnCheap),
-      cheap_threshold_cents: Number(cheapThresh),
-      peak_threshold_cents: Number(peakThresh),
-      dhw_duration_hours: Number(dhwHours),
+      cheap_threshold_cents: parseFloat(cheapThresh) || 3.0,
+      peak_threshold_cents: parseFloat(peakThresh) || 20.0,
+      dhw_duration_hours: parseInt(dhwHours, 10) || 2,
     });
     if (ok) setShowSettings(false);
   };
@@ -139,18 +139,57 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
   const currentDirective = status?.currentDirective ?? 'NORMAL';
   const overrideActive = status?.overrideActive ?? false;
   const plan = status?.plan || [];
-  const displayPlan = plan.slice(0, 96); // Full 24-hour horizon (96 quarters)
   const nowTs = Date.now();
+
+  const [timeHorizon, setTimeHorizon] = useState<'24h' | '12h' | 'today' | 'tomorrow' | 'all'>('24h');
+
+  const hasTomorrowSlots = useMemo(() => {
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+    const tomorrowStart = todayStart + 24 * 60 * 60 * 1000;
+    return plan.some((s) => s.start_time >= tomorrowStart);
+  }, [plan]);
+
+  const displayPlan = useMemo(() => {
+    if (!plan.length) return [];
+    const nowIdx = plan.findIndex((s) => s.start_time <= nowTs && s.end_time > nowTs);
+    const startFromNow = nowIdx >= 0 ? nowIdx : 0;
+
+    if (timeHorizon === '12h') {
+      return plan.slice(startFromNow, startFromNow + 48);
+    }
+    if (timeHorizon === '24h') {
+      return plan.slice(startFromNow, startFromNow + 96);
+    }
+    if (timeHorizon === 'today') {
+      const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+      const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+      const todaySlots = plan.filter((s) => s.start_time >= todayStart && s.start_time < todayEnd);
+      return todaySlots.length ? todaySlots : plan.slice(0, 96);
+    }
+    if (timeHorizon === 'tomorrow') {
+      const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+      const tomorrowStart = todayStart + 24 * 60 * 60 * 1000;
+      const tomorrowEnd = tomorrowStart + 24 * 60 * 60 * 1000;
+      const tomorrowSlots = plan.filter((s) => s.start_time >= tomorrowStart && s.start_time < tomorrowEnd);
+      return tomorrowSlots.length ? tomorrowSlots : plan.slice(startFromNow, startFromNow + 96);
+    }
+    return plan;
+  }, [plan, timeHorizon, nowTs]);
 
   const currentSlot = displayPlan.find((s) => s.start_time <= nowTs && s.end_time > nowTs) || displayPlan[0] || null;
   const activeInspectSlot = hoveredSlot || selectedSlot || currentSlot;
 
-  // Find maximum & minimum price for timeline normalization (safely filter valid numbers)
+  // Find maximum & minimum price for timeline normalization (dynamically scaled to visible window)
   const validPrices = displayPlan
     .map((p) => p.price)
     .filter((p): p is number => typeof p === 'number' && !isNaN(p));
-  const maxPlanPrice = validPrices.length ? Math.max(...validPrices, 15) : 15;
-  const minPlanPrice = validPrices.length ? Math.min(...validPrices, 0) : 0;
+  const rawMax = validPrices.length ? Math.max(...validPrices) : 5;
+  const rawMin = validPrices.length ? Math.min(...validPrices) : 0;
+
+  // Adaptive dynamic ceiling: pads max by ~15% or at least +0.4 snt, at least 2.0 snt/kWh
+  const maxPlanPrice = Number(Math.max(rawMax * 1.15, rawMax + 0.4, 2.0).toFixed(1));
+  const minPlanPrice = Number(Math.min(rawMin < 0 ? rawMin * 1.15 : 0, 0).toFixed(1));
+  const midPlanPrice = Number(((maxPlanPrice + minPlanPrice) / 2).toFixed(1));
 
   // Pick time tick labels (every ~3 hours) - called unconditionally
   const timeTicks = useMemo(() => {
@@ -526,15 +565,48 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
             marginBottom: 12,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  📊 24h Optimointiaikataulu (15 min vartit)
+                  📊 Optimointiaikataulu (15 min vartit)
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  (Vie hiiri palkkien päälle)
-                </span>
+
+                {/* Horizon Switcher */}
+                <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.06)', borderRadius: 7, padding: 2, gap: 2 }}>
+                  {(['24h', '12h', 'today', 'tomorrow', 'all'] as const).map((mode) => {
+                    if (mode === 'tomorrow' && !hasTomorrowSlots) return null;
+                    const labels: Record<string, string> = {
+                      '24h': 'Seuraavat 24h',
+                      '12h': '12h',
+                      'today': 'Tänään',
+                      'tomorrow': 'Huominen',
+                      'all': 'Kaikki',
+                    };
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setTimeHorizon(mode)}
+                        style={{
+                          border: 'none',
+                          background: timeHorizon === mode ? 'var(--heat-primary, #f97316)' : 'transparent',
+                          color: timeHorizon === mode ? '#fff' : 'var(--text-muted)',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: 5,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {labels[mode]}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
+
+              {/* Legend */}
+              <div style={{ display: 'flex', gap: 12, fontSize: 11, flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)' }} /> Esilämmitys (Lataus)
                 </span>
@@ -601,7 +673,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
               </div>
             )}
 
-            {/* Tall, Responsive Bar Chart (Height: 180px) */}
+            {/* Tall, Responsive Bar Chart (Height: 190px) with Y-Axis */}
             {displayPlan.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 12 }}>
                 Odotetaan Nord Pool -hintatietoja...
@@ -612,25 +684,71 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                 style={{
                   display: 'flex',
                   alignItems: 'flex-end',
-                  height: 180,
+                  height: 190,
                   gap: 1.5,
                   background: 'rgba(0,0,0,0.35)',
-                  padding: '16px 8px 0 8px',
+                  padding: '24px 8px 0 8px',
                   borderRadius: 8,
                   border: '1px solid rgba(255,255,255,0.06)',
                   position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
-                {/* Reference Grid lines */}
-                <div style={{ position: 'absolute', top: 16, left: 8, right: 8, bottom: 0, pointerEvents: 'none' }}>
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.08)' }} />
-                  <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.08)' }} />
+                {/* Reference Grid lines with Y-Axis values */}
+                <div style={{ position: 'absolute', top: 24, left: 8, right: 8, bottom: 0, pointerEvents: 'none', zIndex: 0 }}>
+                  {/* Top grid line + label */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      color: 'rgba(255,255,255,0.55)',
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      transform: 'translateY(-50%)',
+                    }}>
+                      {maxPlanPrice} snt/kWh
+                    </span>
+                  </div>
+
+                  {/* Middle grid line + label */}
+                  <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      color: 'rgba(255,255,255,0.4)',
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      transform: 'translateY(-50%)',
+                    }}>
+                      {midPlanPrice} snt
+                    </span>
+                  </div>
+
+                  {/* Baseline / Min line */}
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      color: minPlanPrice < 0 ? '#f87171' : 'rgba(255,255,255,0.35)',
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      transform: 'translateY(-50%)',
+                    }}>
+                      {minPlanPrice} snt
+                    </span>
+                  </div>
                 </div>
 
                 {displayPlan.map((slot) => {
                   const slotPrice = typeof slot?.price === 'number' && !isNaN(slot.price) ? slot.price : minPlanPrice;
                   const range = maxPlanPrice - minPlanPrice || 1;
-                  const heightPct = Math.max(12, Math.min(100, ((slotPrice - minPlanPrice) / range) * 92));
+                  const heightPct = Math.max(8, Math.min(100, (((slotPrice - minPlanPrice) / range) * 88) + 8));
                   const isNow = Date.now() >= slot.start_time && Date.now() < slot.end_time;
                   const isHovered = (hoveredSlot?.start_time === slot.start_time) || (selectedSlot?.start_time === slot.start_time);
 
@@ -657,7 +775,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                       onClick={() => setSelectedSlot(selectedSlot?.start_time === slot.start_time ? null : slot)}
                       style={{
                         flex: 1,
-                        minWidth: 5,
+                        minWidth: 4,
                         height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
@@ -668,35 +786,49 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                         zIndex: isHovered || isNow ? 10 : 1,
                       }}
                     >
-                      {/* Glowing Now Line / Marker */}
+                      {/* Sleek Modern Now Indicator */}
                       {isNow && (
                         <div
                           style={{
                             position: 'absolute',
-                            top: -12,
+                            top: 0,
+                            bottom: 0,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            zIndex: 20,
+                            zIndex: 25,
+                            pointerEvents: 'none',
                           }}
                         >
-                          <span style={{
-                            fontSize: 8,
-                            fontWeight: 800,
-                            color: '#fff',
-                            background: '#ef4444',
-                            padding: '1px 3px',
-                            borderRadius: 3,
-                            textTransform: 'uppercase',
-                            boxShadow: '0 0 6px #ef4444',
-                          }}>
-                            NYT
-                          </span>
+                          {/* Floating Pill Tag at Top */}
                           <div style={{
-                            width: 2,
-                            height: 12,
-                            background: '#ef4444',
-                            boxShadow: '0 0 6px #ef4444',
+                            position: 'absolute',
+                            top: 3,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                            background: 'rgba(14, 165, 233, 0.95)',
+                            border: '1px solid rgba(255, 255, 255, 0.45)',
+                            boxShadow: '0 0 10px rgba(14, 165, 233, 0.75), 0 2px 4px rgba(0,0,0,0.5)',
+                            borderRadius: 4,
+                            padding: '1px 5px',
+                            backdropFilter: 'blur(4px)',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#fff', boxShadow: '0 0 4px #fff' }} />
+                            <span style={{ fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                              NYT
+                            </span>
+                          </div>
+
+                          {/* Full-Height Luminous Laser Line */}
+                          <div style={{
+                            width: 1.5,
+                            height: '100%',
+                            background: 'linear-gradient(180deg, rgba(14, 165, 233, 0.9) 0%, rgba(14, 165, 233, 0.25) 100%)',
+                            boxShadow: '0 0 6px rgba(14, 165, 233, 0.65)',
                           }} />
                         </div>
                       )}
@@ -708,11 +840,15 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                           height: `${heightPct}%`,
                           background: barGradient,
                           borderRadius: '3px 3px 0 0',
-                          opacity: isHovered ? 1 : isNow ? 1 : 0.8,
+                          opacity: isHovered ? 1 : isNow ? 1 : 0.85,
                           transform: isHovered ? 'scaleY(1.04) scaleX(1.15)' : 'none',
                           transformOrigin: 'bottom',
-                          boxShadow: isHovered ? (barShadow !== 'none' ? barShadow : '0 0 10px rgba(255,255,255,0.3)') : (isNow ? barShadow : 'none'),
-                          outline: isHovered ? '1.5px solid #fff' : isNow ? '1.5px solid rgba(255,255,255,0.7)' : 'none',
+                          boxShadow: isHovered
+                            ? (barShadow !== 'none' ? barShadow : '0 0 10px rgba(255,255,255,0.35)')
+                            : isNow
+                            ? '0 0 12px rgba(56, 189, 248, 0.6)'
+                            : 'none',
+                          outline: isHovered ? '1.5px solid #fff' : isNow ? '2px solid rgba(56, 189, 248, 0.95)' : 'none',
                           transition: 'transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease',
                         }}
                       />
@@ -891,6 +1027,12 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
               {/* Scrollable Form Body */}
               <form
                 onSubmit={handleSaveSettings}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                    e.preventDefault();
+                    (e.target as HTMLElement).blur();
+                  }
+                }}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -1031,7 +1173,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                         min="50"
                         max="65"
                         value={dhwBoostTarget}
-                        onChange={(e) => setDhwBoostTarget(Number(e.target.value))}
+                        onChange={(e) => setDhwBoostTarget(e.target.value)}
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#fff', fontSize: 13, fontWeight: 600 }}
                       />
                     </div>
@@ -1045,7 +1187,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                         min="45"
                         max="55"
                         value={dhwNormalTarget}
-                        onChange={(e) => setDhwNormalTarget(Number(e.target.value))}
+                        onChange={(e) => setDhwNormalTarget(e.target.value)}
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                       />
                     </div>
@@ -1059,7 +1201,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                         min="40"
                         max="50"
                         value={dhwMin}
-                        onChange={(e) => setDhwMin(Number(e.target.value))}
+                        onChange={(e) => setDhwMin(e.target.value)}
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                       />
                     </div>
@@ -1074,7 +1216,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                       min="1"
                       max="6"
                       value={dhwHours}
-                      onChange={(e) => setDhwHours(Number(e.target.value))}
+                      onChange={(e) => setDhwHours(e.target.value)}
                       style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13 }}
                     />
                   </div>
@@ -1094,7 +1236,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                         type="number"
                         step="0.5"
                         value={cheapThresh}
-                        onChange={(e) => setCheapThresh(Number(e.target.value))}
+                        onChange={(e) => setCheapThresh(e.target.value)}
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(52, 211, 153, 0.3)', color: '#fff', fontSize: 13, fontWeight: 600 }}
                       />
                     </div>
@@ -1107,7 +1249,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
                         type="number"
                         step="0.5"
                         value={peakThresh}
-                        onChange={(e) => setPeakThresh(Number(e.target.value))}
+                        onChange={(e) => setPeakThresh(e.target.value)}
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 6, background: '#1e293b', border: '1px solid rgba(248, 113, 113, 0.3)', color: '#fff', fontSize: 13, fontWeight: 600 }}
                       />
                     </div>
