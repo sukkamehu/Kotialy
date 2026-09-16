@@ -16,6 +16,7 @@ import { NordpoolPanel } from './NordpoolPanel';
 import { WeatherPanel } from './WeatherPanel';
 import { CameraCard } from './CameraCard';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
+import { PanasonicSettingsCard } from './PanasonicSettingsCard';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -51,6 +52,7 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'heatpump_guide'>('dashboard');
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const readOnly = role === 'viewer';
 
@@ -71,6 +73,79 @@ export function Dashboard({
 
       <PullToRefresh onRefresh={refresh || (() => window.location.reload())}>
         <main className="dashboard-main">
+          {/* Top navigation tabs */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 20,
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            paddingBottom: 12,
+            gap: 12,
+            flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: activeTab === 'dashboard' ? '1px solid var(--accent-primary, #3b82f6)' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeTab === 'dashboard' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeTab === 'dashboard' ? '#60a5fa' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>📊</span> Kojelauta
+              </button>
+              <button
+                onClick={() => setActiveTab('heatpump_guide')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: activeTab === 'heatpump_guide' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeTab === 'heatpump_guide' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeTab === 'heatpump_guide' ? '#6ee7b7' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>⚙️</span> Lämpöpumpun asetusmuistio
+                <span style={{
+                  fontSize: 11,
+                  padding: '2px 6px',
+                  borderRadius: 6,
+                  background: 'rgba(16, 185, 129, 0.3)',
+                  color: '#6ee7b7',
+                  fontWeight: 700,
+                }}>
+                  Uusi
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {activeTab === 'heatpump_guide' && (
+            <div style={{ marginBottom: 32 }}>
+              <ErrorBoundary>
+                <PanasonicSettingsCard />
+              </ErrorBoundary>
+            </div>
+          )}
+
+          {activeTab === 'dashboard' && (
+            <>
         {/* Waiting for data */}
         {!hasAnyData && (
           <div style={{
@@ -177,6 +252,8 @@ export function Dashboard({
               </ErrorBoundary>
             </div>
           </>
+        )}
+        </>
         )}
         </main>
       </PullToRefresh>
