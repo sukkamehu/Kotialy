@@ -22,7 +22,7 @@ const SUBSCRIBE_PATTERNS = [
   `${BASE_TOPIC}/log`,
 ];
 
-function init(wsBroadcast) {
+function init(wsBroadcast, onConnect) {
   const brokerUrl = process.env.MQTT_URL || `mqtt://${MQTT_HOST}:${MQTT_PORT}`;
   console.log(`[MQTT] Connecting to ${brokerUrl} ...`);
 
@@ -48,6 +48,14 @@ function init(wsBroadcast) {
         else console.log(`[MQTT] Subscribed: ${pattern}`);
       });
     });
+
+    if (typeof onConnect === 'function') {
+      try {
+        onConnect();
+      } catch (err) {
+        console.error('[MQTT] onConnect handler error:', err);
+      }
+    }
 
     // Broadcast connection status
     wsBroadcast({

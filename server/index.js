@@ -149,9 +149,16 @@ function wsBroadcast(payload) {
   }
 }
 
+// ─── APC Smart Optimizer ─────────────────────────────────────────────────────
+apcService.setWsBroadcast(wsBroadcast);
+apcService.setMqttClient(mqttClient);
+apcService.start();
+
 // ─── MQTT Bridges ────────────────────────────────────────────────────────────
 
-mqttClient.init(wsBroadcast);
+mqttClient.init(wsBroadcast, () => {
+  apcService.evaluate();
+});
 zigbeeClient.init(wsBroadcast);
 nordpoolClient.setDb(require('./db'));
 nordpoolClient.startScheduler();
@@ -160,11 +167,6 @@ weatherClient.startScheduler();
 costCalculator.startScheduler();
 cameraService.startScheduler();
 s3Service.startScheduler();
-
-// ─── APC Smart Optimizer ─────────────────────────────────────────────────────
-apcService.setWsBroadcast(wsBroadcast);
-apcService.setMqttClient(mqttClient);
-apcService.start();
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 
