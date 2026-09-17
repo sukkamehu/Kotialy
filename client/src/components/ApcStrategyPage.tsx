@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useApc } from '../hooks/useApc';
+import { apiFetch } from '../lib/api';
 import type { ApcMode } from '../types/apc';
+import type { CostSettings } from '../types/costs';
 
 interface ApcStrategyPageProps {
   readOnly?: boolean;
@@ -78,7 +80,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     updateSettings,
   } = useApc();
 
-  // Settings form draft state
+  // APC Settings form draft state
   const [bufferBoost, setBufferBoost] = useState<number>(status?.settings?.buffer_boost_c ?? 3);
   const [bufferSetback, setBufferSetback] = useState<number>(status?.settings?.buffer_setback_c ?? -2);
   const [dhwBoostTarget, setDhwBoostTarget] = useState<string>(String(status?.settings?.dhw_boost_target_c ?? 55));
@@ -89,6 +91,44 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [peakThresh, setPeakThresh] = useState<string>(String(status?.settings?.peak_threshold_cents ?? 20.0));
   const [dhwHours, setDhwHours] = useState<string>(String(status?.settings?.dhw_duration_hours ?? 2));
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Sähkösopimus & Siirtohinnat state
+  const [transferMode, setTransferMode] = useState<'day_night' | 'flat'>('day_night');
+  const [transferDay, setTransferDay] = useState<string>('5.11');
+  const [transferNight, setTransferNight] = useState<string>('3.12');
+  const [transferFlat, setTransferFlat] = useState<string>('4.50');
+  const [margin, setMargin] = useState<string>('0.286');
+  const [monthlyBaseFee, setMonthlyBaseFee] = useState<string>('0');
+  const [fuseSize, setFuseSize] = useState<string>('25A');
+  const [vat, setVat] = useState<string>('25.5');
+  const [savingCosts, setSavingCosts] = useState(false);
+  const [costsSuccess, setCostsSuccess] = useState(false);
+
+  const fetchCostSettings = async () => {
+    try {
+      const res = await apiFetch('/api/costs/settings');
+      if (res.ok) {
+        const data = await res.json();
+        const s: CostSettings | undefined = data.settings;
+        if (s) {
+          setTransferMode(s.transfer_mode === 'flat' ? 'flat' : 'day_night');
+          setTransferDay(String(s.transfer_day_cents_kwh ?? '5.11'));
+          setTransferNight(String(s.transfer_night_cents_kwh ?? '3.12'));
+          setTransferFlat(String(s.transfer_cents_kwh ?? '4.50'));
+          setMargin(String(s.margin_cents_kwh ?? '0.286'));
+          setMonthlyBaseFee(String(s.monthly_base_fee_eur ?? '0'));
+          setFuseSize(String(s.fuse_size ?? '25A'));
+          setVat(String(s.vat_percent ?? '25.5'));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load cost settings', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCostSettings();
+  }, []);
 
   useEffect(() => {
     if (status?.settings) {
@@ -168,6 +208,35 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     }
   };
 
+  const handleSaveCosts = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingCosts(true);
+    try {
+      const res = await apiFetch('/api/costs/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transfer_mode: transferMode,
+          transfer_day_cents_kwh: parseFloat(transferDay) || 5.11,
+          transfer_night_cents_kwh: parseFloat(transferNight) || 3.12,
+          transfer_cents_kwh: parseFloat(transferFlat) || 4.50,
+          margin_cents_kwh: parseFloat(margin) || 0.286,
+          monthly_base_fee_eur: parseFloat(monthlyBaseFee) || 0,
+          fuse_size: fuseSize,
+          vat_percent: parseFloat(vat) || 25.5,
+        }),
+      });
+      if (res.ok) {
+        setCostsSuccess(true);
+        setTimeout(() => setCostsSuccess(false), 2500);
+      }
+    } catch (err) {
+      console.error('Failed to save electricity contract settings', err);
+    } finally {
+      setSavingCosts(false);
+    }
+  };
+
   const activeMode = status?.mode ?? 'balanced';
   const isEnabled = status?.enabled ?? true;
 
@@ -193,7 +262,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  APC Älykäs Pörssiohjaus – Strategia & Asetukset
+                  APC Älykäs Pörssiohjaus & Sähkösopimus
                 </h1>
                 <span style={{
                   padding: '3px 10px',
@@ -208,7 +277,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                 </span>
               </div>
               <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-                Optatoi Panasonic Aquarea -lämpöpumpun toimintaa Nord Pool -pörssisähkön, Yösiirron ja sääennusteen mukaan.
+                Optatoi Panasonic Aquarea -lämpöpumpun toimintaa Nord Pool -pörssisähkön, sähkön siirtohintojen ja sääennusteen mukaan.
               </p>
             </div>
           </div>
@@ -232,11 +301,345 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
         </div>
       </div>
 
-      {/* Section 1: Active Strategy Profiles */}
+      {/* Section 1: Sähkösopimus & Siirtohinnat */}
+      <div className="card" style={{ padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+              1. Sähkösopimus & Siirtohinnat (Tariffit)
+            </h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+              Tallenna sähköverkkoyhtiösi siirtohinnat ja pörssisähkön marginaali. Kotiäly optimoi lämmityksen kokonaishinnan mukaan.
+            </p>
+          </div>
+          <div style={{
+            padding: '6px 12px',
+            borderRadius: 8,
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            fontSize: 12,
+            color: '#60a5fa',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span>💡</span> Yösiirron etu: <strong>-1,99 snt/kWh</strong> (22:00–07:00)
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveCosts}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {/* Siirtotuotteen valinta */}
+            <div style={{
+              padding: '16px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🔌</span> Siirtotuotteen tyyppi
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => !readOnly && setTransferMode('day_night')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: transferMode === 'day_night' ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
+                    background: transferMode === 'day_night' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
+                    color: transferMode === 'day_night' ? '#60a5fa' : 'var(--text-secondary)',
+                    cursor: readOnly ? 'default' : 'pointer',
+                  }}
+                >
+                  🌙 Yösiirto (Aikasähkö)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => !readOnly && setTransferMode('flat')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: transferMode === 'flat' ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
+                    background: transferMode === 'flat' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
+                    color: transferMode === 'flat' ? '#60a5fa' : 'var(--text-secondary)',
+                    cursor: readOnly ? 'default' : 'pointer',
+                  }}
+                >
+                  ⚡ Yleissiirto (Yksiaikainen)
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {transferMode === 'day_night'
+                  ? 'Päivä ma–su klo 07–22, Yö ma–su klo 22–07.'
+                  : 'Sama siirtohinta vuorokauden ympäri.'}
+              </div>
+            </div>
+
+            {/* Siirtohinnat */}
+            <div style={{
+              padding: '16px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>💰</span> Siirtomaksut (sis. ALV)
+              </label>
+
+              {transferMode === 'day_night' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                      Päiväsiirto (snt/kWh)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={transferDay}
+                      onChange={(e) => setTransferDay(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: 'var(--text-primary)',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginBottom: 4 }}>
+                      Yösiirto (snt/kWh)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={transferNight}
+                      onChange={(e) => setTransferNight(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#38bdf8',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Siirtohinta (snt/kWh)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={transferFlat}
+                    onChange={(e) => setTransferFlat(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  />
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Yösiirto 3,12 snt/kWh (alv 0 %: 2,49), Päiväsiirto 5,11 snt/kWh (alv 0 %: 4,07).
+              </div>
+            </div>
+
+            {/* Pörssisähkön marginaali & ALV */}
+            <div style={{
+              padding: '16px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📈</span> Marginaali & ALV
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: '#f59e0b', display: 'block', marginBottom: 4 }}>
+                    Marginaali (snt/kWh)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={margin}
+                    onChange={(e) => setMargin(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: '#f59e0b',
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    ALV (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={vat}
+                    onChange={(e) => setVat(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Nykyinen marginaalisi: 0,286 snt/kWh (sis. alv 25,5 %).
+              </div>
+            </div>
+
+            {/* Sulakekoko & Perusmaksu */}
+            <div style={{
+              padding: '16px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🏠</span> Sulake & Perusmaksu
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Pääsulake
+                  </label>
+                  <select
+                    value={fuseSize}
+                    onChange={(e) => setFuseSize(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <option value="25A">3x25A (Omakotitalo)</option>
+                    <option value="35A">3x35A</option>
+                    <option value="50A">3x50A</option>
+                    <option value="63A">3x63A</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Perusmaksu (€/kk)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={monthlyBaseFee}
+                    onChange={(e) => setMonthlyBaseFee(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Perusmaksu (0 €/kk) jätetään huomioimatta pumpun säästölaskennassa.
+              </div>
+            </div>
+          </div>
+
+          {!readOnly && (
+            <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
+              {costsSuccess && (
+                <span style={{ fontSize: 13, color: '#10b981', fontWeight: 700 }}>
+                  ✓ Sähkösopimuksen ja siirron hinnat päivitetty!
+                </span>
+              )}
+              <button
+                type="submit"
+                disabled={savingCosts}
+                className="btn btn-primary"
+                style={{
+                  padding: '8px 20px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                {savingCosts ? 'Tallennetaan...' : '💾 Tallenna sähkösopimus'}
+              </button>
+            </div>
+          )}
+        </form>
+      </div>
+
+      {/* Section 2: Active Strategy Profiles */}
       <div className="card" style={{ padding: '24px' }}>
         <div style={{ marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-            1. Valitse toimintastrategia
+            2. Valitse toimintastrategia
           </h2>
           <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
             Strategia määrittää, kuinka herkästi ja aggressiivisesti järjestelmä reagoi pörssisähkön hintavaihteluihin.
@@ -312,12 +715,12 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
         </div>
       </div>
 
-      {/* Section 2: Detailed Parameters Editor */}
+      {/* Section 3: Detailed Parameters Editor */}
       <div className="card" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-              2. Hienosäädä parametrit ja raja-arvot
+              3. Hienosäädä parametrit ja raja-arvot
             </h2>
             <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
               Määritä lattialämmityksen ja käyttöveden tarkat siirrot sekä pörssisähkön halpuus- ja huippurajat.
@@ -645,11 +1048,11 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
         </form>
       </div>
 
-      {/* Section 3: Live Decision Log Table */}
+      {/* Section 4: Live Decision Log Table */}
       <div className="card" style={{ padding: '24px' }}>
         <div style={{ marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-            3. APC Päätösloki & Reaaliaikaiset toimenpiteet
+            4. APC Päätösloki & Reaaliaikaiset toimenpiteet
           </h2>
           <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
             Loki näyttää, miksi Kotiäly on tehnyt minkäkin ohjauspäätöksen (Spot-hinta, varaajan tila, sääennuste).

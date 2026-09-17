@@ -123,7 +123,7 @@ export function Dashboard({
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span>⚡</span> APC-strategia & Asetukset
+                <span>⚡</span> APC-strategia & Sähkösopimus
               </button>
 
               <button
