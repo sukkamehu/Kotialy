@@ -5,6 +5,7 @@ import type { ApcMode, ApcPlanSlot } from '../types/apc';
 
 interface ApcCardProps {
   readOnly?: boolean;
+  onOpenStrategy?: () => void;
 }
 
 const MODE_DESCRIPTIONS: Record<ApcMode, { label: string; desc: string; icon: string }> = {
@@ -30,7 +31,7 @@ const MODE_DESCRIPTIONS: Record<ApcMode, { label: string; desc: string; icon: st
   },
 };
 
-export function ApcCard({ readOnly = false }: ApcCardProps) {
+export function ApcCard({ readOnly = false, onOpenStrategy }: ApcCardProps) {
   const {
     status,
     logs,
@@ -308,7 +309,7 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
           <button
             type="button"
             className="btn btn-sm"
-            onClick={() => setShowLogs(!showLogs)}
+            onClick={onOpenStrategy || (() => setShowLogs(!showLogs))}
             style={{
               background: showLogs ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
               border: '1px solid var(--border)',
@@ -323,15 +324,16 @@ export function ApcCard({ readOnly = false }: ApcCardProps) {
             <button
               type="button"
               className="btn btn-sm"
-              onClick={openSettings}
+              onClick={onOpenStrategy || openSettings}
               style={{
                 background: 'rgba(255,255,255,0.05)',
                 border: '1px solid var(--border)',
                 color: 'var(--text-primary)',
                 fontSize: 12,
               }}
+              title="Avaa APC-strategia ja asetukset"
             >
-              ⚙️ Asetukset
+              ⚙️ Asetukset & Strategia
             </button>
           )}
 

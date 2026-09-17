@@ -17,6 +17,7 @@ import { WeatherPanel } from './WeatherPanel';
 import { CameraCard } from './CameraCard';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 import { PanasonicSettingsCard } from './PanasonicSettingsCard';
+import { ApcStrategyPage } from './ApcStrategyPage';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -52,7 +53,7 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'heatpump_guide'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'apc_strategy' | 'heatpump_guide'>('dashboard');
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const readOnly = role === 'viewer';
 
@@ -84,7 +85,7 @@ export function Dashboard({
             gap: 12,
             flexWrap: 'wrap',
           }}>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={() => setActiveTab('dashboard')}
                 style={{
@@ -104,6 +105,27 @@ export function Dashboard({
               >
                 <span>📊</span> Kojelauta
               </button>
+
+              <button
+                onClick={() => setActiveTab('apc_strategy')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: activeTab === 'apc_strategy' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeTab === 'apc_strategy' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeTab === 'apc_strategy' ? '#fbbf24' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>⚡</span> APC-strategia & Asetukset
+              </button>
+
               <button
                 onClick={() => setActiveTab('heatpump_guide')}
                 style={{
@@ -122,19 +144,17 @@ export function Dashboard({
                 }}
               >
                 <span>⚙️</span> Lämpöpumpun asetusmuistio
-                <span style={{
-                  fontSize: 11,
-                  padding: '2px 6px',
-                  borderRadius: 6,
-                  background: 'rgba(16, 185, 129, 0.3)',
-                  color: '#6ee7b7',
-                  fontWeight: 700,
-                }}>
-                  Uusi
-                </span>
               </button>
             </div>
           </div>
+
+          {activeTab === 'apc_strategy' && (
+            <div style={{ marginBottom: 32 }}>
+              <ErrorBoundary>
+                <ApcStrategyPage readOnly={readOnly} />
+              </ErrorBoundary>
+            </div>
+          )}
 
           {activeTab === 'heatpump_guide' && (
             <div style={{ marginBottom: 32 }}>
@@ -212,7 +232,7 @@ export function Dashboard({
             {/* Row 3: APC Smart Optimizer (Auto Power & Price Controller) */}
             <div style={{ marginBottom: 20 }}>
               <ErrorBoundary>
-                <ApcCard readOnly={readOnly} />
+                <ApcCard readOnly={readOnly} onOpenStrategy={() => setActiveTab('apc_strategy')} />
               </ErrorBoundary>
             </div>
 
