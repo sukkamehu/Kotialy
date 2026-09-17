@@ -163,7 +163,7 @@ function getStats(from, to) {
   };
 }
 
-function findCheapestWindow(hours, from, to) {
+function findCheapestWindow(hours, from, to, priceModifierFn = null) {
   const prices = getPrices(from, to);
   const windowQuarters = hours * 4;
   if (!prices.length || prices.length < windowQuarters) return null;
@@ -172,7 +172,7 @@ function findCheapestWindow(hours, from, to) {
   let bestAvg = Infinity;
   for (let i = 0; i <= prices.length - windowQuarters; i++) {
     const slice = prices.slice(i, i + windowQuarters);
-    const total = slice.reduce((sum, p) => sum + p.price, 0);
+    const total = slice.reduce((sum, p) => sum + (priceModifierFn ? priceModifierFn(p) : p.price), 0);
     const avg = total / windowQuarters;
     if (avg < bestAvg) {
       bestAvg = avg;

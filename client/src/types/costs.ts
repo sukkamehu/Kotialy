@@ -19,7 +19,12 @@ export interface DailyCost {
 
 export interface CostSettings {
   margin_cents_kwh: number;
+  transfer_mode?: 'flat' | 'day_night';
   transfer_cents_kwh: number;
+  transfer_day_cents_kwh?: number;
+  transfer_night_cents_kwh?: number;
+  fuse_size?: string;
+  monthly_base_fee_eur?: number;
   vat_percent: number;
 }
 

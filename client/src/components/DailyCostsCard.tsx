@@ -10,8 +10,13 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
   const [rangeDays, setRangeDays] = useState<number>(7);
 
   // Settings form state
-  const [margin, setMargin] = useState<string>('0.50');
+  const [transferMode, setTransferMode] = useState<'day_night' | 'flat'>('day_night');
+  const [transferDay, setTransferDay] = useState<string>('5.11');
+  const [transferNight, setTransferNight] = useState<string>('3.12');
   const [transfer, setTransfer] = useState<string>('4.50');
+  const [margin, setMargin] = useState<string>('0.286');
+  const [monthlyBaseFee, setMonthlyBaseFee] = useState<string>('0');
+  const [fuseSize, setFuseSize] = useState<string>('25A');
   const [vat, setVat] = useState<string>('25.5');
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -29,8 +34,13 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
       setDailyCosts(dailyData.costs || []);
 
       if (sumData.settings) {
-        setMargin(String(sumData.settings.margin_cents_kwh ?? '0.50'));
+        setTransferMode(sumData.settings.transfer_mode === 'flat' ? 'flat' : 'day_night');
+        setTransferDay(String(sumData.settings.transfer_day_cents_kwh ?? '5.11'));
+        setTransferNight(String(sumData.settings.transfer_night_cents_kwh ?? '3.12'));
         setTransfer(String(sumData.settings.transfer_cents_kwh ?? '4.50'));
+        setMargin(String(sumData.settings.margin_cents_kwh ?? '0.286'));
+        setMonthlyBaseFee(String(sumData.settings.monthly_base_fee_eur ?? '38.03'));
+        setFuseSize(String(sumData.settings.fuse_size ?? '25A'));
         setVat(String(sumData.settings.vat_percent ?? '25.5'));
       }
     } catch (err) {
@@ -54,9 +64,14 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          margin_cents_kwh: parseFloat(margin),
-          transfer_cents_kwh: parseFloat(transfer),
-          vat_percent: parseFloat(vat),
+          transfer_mode: transferMode,
+          transfer_day_cents_kwh: parseFloat(transferDay) || 5.11,
+          transfer_night_cents_kwh: parseFloat(transferNight) || 3.12,
+          transfer_cents_kwh: parseFloat(transfer) || 4.50,
+          margin_cents_kwh: parseFloat(margin) || 0.50,
+          monthly_base_fee_eur: parseFloat(monthlyBaseFee) || 38.03,
+          fuse_size: fuseSize,
+          vat_percent: parseFloat(vat) || 25.5,
         }),
       });
       if (res.ok) {
@@ -122,108 +137,235 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
               }
             }}
             style={{
-              marginBottom: 16,
-              padding: 14,
-              borderRadius: 10,
-              background: 'rgba(0,0,0,0.25)',
-              border: '1px solid var(--border)',
+              marginBottom: 20,
+              padding: 16,
+              borderRadius: 12,
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.1)',
               display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: 12,
+              flexDirection: 'column',
+              gap: 14,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Siirtohinta + vero (snt/kWh)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={transfer}
-                onChange={(e) => setTransfer(e.target.value)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-primary)',
-                  width: 130,
-                  fontSize: 13,
-                }}
-                required
-              />
+            {/* Tariff Mode Switcher */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                ⚡ Sähkön siirtotariffi & sopimushinnat
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setTransferMode('day_night')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    border: transferMode === 'day_night' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
+                    background: transferMode === 'day_night' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                    color: transferMode === 'day_night' ? '#6ee7b7' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🌙 Yösiirto (Päivä / Yö)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransferMode('flat')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    border: transferMode === 'flat' ? '1px solid var(--accent-primary, #3b82f6)' : '1px solid rgba(255,255,255,0.1)',
+                    background: transferMode === 'flat' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                    color: transferMode === 'flat' ? '#60a5fa' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ⚡ Yksiaikainen
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Marginaali (snt/kWh)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={margin}
-                onChange={(e) => setMargin(e.target.value)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-primary)',
-                  width: 110,
-                  fontSize: 13,
-                }}
-                required
-              />
-            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+              {transferMode === 'day_night' ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>Päiväsiirto 07–22 (snt/kWh)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={transferDay}
+                      onChange={(e) => setTransferDay(e.target.value)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-primary)',
+                        width: 140,
+                        fontSize: 13,
+                      }}
+                      required
+                    />
+                  </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>ALV (%)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={vat}
-                onChange={(e) => setVat(e.target.value)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-primary)',
-                  width: 90,
-                  fontSize: 13,
-                }}
-                required
-              />
-            </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>Yösiirto 22–07 (snt/kWh)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={transferNight}
+                      onChange={(e) => setTransferNight(e.target.value)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-primary)',
+                        width: 140,
+                        fontSize: 13,
+                      }}
+                      required
+                    />
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Siirtohinta + vero (snt/kWh)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={transfer}
+                    onChange={(e) => setTransfer(e.target.value)}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-primary)',
+                      width: 140,
+                      fontSize: 13,
+                    }}
+                    required
+                  />
+                </div>
+              )}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 18 }}>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={savingSettings}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                {savingSettings ? 'Tallennetaan...' : 'Tallenna ja laske'}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setShowSettings(false)}
-                style={{
-                  padding: '6px 12px',
-                  fontSize: 12,
-                  borderRadius: 6,
-                  background: 'transparent',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                }}
-              >
-                Peruuta
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Marginaali (snt/kWh)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={margin}
+                  onChange={(e) => setMargin(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    width: 110,
+                    fontSize: 13,
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Perusmaksu (€/kk)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={monthlyBaseFee}
+                  onChange={(e) => setMonthlyBaseFee(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    width: 110,
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sulakekoko</label>
+                <select
+                  value={fuseSize}
+                  onChange={(e) => setFuseSize(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    width: 90,
+                    fontSize: 13,
+                  }}
+                >
+                  <option value="25A">25A</option>
+                  <option value="35A">35A</option>
+                  <option value="50A">50A</option>
+                  <option value="63A">63A</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>ALV (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={vat}
+                  onChange={(e) => setVat(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    width: 80,
+                    fontSize: 13,
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 18 }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={savingSettings}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {savingSettings ? 'Tallennetaan...' : 'Tallenna ja laske'}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowSettings(false)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    borderRadius: 6,
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Peruuta
+                </button>
+              </div>
             </div>
           </form>
         )}

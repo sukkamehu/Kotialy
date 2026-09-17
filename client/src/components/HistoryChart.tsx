@@ -29,9 +29,7 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'electricity_price', label: '⚡ Pörssisähkö', color: '#facc15', unit: 'snt/kWh', yAxisId: 'right', dash: '4 2' },
 ];
 
-type TimeRange = '1h' | '6h' | '24h' | '7d';
-
-const HOURS: Record<TimeRange, number> = { '1h': 1, '6h': 6, '24h': 24, '7d': 168 };
+type QuickPreset = '1h' | '6h' | '24h' | 'today' | 'yesterday' | '7d' | '30d' | 'custom_day' | 'custom_range';
 
 interface HistoryRow {
   topic: string;
@@ -44,6 +42,20 @@ interface ChartDataPoint {
   [key: string]: number;
 }
 
+function toLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateInput(str: string, endOfDay = false): number {
+  if (!str) return Date.now();
+  const [y, m, d] = str.split('-').map(Number);
+  const date = new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+  return date.getTime();
+}
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -54,9 +66,16 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       padding: '10px 14px',
       backdropFilter: 'blur(12px)',
       boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+      minWidth: 160,
     }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-        {new Date(label).toLocaleString('fi-FI')}
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
+        {new Date(label).toLocaleString('fi-FI', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })}
       </div>
       {payload.map((p: any) => {
         const topic = CHART_TOPICS.find((t) => t.key === p.dataKey);
@@ -87,7 +106,7 @@ function interpolateTimeline(
   selectedTopics: string[],
   sensorsData: Record<string, HistoryRow[]>,
   priceRows: any[],
-  maxGapMs: number = 30 * 60 * 1000
+  maxGapMs: number = 45 * 60 * 1000
 ): ChartDataPoint[] {
   const seriesMap = new Map<string, { time: number; value: number }[]>();
   const timeSet = new Set<number>();
@@ -100,52 +119,58 @@ function interpolateTimeline(
       .sort((a, b) => a.time - b.time);
 
     seriesMap.set(topic, sortedRows);
-    sortedRows.forEach((r) => timeSet.add(r.time));
+    for (const r of sortedRows) timeSet.add(r.time);
   }
 
-  const parsedPrices = (priceRows || []).map((p) => ({
-    start: Number(p.start_time),
-    end: Number(p.end_time),
-    priceCents: Number(p.price) / 10,
-  }));
-
-  if (selectedTopics.includes('electricity_price')) {
-    parsedPrices.forEach((p) => {
-      timeSet.add(p.start);
-      if (p.end - 1000 > p.start) timeSet.add(p.end - 1000);
-    });
+  if (selectedTopics.includes('electricity_price') && Array.isArray(priceRows)) {
+    const priceSeries: { time: number; value: number }[] = [];
+    for (const p of priceRows) {
+      const t = Number(p.start_time || p.timestamp || p.time);
+      const v = Number(p.price_cents || p.price || 0);
+      if (!isNaN(t)) {
+        priceSeries.push({ time: t, value: v });
+        timeSet.add(t);
+      }
+    }
+    priceSeries.sort((a, b) => a.time - b.time);
+    seriesMap.set('electricity_price', priceSeries);
   }
 
   const allTimes = Array.from(timeSet).sort((a, b) => a - b);
   if (allTimes.length === 0) return [];
 
-  const pointers = new Map<string, number>();
-  for (const topic of selectedTopics) {
-    pointers.set(topic, 0);
+  // Downsample if more than 600 points for smooth performance
+  const sampledTimes: number[] = [];
+  const maxPoints = 500;
+  const step = Math.max(1, Math.floor(allTimes.length / maxPoints));
+  for (let i = 0; i < allTimes.length; i += step) {
+    sampledTimes.push(allTimes[i]);
+  }
+  if (sampledTimes[sampledTimes.length - 1] !== allTimes[allTimes.length - 1]) {
+    sampledTimes.push(allTimes[allTimes.length - 1]);
   }
 
   const result: ChartDataPoint[] = [];
 
-  for (const t of allTimes) {
+  for (const t of sampledTimes) {
     const pt: ChartDataPoint = { time: t };
 
     for (const topic of selectedTopics) {
-      if (topic === 'electricity_price') {
-        const found = parsedPrices.find((p) => t >= p.start && t < p.end);
-        if (found) {
-          pt['electricity_price'] = found.priceCents;
-        }
-        continue;
-      }
-
       const series = seriesMap.get(topic);
       if (!series || series.length === 0) continue;
 
-      let idx = pointers.get(topic) || 0;
-      while (idx + 1 < series.length && series[idx + 1].time <= t) {
-        idx++;
+      let idx = 0;
+      let low = 0;
+      let high = series.length - 1;
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (series[mid].time <= t) {
+          idx = mid;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
       }
-      pointers.set(topic, idx);
 
       const p0 = series[idx];
       const p1 = series[idx + 1];
@@ -163,7 +188,7 @@ function interpolateTimeline(
       } else {
         const gap = p1.time - p0.time;
         if (gap <= maxGapMs) {
-          if (topic === 'main/Defrosting_State') {
+          if (topic === 'main/Defrosting_State' || topic === 'electricity_price') {
             pt[topic] = p0.value;
           } else {
             const ratio = (t - p0.time) / gap;
@@ -183,10 +208,78 @@ export function HistoryChart() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([
     'main/Outside_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp',
   ]);
-  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [preset, setPreset] = useState<QuickPreset>('24h');
+  
+  // Custom date controls
+  const todayStr = useMemo(() => toLocalDateString(new Date()), []);
+  const [selectedDay, setSelectedDay] = useState<string>(todayStr);
+  const [startDate, setStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return toLocalDateString(d);
+  });
+  const [endDate, setEndDate] = useState<string>(todayStr);
+
   const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Compute fromMs and toMs
+  const { fromMs, toMs, rangeDurationHours, formattedRangeLabel } = useMemo(() => {
+    const now = Date.now();
+    let from = now - 24 * 3600 * 1000;
+    let to = now;
+    let label = 'Viimeiset 24 tuntia';
+
+    if (preset === '1h') {
+      from = now - 3600 * 1000;
+      to = now;
+      label = 'Viimeinen 1 tunti';
+    } else if (preset === '6h') {
+      from = now - 6 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 6 tuntia';
+    } else if (preset === '24h') {
+      from = now - 24 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 24 tuntia';
+    } else if (preset === 'today') {
+      from = parseDateInput(todayStr, false);
+      to = now;
+      label = `Tänään (${new Date(from).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })})`;
+    } else if (preset === 'yesterday') {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yStr = toLocalDateString(y);
+      from = parseDateInput(yStr, false);
+      to = parseDateInput(yStr, true);
+      label = `Eilen (${new Date(from).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })})`;
+    } else if (preset === '7d') {
+      from = now - 7 * 24 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 7 päivää';
+    } else if (preset === '30d') {
+      from = now - 30 * 24 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 30 päivää';
+    } else if (preset === 'custom_day') {
+      from = parseDateInput(selectedDay, false);
+      const isToday = selectedDay === todayStr;
+      to = isToday ? now : parseDateInput(selectedDay, true);
+      const dObj = new Date(from);
+      label = `Päivä: ${dObj.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })}`;
+    } else if (preset === 'custom_range') {
+      from = parseDateInput(startDate, false);
+      const isToday = endDate === todayStr;
+      to = isToday ? now : parseDateInput(endDate, true);
+      const startObj = new Date(from);
+      const endObj = new Date(to);
+      label = `Aikajakso: ${startObj.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })} – ${endObj.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric', year: 'numeric' })}`;
+    }
+
+    const durationH = Math.max(1, (to - from) / (3600 * 1000));
+    return { fromMs: from, toMs: to, rangeDurationHours: durationH, formattedRangeLabel: label };
+  }, [preset, selectedDay, startDate, endDate, todayStr]);
 
   const hasRightAxis = useMemo(() => {
     return selectedTopics.some((k) => {
@@ -204,11 +297,6 @@ export function HistoryChart() {
     setLoading(true);
     setError(null);
 
-    const hours = HOURS[timeRange];
-    const now = Date.now();
-    const from = now - hours * 3600 * 1000;
-    const to = now;
-
     const sensorTopics = selectedTopics.filter((t) => t !== 'electricity_price');
     const includePrice = selectedTopics.includes('electricity_price');
 
@@ -216,7 +304,7 @@ export function HistoryChart() {
 
     if (sensorTopics.length > 0) {
       fetches.push(
-        apiFetch(`/api/history/multi?topics=${encodeURIComponent(sensorTopics.join(','))}&hours=${hours}`)
+        apiFetch(`/api/history/multi?topics=${encodeURIComponent(sensorTopics.join(','))}&from=${fromMs}&to=${toMs}`)
           .then((r) => {
             if (!r.ok) throw new Error(`Historiatietojen haku epäonnistui (${r.status})`);
             return r.json();
@@ -227,7 +315,7 @@ export function HistoryChart() {
 
     if (includePrice) {
       fetches.push(
-        apiFetch(`/api/nordpool/prices?from=${from}&to=${to}`)
+        apiFetch(`/api/nordpool/prices?from=${fromMs}&to=${toMs}`)
           .then((r) => {
             if (!r.ok) throw new Error(`Sähkön hintatietojen haku epäonnistui (${r.status})`);
             return r.json();
@@ -261,7 +349,7 @@ export function HistoryChart() {
       });
 
     return () => { cancelled = true; };
-  }, [selectedTopics, timeRange]);
+  }, [selectedTopics, fromMs, toMs]);
 
   function toggleTopic(key: string) {
     setSelectedTopics((prev) =>
@@ -269,30 +357,220 @@ export function HistoryChart() {
     );
   }
 
+  function stepDay(offset: number) {
+    const cur = new Date(selectedDay);
+    cur.setDate(cur.getDate() + offset);
+    const newStr = toLocalDateString(cur);
+    if (newStr <= todayStr) {
+      setSelectedDay(newStr);
+      setPreset('custom_day');
+    }
+  }
+
   function formatXTick(value: number) {
     const d = new Date(value);
-    if (timeRange === '7d') return d.toLocaleDateString('fi-FI', { day: '2-digit', month: '2-digit' });
+    if (rangeDurationHours > 72) {
+      return d.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' });
+    }
+    if (rangeDurationHours > 24) {
+      return d.toLocaleDateString('fi-FI', { weekday: 'short', hour: '2-digit' });
+    }
     return d.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
   }
 
   return (
     <div className="card">
-      <div className="card-header">
-        <span className="card-icon">📈</span>
-        <span className="card-title">Trendit ja historia</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {(['1h', '6h', '24h', '7d'] as TimeRange[]).map((r) => (
-            <button
-              key={r}
-              className={`btn btn-sm ${timeRange === r ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setTimeRange(r)}
-              id={`btn-range-${r}`}
-            >
-              {r}
-            </button>
-          ))}
+      <div className="card-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="card-icon">📈</span>
+            <span className="card-title" style={{ fontSize: 17 }}>Trendit ja historia</span>
+          </div>
+
+          {/* Quick preset buttons */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+            {[
+              { id: '1h', label: '1h' },
+              { id: '6h', label: '6h' },
+              { id: '24h', label: '24h' },
+              { id: 'today', label: 'Tänään' },
+              { id: 'yesterday', label: 'Eilen' },
+              { id: '7d', label: '7 pv' },
+              { id: '30d', label: '30 pv' },
+              { id: 'custom_day', label: '📅 Päivä' },
+              { id: 'custom_range', label: '🗓️ Aikajakso' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                className={`btn btn-sm ${preset === p.id ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setPreset(p.id as QuickPreset)}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  fontWeight: preset === p.id ? 700 : 500,
+                  borderRadius: 8,
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Date Selector Toolbars */}
+        {(preset === 'custom_day' || preset === 'today' || preset === 'yesterday') && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(255,255,255,0.03)',
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.06)',
+            flexWrap: 'wrap',
+            gap: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => stepDay(-1)}
+                style={{ padding: '4px 10px', fontSize: 12 }}
+                title="Edellinen päivä"
+              >
+                ◀ Edellinen
+              </button>
+              
+              <input
+                type="date"
+                max={todayStr}
+                value={preset === 'today' ? todayStr : preset === 'yesterday' ? (() => { const d = new Date(); d.setDate(d.getDate() - 1); return toLocalDateString(d); })() : selectedDay}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDay(e.target.value);
+                    setPreset('custom_day');
+                  }
+                }}
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 6,
+                  color: '#60a5fa',
+                  padding: '4px 8px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              />
+
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => stepDay(1)}
+                disabled={(preset === 'today' ? todayStr : selectedDay) >= todayStr}
+                style={{ padding: '4px 10px', fontSize: 12, opacity: (preset === 'today' ? todayStr : selectedDay) >= todayStr ? 0.3 : 1 }}
+                title="Seuraava päivä"
+              >
+                Seuraava ▶
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+              📅 {formattedRangeLabel}
+            </div>
+          </div>
+        )}
+
+        {preset === 'custom_range' && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(255,255,255,0.03)',
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.06)',
+            flexWrap: 'wrap',
+            gap: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Alkaen:</span>
+              <input
+                type="date"
+                max={endDate || todayStr}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 6,
+                  color: '#60a5fa',
+                  padding: '4px 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              />
+
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Päättyen:</span>
+              <input
+                type="date"
+                min={startDate}
+                max={todayStr}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 6,
+                  color: '#60a5fa',
+                  padding: '4px 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              />
+
+              {/* Quick shortcuts */}
+              <div style={{ display: 'flex', gap: 4, marginLeft: 6 }}>
+                {[
+                  { label: '3 pv', days: 3 },
+                  { label: '7 pv', days: 7 },
+                  { label: '14 pv', days: 14 },
+                  { label: '30 pv', days: 30 },
+                ].map((sc) => (
+                  <button
+                    key={sc.label}
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() - sc.days);
+                      setStartDate(toLocalDateString(d));
+                      setEndDate(todayStr);
+                    }}
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-secondary)',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {sc.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+              📅 {formattedRangeLabel}
+            </div>
+          </div>
+        )}
       </div>
+
       <div className="card-body">
         {/* Topic toggles */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
@@ -329,22 +607,22 @@ export function HistoryChart() {
 
         {/* Chart */}
         {loading ? (
-          <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Ladataan trenditietoja...</span>
           </div>
         ) : error ? (
-          <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'var(--offline)', fontSize: 13 }}>{error}</span>
           </div>
         ) : data.length === 0 ? (
-          <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-            <span style={{ fontSize: 24 }}>📊</span>
+          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
+            <span style={{ fontSize: 28 }}>📊</span>
             <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              {selectedTopics.length === 0 ? 'Valitse kuvaajassa näytettävät kohteet yltä' : 'Ei vielä historiadataa — tiedot kertyvät ajan kuluessa'}
+              {selectedTopics.length === 0 ? 'Valitse kuvaajassa näytettävät kohteet yltä' : 'Ei historiadataa valitulle aikajaksolle'}
             </span>
           </div>
         ) : (
-          <div className="chart-container" style={{ height: 320 }}>
+          <div className="chart-container" style={{ height: 340 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 5, right: hasRightAxis ? 10 : 15, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -403,4 +681,3 @@ export function HistoryChart() {
     </div>
   );
 }
-

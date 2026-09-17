@@ -79,9 +79,22 @@ class ApcService {
       const currentPriceObj = nordpool.getCurrentPrice();
       const currentPrice = currentPriceObj ? currentPriceObj.price / 10 : null;
 
-      // Find cheapest DHW window in the next 24h
+      // Find cheapest DHW window in the next 24h (accounting for night transfer discount)
       const dhwHours = settings.dhw_duration_hours || 2;
-      const cheapestDhw = nordpool.findCheapestWindow(dhwHours, now, now + 24 * 60 * 60 * 1000);
+      const costSettings = db.getCostSettings();
+      const getEffectivePrice = (p) => {
+        const baseSpotCents = p.price / 10;
+        if (costSettings.transfer_mode === 'day_night') {
+          const h = new Date(p.start_time).getHours();
+          const isNight = h >= 22 || h < 7;
+          const transferCents = isNight
+            ? (costSettings.transfer_night_cents_kwh != null ? costSettings.transfer_night_cents_kwh : 3.12)
+            : (costSettings.transfer_day_cents_kwh != null ? costSettings.transfer_day_cents_kwh : 5.11);
+          return (baseSpotCents + transferCents) * 10;
+        }
+        return p.price;
+      };
+      const cheapestDhw = nordpool.findCheapestWindow(dhwHours, now, now + 24 * 60 * 60 * 1000, getEffectivePrice);
 
       // Compute 24h forecast plan (converts prices to c/kWh internally)
       this.computedPlan = this.generatePlan(prices, settings, cheapestDhw);

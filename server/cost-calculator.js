@@ -100,7 +100,17 @@ function calculateDay(dateStr) {
 
   const vatMultiplier = 1 + (settings.vat_percent || 25.5) / 100;
   const marginCents = settings.margin_cents_kwh || 0.5;
-  const transferCents = settings.transfer_cents_kwh || 4.5;
+
+  const getTransferCents = (timeMs) => {
+    if (settings.transfer_mode === 'day_night') {
+      const h = new Date(timeMs).getHours();
+      const isNight = h >= 22 || h < 7;
+      return isNight
+        ? (settings.transfer_night_cents_kwh != null ? settings.transfer_night_cents_kwh : 3.12)
+        : (settings.transfer_day_cents_kwh != null ? settings.transfer_day_cents_kwh : 5.11);
+    }
+    return settings.transfer_cents_kwh || 4.50;
+  };
 
   while (currentSlotStart < effectiveEnd) {
     const slotEnd = Math.min(currentSlotStart + SLOT_MS, effectiveEnd);
@@ -140,11 +150,12 @@ function calculateDay(dateStr) {
 
     // Spot price with VAT in c/kWh: (EUR/MWh / 10) * vatMultiplier
     const spotPriceCentsKwh = (rawPriceEurMWh / 10) * vatMultiplier;
-    const totalElecPriceCentsKwh = spotPriceCentsKwh + marginCents + transferCents;
+    const slotTransferCents = getTransferCents(currentSlotStart);
+    const totalElecPriceCentsKwh = spotPriceCentsKwh + marginCents + slotTransferCents;
 
     // Costs
     const slotSpotCostEur = slotTotalConsKwh * (spotPriceCentsKwh / 100);
-    const slotTransferCostEur = slotTotalConsKwh * ((marginCents + transferCents) / 100);
+    const slotTransferCostEur = slotTotalConsKwh * ((marginCents + slotTransferCents) / 100);
 
     totalSpotCostEur += slotSpotCostEur;
     totalTransferCostEur += slotTransferCostEur;

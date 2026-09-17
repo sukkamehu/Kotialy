@@ -344,13 +344,22 @@ function getDailyCost(dateStr) {
 function getCostSettings() {
   const rows = stmtGetCostSettings.all();
   const settings = {
-    margin_cents_kwh: 0.50,    // 0.50 c/kWh välityspalkkio
-    transfer_cents_kwh: 4.50,  // 4.50 c/kWh siirtohinta + sähkövero
-    vat_percent: 25.5,         // ALV 25.5%
+    margin_cents_kwh: 0.286,         // 0.286 c/kWh välityspalkkio (sis. alv)
+    transfer_mode: 'day_night',       // 'flat' | 'day_night'
+    transfer_cents_kwh: 4.50,        // Yksiaikainen siirtohinta (fallback)
+    transfer_day_cents_kwh: 5.11,    // Päiväsiirto klo 07–22 (alv 25,5 %)
+    transfer_night_cents_kwh: 3.12,  // Yösiirto klo 22–07 (alv 25,5 %)
+    fuse_size: '25A',                // Sulakekoko
+    monthly_base_fee_eur: 0,         // Kiinteää perusmaksua ei lasketa lämmityksen kuluihin
+    vat_percent: 25.5,               // ALV 25.5%
   };
   for (const r of rows) {
-    const n = parseFloat(r.value);
-    if (!isNaN(n)) settings[r.key] = n;
+    if (r.key === 'transfer_mode' || r.key === 'fuse_size') {
+      settings[r.key] = r.value;
+    } else {
+      const n = parseFloat(r.value);
+      if (!isNaN(n)) settings[r.key] = n;
+    }
   }
   return settings;
 }

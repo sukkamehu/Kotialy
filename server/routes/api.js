@@ -404,16 +404,40 @@ router.get('/costs/settings', (req, res) => {
 
 /**
  * POST /api/costs/settings
- * Body: { margin_cents_kwh, transfer_cents_kwh, vat_percent }
+ * Body: { margin_cents_kwh, transfer_mode, transfer_cents_kwh, transfer_day_cents_kwh, transfer_night_cents_kwh, fuse_size, monthly_base_fee_eur, vat_percent }
  */
 router.post('/costs/settings', requireAdmin, express.json(), (req, res) => {
-  const { margin_cents_kwh, transfer_cents_kwh, vat_percent } = req.body || {};
+  const {
+    margin_cents_kwh,
+    transfer_mode,
+    transfer_cents_kwh,
+    transfer_day_cents_kwh,
+    transfer_night_cents_kwh,
+    fuse_size,
+    monthly_base_fee_eur,
+    vat_percent,
+  } = req.body || {};
 
   if (margin_cents_kwh != null && !isNaN(parseFloat(margin_cents_kwh))) {
     updateCostSetting('margin_cents_kwh', parseFloat(margin_cents_kwh));
   }
+  if (transfer_mode != null) {
+    updateCostSetting('transfer_mode', transfer_mode === 'day_night' ? 'day_night' : 'flat');
+  }
   if (transfer_cents_kwh != null && !isNaN(parseFloat(transfer_cents_kwh))) {
     updateCostSetting('transfer_cents_kwh', parseFloat(transfer_cents_kwh));
+  }
+  if (transfer_day_cents_kwh != null && !isNaN(parseFloat(transfer_day_cents_kwh))) {
+    updateCostSetting('transfer_day_cents_kwh', parseFloat(transfer_day_cents_kwh));
+  }
+  if (transfer_night_cents_kwh != null && !isNaN(parseFloat(transfer_night_cents_kwh))) {
+    updateCostSetting('transfer_night_cents_kwh', parseFloat(transfer_night_cents_kwh));
+  }
+  if (fuse_size != null) {
+    updateCostSetting('fuse_size', String(fuse_size));
+  }
+  if (monthly_base_fee_eur != null && !isNaN(parseFloat(monthly_base_fee_eur))) {
+    updateCostSetting('monthly_base_fee_eur', parseFloat(monthly_base_fee_eur));
   }
   if (vat_percent != null && !isNaN(parseFloat(vat_percent))) {
     updateCostSetting('vat_percent', parseFloat(vat_percent));
@@ -421,6 +445,13 @@ router.post('/costs/settings', requireAdmin, express.json(), (req, res) => {
 
   // Recalculate recent history with new price settings
   costCalculator.recalculateRecentDays(30);
+
+  // Trigger APC evaluation with updated prices
+  try {
+    apcService.evaluate();
+  } catch (err) {
+    // ignore
+  }
 
   res.json({
     ok: true,

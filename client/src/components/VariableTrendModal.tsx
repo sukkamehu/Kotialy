@@ -19,24 +19,93 @@ interface VariableTrendModalProps {
   onClose: () => void;
 }
 
-type TimeRange = '6h' | '24h' | '3d' | '7d';
-
-const HOURS_MAP: Record<TimeRange, number> = {
-  '6h': 6,
-  '24h': 24,
-  '3d': 72,
-  '7d': 168,
-};
+type TrendPreset = '6h' | '24h' | 'today' | 'yesterday' | '7d' | '30d' | 'custom_day' | 'custom_range';
 
 interface HistoryPoint {
   time: number;
   value: number;
 }
 
+function toLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateInput(str: string, endOfDay = false): number {
+  if (!str) return Date.now();
+  const [y, m, d] = str.split('-').map(Number);
+  const date = new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+  return date.getTime();
+}
+
 export function VariableTrendModal({ target, onClose }: VariableTrendModalProps) {
-  const [range, setRange] = useState<TimeRange>('24h');
+  const [preset, setPreset] = useState<TrendPreset>('24h');
+  const todayStr = useMemo(() => toLocalDateString(new Date()), []);
+  const [selectedDay, setSelectedDay] = useState<string>(todayStr);
+  const [startDate, setStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return toLocalDateString(d);
+  });
+  const [endDate, setEndDate] = useState<string>(todayStr);
+
   const [data, setData] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Compute fromMs and toMs
+  const { fromMs, toMs, rangeDurationHours, formattedRangeLabel } = useMemo(() => {
+    const now = Date.now();
+    let from = now - 24 * 3600 * 1000;
+    let to = now;
+    let label = 'Viimeiset 24 tuntia';
+
+    if (preset === '6h') {
+      from = now - 6 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 6 tuntia';
+    } else if (preset === '24h') {
+      from = now - 24 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 24 tuntia';
+    } else if (preset === 'today') {
+      from = parseDateInput(todayStr, false);
+      to = now;
+      label = `Tänään (${new Date(from).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })})`;
+    } else if (preset === 'yesterday') {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yStr = toLocalDateString(y);
+      from = parseDateInput(yStr, false);
+      to = parseDateInput(yStr, true);
+      label = `Eilen (${new Date(from).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })})`;
+    } else if (preset === '7d') {
+      from = now - 7 * 24 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 7 päivää';
+    } else if (preset === '30d') {
+      from = now - 30 * 24 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 30 päivää';
+    } else if (preset === 'custom_day') {
+      from = parseDateInput(selectedDay, false);
+      const isToday = selectedDay === todayStr;
+      to = isToday ? now : parseDateInput(selectedDay, true);
+      const dObj = new Date(from);
+      label = `Päivä: ${dObj.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })}`;
+    } else if (preset === 'custom_range') {
+      from = parseDateInput(startDate, false);
+      const isToday = endDate === todayStr;
+      to = isToday ? now : parseDateInput(endDate, true);
+      const startObj = new Date(from);
+      const endObj = new Date(to);
+      label = `Aikajakso: ${startObj.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })} – ${endObj.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric', year: 'numeric' })}`;
+    }
+
+    const durationH = Math.max(1, (to - from) / (3600 * 1000));
+    return { fromMs: from, toMs: to, rangeDurationHours: durationH, formattedRangeLabel: label };
+  }, [preset, selectedDay, startDate, endDate, todayStr]);
 
   useEffect(() => {
     if (!target) return;
@@ -54,8 +123,7 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
     let isMounted = true;
     setLoading(true);
 
-    const hours = HOURS_MAP[range];
-    apiFetch(`/api/history?topic=${encodeURIComponent(target.topic)}&hours=${hours}`)
+    apiFetch(`/api/history?topic=${encodeURIComponent(target.topic)}&from=${fromMs}&to=${toMs}`)
       .then((res) => res.json())
       .then((json) => {
         if (!isMounted) return;
@@ -75,7 +143,7 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
     return () => {
       isMounted = false;
     };
-  }, [target, range]);
+  }, [target, fromMs, toMs]);
 
   const stats = useMemo(() => {
     if (!data.length) return null;
@@ -95,12 +163,25 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
   const color = target.color || '#38bdf8';
   const unit = target.unit || '';
 
+  function stepDay(offset: number) {
+    const cur = new Date(selectedDay);
+    cur.setDate(cur.getDate() + offset);
+    const newStr = toLocalDateString(cur);
+    if (newStr <= todayStr) {
+      setSelectedDay(newStr);
+      setPreset('custom_day');
+    }
+  }
+
   const formatTimeTick = (ts: number) => {
     const d = new Date(ts);
-    if (range === '6h' || range === '24h') {
-      return d.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+    if (rangeDurationHours > 72) {
+      return d.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' });
     }
-    return d.toLocaleDateString('fi-FI', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    if (rangeDurationHours > 24) {
+      return d.toLocaleDateString('fi-FI', { weekday: 'short', hour: '2-digit' });
+    }
+    return d.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
   };
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -137,8 +218,6 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
     );
   };
 
-  if (!target) return null;
-
   return createPortal(
     <div
       style={{
@@ -161,13 +240,13 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
       <div
         className="card"
         style={{
-          maxWidth: 720,
+          maxWidth: 760,
           width: '100%',
           boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
           borderColor: 'rgba(255,255,255,0.15)',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '90vh',
+          maxHeight: '92vh',
           overflow: 'hidden',
         }}
       >
@@ -178,160 +257,280 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
             borderBottom: '1px solid var(--border)',
             padding: '14px 18px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            flexDirection: 'column',
+            gap: 12,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>📈</span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>
-                {target.label}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: color,
+                  boxShadow: `0 0 10px ${color}`,
+                }}
+              />
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {target.label}
+                </h3>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.topic}</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{target.topic}</div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Time Range Selector */}
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: 2 }}>
-              {(['6h', '24h', '3d', '7d'] as TimeRange[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRange(r)}
-                  style={{
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    fontWeight: range === r ? 700 : 500,
-                    borderRadius: 6,
-                    border: 'none',
-                    background: range === r ? color : 'transparent',
-                    color: range === r ? '#000' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {r === '24h' ? '24h (Päivä)' : r}
-                </button>
-              ))}
             </div>
 
-            {/* Close button */}
             <button
-              type="button"
               onClick={onClose}
+              className="btn btn-ghost"
               style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                color: 'var(--text-muted)',
                 width: 32,
                 height: 32,
+                padding: 0,
+                borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: 16,
-                marginLeft: 4,
+                fontSize: 18,
+                color: 'var(--text-muted)',
               }}
               title="Sulje"
             >
               ✕
             </button>
           </div>
-        </div>
 
-        {/* Modal Body */}
-        <div className="card-body" style={{ padding: '16px 18px', overflowY: 'auto' }}>
-          {/* KPI Summary Tiles */}
-          {stats && (
-            <div
-              className="metrics-grid metrics-grid-4"
-              style={{
-                marginBottom: 16,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-                gap: 10,
-              }}
-            >
-              <div className="metric-box" style={{ padding: '10px 12px' }}>
-                <span className="metric-label" style={{ fontSize: 10 }}>Nykyinen / Viimeisin</span>
-                <span className="metric-value" style={{ color, fontSize: 18 }}>
-                  {stats.latest != null ? stats.latest.toFixed(1) : '—'}
-                  {unit && <span className="metric-unit" style={{ fontSize: 12 }}>{unit}</span>}
-                </span>
+          {/* Quick preset tabs */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+            {[
+              { id: '6h', label: '6h' },
+              { id: '24h', label: '24h' },
+              { id: 'today', label: 'Tänään' },
+              { id: 'yesterday', label: 'Eilen' },
+              { id: '7d', label: '7 pv' },
+              { id: '30d', label: '30 pv' },
+              { id: 'custom_day', label: '📅 Päivä' },
+              { id: 'custom_range', label: '🗓️ Jakso' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                className={`btn btn-sm ${preset === p.id ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setPreset(p.id as TrendPreset)}
+                style={{
+                  padding: '3px 9px',
+                  fontSize: 11,
+                  fontWeight: preset === p.id ? 700 : 500,
+                  borderRadius: 6,
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date Selector Toolbars */}
+          {(preset === 'custom_day' || preset === 'today' || preset === 'yesterday') && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(255,255,255,0.03)',
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid rgba(255,255,255,0.06)',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => stepDay(-1)}
+                  style={{ padding: '2px 8px', fontSize: 11 }}
+                >
+                  ◀ Edellinen
+                </button>
+                
+                <input
+                  type="date"
+                  max={todayStr}
+                  value={preset === 'today' ? todayStr : preset === 'yesterday' ? (() => { const d = new Date(); d.setDate(d.getDate() - 1); return toLocalDateString(d); })() : selectedDay}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedDay(e.target.value);
+                      setPreset('custom_day');
+                    }
+                  }}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 4,
+                    color: '#60a5fa',
+                    padding: '2px 6px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                />
+
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => stepDay(1)}
+                  disabled={(preset === 'today' ? todayStr : selectedDay) >= todayStr}
+                  style={{ padding: '2px 8px', fontSize: 11, opacity: (preset === 'today' ? todayStr : selectedDay) >= todayStr ? 0.3 : 1 }}
+                >
+                  Seuraava ▶
+                </button>
               </div>
-              <div className="metric-box" style={{ padding: '10px 12px' }}>
-                <span className="metric-label" style={{ fontSize: 10 }}>Minimi ({range})</span>
-                <span className="metric-value" style={{ fontSize: 18 }}>
-                  {stats.min.toFixed(1)}
-                  {unit && <span className="metric-unit" style={{ fontSize: 12 }}>{unit}</span>}
-                </span>
-              </div>
-              <div className="metric-box" style={{ padding: '10px 12px' }}>
-                <span className="metric-label" style={{ fontSize: 10 }}>Maksimi ({range})</span>
-                <span className="metric-value" style={{ fontSize: 18 }}>
-                  {stats.max.toFixed(1)}
-                  {unit && <span className="metric-unit" style={{ fontSize: 12 }}>{unit}</span>}
-                </span>
-              </div>
-              <div className="metric-box" style={{ padding: '10px 12px' }}>
-                <span className="metric-label" style={{ fontSize: 10 }}>Keskiarvo</span>
-                <span className="metric-value" style={{ fontSize: 18 }}>
-                  {stats.avg.toFixed(1)}
-                  {unit && <span className="metric-unit" style={{ fontSize: 12 }}>{unit}</span>}
-                </span>
+
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                📅 {formattedRangeLabel}
               </div>
             </div>
           )}
 
-          {/* Chart Container */}
-          <div
-            style={{
-              height: 280,
-              width: '100%',
-              background: 'rgba(0,0,0,0.2)',
-              borderRadius: 10,
-              padding: '12px 10px 4px 0',
-              position: 'relative',
-            }}
-          >
+          {preset === 'custom_range' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(255,255,255,0.03)',
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid rgba(255,255,255,0.06)',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Alkaen:</span>
+                <input
+                  type="date"
+                  max={endDate || todayStr}
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 4,
+                    color: '#60a5fa',
+                    padding: '2px 6px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                />
+
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Päättyen:</span>
+                <input
+                  type="date"
+                  min={startDate}
+                  max={todayStr}
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 4,
+                    color: '#60a5fa',
+                    padding: '2px 6px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                📅 {formattedRangeLabel}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Content Body */}
+        <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+          {/* Quick Statistics Banner */}
+          {stats && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 8,
+                background: 'rgba(255,255,255,0.02)',
+                padding: '10px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Nykyinen</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color }}>
+                  {stats.latest !== null ? stats.latest.toFixed(1) : '-'} {unit}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Minimi</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {stats.min.toFixed(1)} {unit}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Maksimi</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {stats.max.toFixed(1)} {unit}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Keskiarvo</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {stats.avg.toFixed(1)} {unit}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Chart Area */}
+          <div style={{ height: 280, width: '100%', position: 'relative' }}>
             {loading ? (
               <div
                 style={{
+                  position: 'absolute',
+                  inset: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  height: '100%',
-                  color: 'var(--text-muted)',
-                  fontSize: 13,
+                  background: 'rgba(15, 23, 42, 0.4)',
+                  backdropFilter: 'blur(2px)',
+                  borderRadius: 8,
                 }}
               >
-                Ladataan trendiä...
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Ladataan trenditietoja...</div>
               </div>
             ) : data.length === 0 ? (
               <div
                 style={{
+                  height: '100%',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  height: '100%',
-                  color: 'var(--text-muted)',
-                  fontSize: 13,
+                  gap: 8,
                 }}
               >
-                Ei vielä mittausdataa tälle aikavälille ({range}).
+                <span style={{ fontSize: 24 }}>📉</span>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  Ei historiatietoja valitulle aikajaksolle
+                </span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
+                <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id={`gradient-${target.topic.replace(/[^a-zA-Z0-9]/g, '_')}`} x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={`grad-${target.topic}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={color} stopOpacity={0.4} />
                       <stop offset="95%" stopColor={color} stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                   <XAxis
                     dataKey="time"
                     type="number"
@@ -340,25 +539,30 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
                     stroke="var(--text-muted)"
                     fontSize={11}
                     tickLine={false}
+                    axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                   />
                   <YAxis
                     stroke="var(--text-muted)"
                     fontSize={11}
                     tickLine={false}
+                    axisLine={false}
                     domain={['auto', 'auto']}
-                    tickFormatter={(val) => (unit === 'W' && Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(1)}k` : `${val}`)}
+                    tickFormatter={(val) => {
+                      if (unit === 'W' && Math.abs(val) >= 1000) return `${(val / 1000).toFixed(0)}k`;
+                      return String(Math.round(val * 10) / 10);
+                    }}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   {stats && (
                     <ReferenceLine
                       y={stats.avg}
-                      stroke="rgba(255,255,255,0.2)"
-                      strokeDasharray="4 4"
+                      stroke="rgba(255,255,255,0.25)"
+                      strokeDasharray="3 3"
                       label={{
-                        value: `K.a ${stats.avg.toFixed(1)}${unit}`,
+                        value: `Ka: ${stats.avg.toFixed(1)}`,
                         fill: 'var(--text-muted)',
                         fontSize: 10,
-                        position: 'right',
+                        position: 'insideTopLeft',
                       }}
                     />
                   )}
@@ -366,41 +570,15 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
                     type="monotone"
                     dataKey="value"
                     stroke={color}
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                     fillOpacity={1}
-                    fill={`url(#gradient-${target.topic.replace(/[^a-zA-Z0-9]/g, '_')})`}
-                    dot={false}
-                    activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2, fill: color }}
+                    fill={`url(#grad-${target.topic})`}
+                    isAnimationActive={false}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             )}
           </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div
-          style={{
-            borderTop: '1px solid var(--border)',
-            padding: '12px 18px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            fontSize: 12,
-            color: 'var(--text-muted)',
-          }}
-        >
-          <span>
-            {stats ? `Yhteensä ${stats.count.toLocaleString('fi-FI')} mittauspistettä` : ''}
-          </span>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onClose}
-            style={{ fontSize: 13, padding: '4px 14px' }}
-          >
-            Sulje
-          </button>
         </div>
       </div>
     </div>,
