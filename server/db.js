@@ -411,6 +411,10 @@ function getApcSettings() {
     dhw_duration_hours: 2,
     override_until: 0,
     override_directive: null,
+    heating_cutoff_c: 13,
+    prevent_curve_shift_above_cutoff: true,
+    auto_mode_switch_enabled: true,
+    auto_mode_switch_hysteresis_c: 1.0,
   };
 
   for (const r of rows) {
@@ -418,6 +422,10 @@ function getApcSettings() {
       settings.enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'dhw_boost_on_cheap') {
       settings.dhw_boost_on_cheap = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'prevent_curve_shift_above_cutoff') {
+      settings.prevent_curve_shift_above_cutoff = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'auto_mode_switch_enabled') {
+      settings.auto_mode_switch_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'mode' || r.key === 'override_directive') {
       settings[r.key] = r.value;
     } else {

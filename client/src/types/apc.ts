@@ -18,6 +18,10 @@ export interface ApcSettings {
   dhw_duration_hours: number;
   override_until: number;
   override_directive: ApcDirective | null;
+  heating_cutoff_c?: number;
+  prevent_curve_shift_above_cutoff?: boolean;
+  auto_mode_switch_enabled?: boolean;
+  auto_mode_switch_hysteresis_c?: number;
 }
 
 export interface ApcPlanSlot {

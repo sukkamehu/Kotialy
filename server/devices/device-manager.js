@@ -33,6 +33,10 @@ class DeviceManager {
     return results;
   }
 
+  async sendPanasonicCommand(setTopic, value) {
+    return panasonicDriver.sendCommand(setTopic, value);
+  }
+
   getAllStatuses() {
     return this.drivers.map((d) => d.getStatus());
   }

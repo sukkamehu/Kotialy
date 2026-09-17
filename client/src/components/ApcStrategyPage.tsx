@@ -90,6 +90,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [cheapThresh, setCheapThresh] = useState<string>(String(status?.settings?.cheap_threshold_cents ?? 3.0));
   const [peakThresh, setPeakThresh] = useState<string>(String(status?.settings?.peak_threshold_cents ?? 20.0));
   const [dhwHours, setDhwHours] = useState<string>(String(status?.settings?.dhw_duration_hours ?? 2));
+  const [heatingCutoff, setHeatingCutoff] = useState<string>(String(status?.settings?.heating_cutoff_c ?? 13));
+  const [preventCurveShift, setPreventCurveShift] = useState<boolean>(status?.settings?.prevent_curve_shift_above_cutoff !== false);
+  const [autoModeSwitch, setAutoModeSwitch] = useState<boolean>(status?.settings?.auto_mode_switch_enabled !== false);
+  const [autoModeHysteresis, setAutoModeHysteresis] = useState<string>(String(status?.settings?.auto_mode_switch_hysteresis_c ?? 1.0));
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Sähkösopimus & Siirtohinnat state
@@ -141,6 +145,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setCheapThresh(String(status.settings.cheap_threshold_cents ?? 3.0));
       setPeakThresh(String(status.settings.peak_threshold_cents ?? 20.0));
       setDhwHours(String(status.settings.dhw_duration_hours ?? 2));
+      setHeatingCutoff(String(status.settings.heating_cutoff_c ?? 13));
+      setPreventCurveShift(status.settings.prevent_curve_shift_above_cutoff !== false);
+      setAutoModeSwitch(status.settings.auto_mode_switch_enabled !== false);
+      setAutoModeHysteresis(String(status.settings.auto_mode_switch_hysteresis_c ?? 1.0));
     }
   }, [status?.settings]);
 
@@ -201,6 +209,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       cheap_threshold_cents: parseFloat(cheapThresh) || 3.0,
       peak_threshold_cents: parseFloat(peakThresh) || 20.0,
       dhw_duration_hours: parseInt(dhwHours, 10) || 2,
+      heating_cutoff_c: parseFloat(heatingCutoff) || 13,
+      prevent_curve_shift_above_cutoff: Boolean(preventCurveShift),
+      auto_mode_switch_enabled: Boolean(autoModeSwitch),
+      auto_mode_switch_hysteresis_c: parseFloat(autoModeHysteresis) || 1.0,
     });
     if (ok) {
       setSaveSuccess(true);
@@ -1017,6 +1029,104 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                   Tämän ylittyessä siirrytään aina välittömästi säästötilaan (Setback).
                 </div>
+              </div>
+            </div>
+
+            {/* Column D: Kesätila & Lämmityksen Katkaisuraja */}
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 10 }}>
+                <span style={{ fontSize: 20 }}>☀️</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Kesätila & Lämmityksen Katkaisuraja
+                </span>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                  Lämmityksen katkaisuraja (°C)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={heatingCutoff}
+                  onChange={(e) => setHeatingCutoff(e.target.value)}
+                  disabled={readOnly}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#38bdf8',
+                    fontSize: 14,
+                    fontWeight: 700,
+                  }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Estää huone- ja lattialämmityksen käynnistymisen, kun ulkona on tätä lämpimämpää.
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                  Automaattisen tilanvaihdon hystereesi (±°C)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={autoModeHysteresis}
+                  onChange={(e) => setAutoModeHysteresis(e.target.value)}
+                  disabled={readOnly}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'var(--text-primary)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Estää tilojen edestakaisen vaihtumisen rajalla (esim. 1.0 °C).
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={preventCurveShift}
+                    onChange={(e) => setPreventCurveShift(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#10b981' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Estä APC-käyränsiirto (Boost)</strong> kun ulkolämpötila ylittää katkaisurajan
+                  </span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={autoModeSwitch}
+                    onChange={(e) => setAutoModeSwitch(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#38bdf8' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Automaattinen kesätila</strong> (Vaihda Mode 3: Vain KV ≥ {(parseFloat(heatingCutoff) || 13) + (parseFloat(autoModeHysteresis) || 1.0)} °C / Mode 4: Lämmitys+KV ≤ {(parseFloat(heatingCutoff) || 13) - (parseFloat(autoModeHysteresis) || 1.0)} °C)
+                  </span>
+                </label>
               </div>
             </div>
           </div>

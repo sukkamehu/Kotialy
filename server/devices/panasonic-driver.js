@@ -56,7 +56,7 @@ class PanasonicDriver {
    * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, isDhwSlot }
    */
   async applyDirective(directive, context) {
-    const { settings, price, bufferTemp, dhwTemp, isDhwSlot } = context;
+    const { settings, price, outdoorTemp, bufferTemp, dhwTemp, isDhwSlot } = context;
     const now = Date.now();
 
     const baseShift = settings.base_z1_shift ?? 0;
@@ -104,6 +104,16 @@ class PanasonicDriver {
         targetDhw = dhwNormalTarget;
         forceDhw = 0;
         break;
+    }
+
+    // Safeguard: Inhibit positive curve shift (boost) if outdoor temperature exceeds heating cutoff
+    const heatingCutoff = settings.heating_cutoff_c != null ? settings.heating_cutoff_c : 13;
+    const isAboveCutoff = outdoorTemp != null && outdoorTemp >= heatingCutoff;
+    if (isAboveCutoff && settings.prevent_curve_shift_above_cutoff !== false) {
+      if (targetShift > baseShift) {
+        log(`Outdoor temp (${outdoorTemp}°C) >= heating cutoff (${heatingCutoff}°C): Inhibiting buffer boost shift ${targetShift}°C -> ${Math.min(0, baseShift)}°C`);
+        targetShift = Math.min(0, baseShift);
+      }
     }
 
     // Safeguard: If DHW temp is dangerously low (< dhw_min_c), always ensure DHW heat
