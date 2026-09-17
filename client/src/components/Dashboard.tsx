@@ -16,6 +16,7 @@ import { NordpoolPanel } from './NordpoolPanel';
 import { WeatherPanel } from './WeatherPanel';
 import { CameraCard } from './CameraCard';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
+import { OutdoorWeatherModal } from './OutdoorWeatherModal';
 import { PanasonicSettingsCard } from './PanasonicSettingsCard';
 import { ApcStrategyPage } from './ApcStrategyPage';
 import { PullToRefresh } from './PullToRefresh';
@@ -55,6 +56,7 @@ export function Dashboard({
   const hasAnyData = Object.keys(state).length > 0;
   const [activeTab, setActiveTab] = useState<'dashboard' | 'apc_strategy' | 'heatpump_guide'>('dashboard');
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
+  const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
   const readOnly = role === 'viewer';
 
   return (
@@ -70,6 +72,7 @@ export function Dashboard({
         username={username}
         role={role}
         onLogout={onLogout}
+        onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
       />
 
       <PullToRefresh onRefresh={refresh || (() => window.location.reload())}>
@@ -219,7 +222,12 @@ export function Dashboard({
             {/* Row 2: Outdoor + Valve + Camera — technical room & outdoor monitoring */}
             <div className="dashboard-grid dashboard-grid-sub">
               <ErrorBoundary>
-                <OutdoorCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                <OutdoorCard
+                  state={state}
+                  onOpenTrend={setTrendTarget}
+                  onOpenOutdoorWeather={() => setOutdoorModalOpen(true)}
+                  readOnly={readOnly}
+                />
               </ErrorBoundary>
               <ErrorBoundary>
                 <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
@@ -280,6 +288,13 @@ export function Dashboard({
 
       {/* Quick Variable Daily Trend Modal */}
       <VariableTrendModal target={trendTarget} onClose={() => setTrendTarget(null)} />
+
+      {/* Outdoor Temperature & Weather Combined Forecast Modal */}
+      <OutdoorWeatherModal
+        isOpen={outdoorModalOpen}
+        onClose={() => setOutdoorModalOpen(false)}
+        state={state}
+      />
     </div>
   );
 }

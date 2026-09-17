@@ -16,6 +16,7 @@ const QUIET_LEVELS = [
 interface OutdoorCardProps {
   state: HeishamonState;
   onOpenTrend?: (target: TrendTopicTarget) => void;
+  onOpenOutdoorWeather?: () => void;
   readOnly?: boolean;
 }
 
@@ -85,7 +86,7 @@ function ThermometerSvg({
   );
 }
 
-export function OutdoorCard({ state, onOpenTrend, readOnly = false }: OutdoorCardProps) {
+export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly = false }: OutdoorCardProps) {
   const outsideTemp = numVal(state, 'main/Outside_Temp');
   const outsidePipe = numVal(state, 'main/Outside_Pipe_Temp');
   const discharge = numVal(state, 'main/Discharge_Temp');
@@ -117,6 +118,24 @@ export function OutdoorCard({ state, onOpenTrend, readOnly = false }: OutdoorCar
         <span className="card-icon">🌤</span>
         <span className="card-title">Ulkoyksikkö</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          {onOpenOutdoorWeather && (
+            <button
+              className="badge"
+              onClick={onOpenOutdoorWeather}
+              style={{
+                background: 'rgba(34,211,238,0.1)',
+                color: '#22d3ee',
+                border: '1px solid rgba(34,211,238,0.3)',
+                fontSize: 10,
+                cursor: 'pointer',
+                padding: '2px 8px',
+                transition: 'all 0.15s ease',
+              }}
+              title="Avaa ulkolämpötilan historia ja sääennuste"
+            >
+              📊 Sää & Historia
+            </button>
+          )}
           {baseHeater && (
             <div className="badge" style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--heat-primary)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 10 }}>
               🔥 Pohjavastus

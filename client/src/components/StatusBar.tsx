@@ -14,6 +14,7 @@ interface StatusBarProps {
   username?: string | null;
   role?: 'admin' | 'viewer';
   onLogout?: () => void;
+  onOpenOutdoorModal?: () => void;
 }
 
 function timeAgo(ts: number | null, now: number): string {
@@ -36,6 +37,7 @@ export function StatusBar({
   username,
   role = 'admin',
   onLogout,
+  onOpenOutdoorModal,
 }: StatusBarProps) {
   // The clock and the "updated Xs ago" label are derived from Date.now(), so
   // they only advance if something re-renders. Tick once a second.
@@ -205,7 +207,20 @@ export function StatusBar({
 
         {/* Outside temp */}
         {outsideTempNum !== null && (
-          <div className="status-temp">
+          <div
+            className={`status-temp ${onOpenOutdoorModal ? 'status-temp-clickable' : ''}`}
+            onClick={onOpenOutdoorModal}
+            onKeyDown={(e) => {
+              if (onOpenOutdoorModal && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onOpenOutdoorModal();
+              }
+            }}
+            role={onOpenOutdoorModal ? 'button' : undefined}
+            tabIndex={onOpenOutdoorModal ? 0 : undefined}
+            title={onOpenOutdoorModal ? 'Klikkaa avataksesi ulkolämpötilan historia ja sääennuste' : undefined}
+          >
+            <span style={{ fontSize: 13, marginRight: 1 }}>🌤️</span>
             <span className="status-label status-hide-xs">Ulkoilma</span>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cool-primary)' }}>
               {outsideTempNum.toFixed(1)}°C
