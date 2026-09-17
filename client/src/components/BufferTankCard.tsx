@@ -163,8 +163,11 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   const pumpFlow = numVal(state, 'main/Pump_Flow');
   const pumpSpeed = numVal(state, 'main/Pump_Speed');
   const pumpDuty = numVal(state, 'main/Pump_Duty');
-  // Lattialämmityksen kiertovesipumppu on käynnissä aina kun VILPin vesipumppu pyörii / virtausta havaitaan
-  const extraPumpActive = (pumpFlow !== null && pumpFlow >= 0.3) ||
+  const valveVal = state['main/ThreeWay_Valve_State']?.value;
+  const isDhwValve = valveVal === '1';
+
+  // VILPin päävesipumpun tila ja virtaus
+  const isPumpRunning = (pumpFlow !== null && pumpFlow >= 0.3) ||
     (pumpSpeed !== null && pumpSpeed > 0) ||
     (pumpDuty !== null && pumpDuty > 0);
   const heatHours = numVal(state, 'main/Heat_Hours');
@@ -216,6 +219,43 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   };
 
   const directiveBadge = getDirectiveBadge();
+
+  // Determine pump colors and labels
+  const pumpColor = !isPumpRunning
+    ? 'rgba(255, 255, 255, 0.4)'
+    : isDhwValve
+    ? 'var(--dhw-primary, #10b981)'
+    : '#22c55e';
+
+  const pumpBg = !isPumpRunning
+    ? 'rgba(255, 255, 255, 0.02)'
+    : isDhwValve
+    ? 'rgba(16, 185, 129, 0.08)'
+    : 'rgba(34, 197, 94, 0.08)';
+
+  const pumpBorder = !isPumpRunning
+    ? 'rgba(255, 255, 255, 0.07)'
+    : isDhwValve
+    ? 'rgba(16, 185, 129, 0.3)'
+    : 'rgba(34, 197, 94, 0.28)';
+
+  const pumpTitle = !isPumpRunning
+    ? 'VILPin pääkiertopumppu'
+    : isDhwValve
+    ? 'VILP-pääpumppu · Käyttövesikierto'
+    : 'VILP-pääpumppu · Lämmityskierto';
+
+  const pumpSubtitle = !isPumpRunning
+    ? 'Lepotilassa (Ei virtausta lämpöpumpusta) ↗'
+    : isDhwValve
+    ? `Käynnissä · Virtaus ${pumpFlow !== null ? `${pumpFlow.toFixed(1)} L/min` : 'aktiivinen'} (LKV-kierukan kautta puskuriin) ↗`
+    : `Käynnissä · Virtaus ${pumpFlow !== null ? `${pumpFlow.toFixed(1)} L/min` : 'aktiivinen'} (Puskuriin & lattialämmitykseen) ↗`;
+
+  const pumpBadgeText = !isPumpRunning
+    ? 'Pois päältä'
+    : isDhwValve
+    ? 'Käynnissä (LKV)'
+    : 'Käynnissä (Lämpö)';
 
   return (
     <div className="card" style={{
@@ -306,22 +346,22 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
           </div>
         </div>
 
-        {/* Floor heating circulation pump */}
+        {/* Heat pump / circulation pump */}
         <div
           className="metric-clickable"
           title="Klikkaa nähdäksesi virtausnopeuden trendi"
           onClick={() =>
             onOpenTrend?.({
               topic: 'main/Pump_Flow',
-              label: 'Kiertovesipumpun virtausnopeus',
+              label: 'VILPin pääpumpun virtausnopeus',
               unit: 'L/min',
-              color: '#22c55e',
-              currentValue: pumpFlow !== null ? `${pumpFlow.toFixed(1)} L/min` : (extraPumpActive ? 'Käynnissä' : 'Pois päältä'),
+              color: isDhwValve ? 'var(--dhw-primary)' : '#22c55e',
+              currentValue: pumpFlow !== null ? `${pumpFlow.toFixed(1)} L/min` : (isPumpRunning ? 'Käynnissä' : 'Pois päältä'),
             })
           }
           style={{
-            background: extraPumpActive ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-            border: `1px solid ${extraPumpActive ? 'rgba(34, 197, 94, 0.28)' : 'rgba(255, 255, 255, 0.07)'}`,
+            background: pumpBg,
+            border: `1px solid ${pumpBorder}`,
             borderRadius: 10,
             padding: '10px 14px',
             marginBottom: 14,
@@ -336,12 +376,12 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
               width: 32,
               height: 32,
               borderRadius: '50%',
-              background: extraPumpActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-              border: `1.5px solid ${extraPumpActive ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+              background: !isPumpRunning ? 'rgba(255, 255, 255, 0.05)' : isDhwValve ? 'rgba(16, 185, 129, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+              border: `1.5px solid ${pumpBorder}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: extraPumpActive ? '0 0 10px rgba(34, 197, 94, 0.25)' : 'none',
+              boxShadow: isPumpRunning ? `0 0 10px ${isDhwValve ? 'rgba(16, 185, 129, 0.25)' : 'rgba(34, 197, 94, 0.25)'}` : 'none',
               flexShrink: 0,
             }}>
               <svg
@@ -349,11 +389,11 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                 height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={extraPumpActive ? '#22c55e' : 'rgba(255, 255, 255, 0.4)'}
+                stroke={pumpColor}
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={extraPumpActive ? 'spinning' : ''}
+                className={isPumpRunning ? 'spinning' : ''}
                 style={{ transition: 'stroke 0.3s' }}
               >
                 <circle cx="12" cy="12" r="10" strokeDasharray="5 3" />
@@ -362,12 +402,15 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>Lattialämmityksen kiertopumppu</span>
+                <span>{pumpTitle}</span>
+                {isPumpRunning && isDhwValve && (
+                  <span className="badge badge-dhw" style={{ fontSize: 9, padding: '1px 6px' }}>
+                    💧 LKV
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {extraPumpActive
-                  ? `Käynnissä · Virtaus ${pumpFlow !== null && pumpFlow >= 0.3 ? `${pumpFlow.toFixed(1)} L/min` : 'aktiivinen'} ↗`
-                  : 'Lepotilassa (Ei virtausta / rele pois) ↗'}
+                {pumpSubtitle}
               </div>
             </div>
           </div>
@@ -377,16 +420,16 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                backgroundColor: extraPumpActive ? 'var(--online)' : 'var(--text-muted)',
-                boxShadow: extraPumpActive ? '0 0 8px var(--online)' : 'none',
+                backgroundColor: !isPumpRunning ? 'var(--text-muted)' : isDhwValve ? 'var(--dhw-primary)' : 'var(--online)',
+                boxShadow: isPumpRunning ? `0 0 8px ${isDhwValve ? 'var(--dhw-primary)' : 'var(--online)'}` : 'none',
               }}
             />
             <span style={{
               fontSize: 12,
               fontWeight: 600,
-              color: extraPumpActive ? 'var(--online)' : 'var(--text-muted)',
+              color: !isPumpRunning ? 'var(--text-muted)' : isDhwValve ? 'var(--dhw-primary)' : 'var(--online)',
             }}>
-              {extraPumpActive ? 'Käynnissä' : 'Pois päältä'}
+              {pumpBadgeText}
             </span>
           </div>
         </div>

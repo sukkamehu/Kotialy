@@ -19,6 +19,7 @@ import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal'
 import { OutdoorWeatherModal } from './OutdoorWeatherModal';
 import { PanasonicSettingsCard } from './PanasonicSettingsCard';
 import { ApcStrategyPage } from './ApcStrategyPage';
+import { HydraulicDiagramPage } from './HydraulicDiagramPage';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -54,7 +55,7 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'apc_strategy' | 'heatpump_guide'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'apc_strategy' | 'heatpump_guide' | 'hydraulics'>('dashboard');
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
   const readOnly = role === 'viewer';
@@ -130,6 +131,26 @@ export function Dashboard({
               </button>
 
               <button
+                onClick={() => setActiveTab('hydraulics')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: activeTab === 'hydraulics' ? '1px solid #06b6d4' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeTab === 'hydraulics' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeTab === 'hydraulics' ? '#22d3ee' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>🛠️</span> Tekninen tila & Kytkentäkaavio
+              </button>
+
+              <button
                 onClick={() => setActiveTab('heatpump_guide')}
                 style={{
                   padding: '8px 18px',
@@ -155,6 +176,14 @@ export function Dashboard({
             <div style={{ marginBottom: 32 }}>
               <ErrorBoundary>
                 <ApcStrategyPage readOnly={readOnly} />
+              </ErrorBoundary>
+            </div>
+          )}
+
+          {activeTab === 'hydraulics' && (
+            <div style={{ marginBottom: 32 }}>
+              <ErrorBoundary>
+                <HydraulicDiagramPage state={state} readOnly={readOnly} />
               </ErrorBoundary>
             </div>
           )}

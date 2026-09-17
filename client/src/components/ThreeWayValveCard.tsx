@@ -1,4 +1,5 @@
 import type { HeishamonState } from '../types/heishamon';
+import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
@@ -12,6 +13,7 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
   const valveState = state['main/ThreeWay_Valve_State'];
   const val = valveState?.value;
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
+  const pumpFlow = numVal(state, 'main/Pump_Flow');
   const isRoom = val === '0';
   const isDHW = val === '1';
   // Only 0/1 are meaningful; anything else is an unknown state, not "heating".
@@ -172,10 +174,17 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
                 color: isDHW ? 'var(--dhw-primary)' : 'var(--buffer-primary)',
                 marginBottom: 4,
               }}>
-                {isDHW ? 'Ohjaa käyttövesivaraajaan (Oikealle) ↗' : 'Ohjaa puskurivaraajaan (Vasemmalle) ↗'}
+                {isDHW
+                  ? `Käyttövesikierto ${pumpFlow !== null && pumpFlow >= 0.3 ? `(${pumpFlow.toFixed(1)} L/min)` : ''} ↗`
+                  : `Lämmityskierto ${pumpFlow !== null && pumpFlow >= 0.3 ? `(${pumpFlow.toFixed(1)} L/min)` : ''} ↗`}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                PAW-3WYVLV4HW · Tila {val}
+                {isDHW
+                  ? 'Virtaus ohjautuu LKV-varaajan kierukan kautta puskurivaraajalle'
+                  : 'Virtaus ohjautuu suoraan puskurivaraajaan ja lattialämmitykseen'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                PAW-3WYVLV4HW · Tila {val} ({isDHW ? 'Käyttövesi' : 'Lämmitys'})
               </div>
             </div>
           )}

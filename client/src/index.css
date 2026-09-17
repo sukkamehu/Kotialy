@@ -660,6 +660,22 @@ h1, h2, h3, h4 {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: 8px;
+}
+
+.status-logo:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.status-logo:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .status-logo-text {
@@ -808,5 +824,43 @@ h1, h2, h3, h4 {
   .status-hide-xs {
     display: none !important;
   }
+}
+
+/* ─── Hydraulic Diagram Pipe Flow Animations ─────────────────── */
+@keyframes flowForward {
+  from {
+    stroke-dashoffset: 40;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes flowBackward {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 40;
+  }
+}
+
+.pipe-flow-active {
+  stroke-dasharray: 8 6;
+  animation: flowForward 1.2s linear infinite;
+}
+
+.pipe-flow-fast {
+  stroke-dasharray: 8 6;
+  animation: flowForward 0.7s linear infinite;
+}
+
+.diagram-node-clickable {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.diagram-node-clickable:hover {
+  filter: brightness(1.2) drop-shadow(0 0 10px rgba(34, 211, 238, 0.4));
 }
 
