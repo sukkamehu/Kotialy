@@ -64,65 +64,6 @@ class ApcService {
   }
 
   /**
-   * Automatic Summer/Winter Mode switching (Mode 3: DHW only vs Mode 4: Heat + DHW)
-   * Prevents any heating cycling during warm weather by switching hardware mode to DHW only.
-   */
-  async checkAutoModeSwitch(outsideTemp, settings) {
-    try {
-      if (outsideTemp == null || settings.auto_mode_switch_enabled === false) return;
-
-      const state = db.getFullState();
-      const currentModeRaw = state['main/Operating_Mode_State']?.value;
-      if (currentModeRaw == null) return;
-      const currentMode = parseInt(currentModeRaw, 10);
-      const now = Date.now();
-
-      // Minimum 15 minutes between auto mode changes to prevent flapping
-      if (this.lastAutoModeSwitchAt && now - this.lastAutoModeSwitchAt < 15 * 60 * 1000) {
-        return;
-      }
-
-      const cutoff = settings.heating_cutoff_c != null ? settings.heating_cutoff_c : 13.0;
-      const hyst = settings.auto_mode_switch_hysteresis_c != null ? settings.auto_mode_switch_hysteresis_c : 1.0;
-
-      // 1. Warm weather (e.g. >= 14°C): Switch to DHW Only (Mode 3)
-      if (outsideTemp >= cutoff + hyst) {
-        if (currentMode === 4 || currentMode === 0) {
-          log(`[AUTO-MODE] Ulkolämpötila ${outsideTemp.toFixed(1)}°C >= ${(cutoff + hyst).toFixed(1)}°C: Vaihdetaan tilaan Vain käyttövesi (Tila 3)`);
-          const ok = await deviceManager.sendPanasonicCommand('commands/SetOperationMode', 3);
-          if (ok) {
-            this.lastAutoModeSwitchAt = now;
-            db.insertApcLog({
-              action: 'Automaattinen kesätila: Toimintatila → Vain käyttövesi (Tila 3)',
-              reason: `Ulkolämpötila (${outsideTemp.toFixed(1)}°C) ylitti kesärajan (${(cutoff + hyst).toFixed(1)}°C). Huonelämmityspiiri suljettu kompressorin säästämiseksi.`,
-              outdoor_temp: outsideTemp,
-              directive: this.currentDirective,
-            });
-          }
-        }
-      }
-      // 2. Cool weather (e.g. <= 12°C): Switch back to Heat + DHW (Mode 4)
-      else if (outsideTemp <= cutoff - hyst) {
-        if (currentMode === 3) {
-          log(`[AUTO-MODE] Ulkolämpötila ${outsideTemp.toFixed(1)}°C <= ${(cutoff - hyst).toFixed(1)}°C: Vaihdetaan tilaan Lämmitys + KV (Tila 4)`);
-          const ok = await deviceManager.sendPanasonicCommand('commands/SetOperationMode', 4);
-          if (ok) {
-            this.lastAutoModeSwitchAt = now;
-            db.insertApcLog({
-              action: 'Automaattinen lämmityskausi: Toimintatila → Lämmitys + KV (Tila 4)',
-              reason: `Ulkolämpötila (${outsideTemp.toFixed(1)}°C) alitti lämmitysrajan (${(cutoff - hyst).toFixed(1)}°C). Lämmityspiiri aktivoitu.`,
-              outdoor_temp: outsideTemp,
-              directive: this.currentDirective,
-            });
-          }
-        }
-      }
-    } catch (err) {
-      warn('checkAutoModeSwitch error:', err.message);
-    }
-  }
-
-  /**
    * Main evaluation loop: compute 24h plan, determine current directive, dispatch to devices
    */
   async evaluate() {
@@ -130,9 +71,6 @@ class ApcService {
       const now = Date.now();
       const settings = db.getApcSettings();
       const { bufferTemp, dhwTemp, outsideTemp } = this.getCurrentSensors();
-
-      // Check intelligent automatic summer/winter mode switch
-      await this.checkAutoModeSwitch(outsideTemp, settings);
 
       // Get 24-36h window of prices
       const startWindow = now - 60 * 60 * 1000; // include 1h past

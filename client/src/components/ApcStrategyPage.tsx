@@ -94,8 +94,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [dhwHours, setDhwHours] = useState<string>(String(status?.settings?.dhw_duration_hours ?? 2));
   const [heatingCutoff, setHeatingCutoff] = useState<string>(String(status?.settings?.heating_cutoff_c ?? 13));
   const [preventCurveShift, setPreventCurveShift] = useState<boolean>(status?.settings?.prevent_curve_shift_above_cutoff !== false);
-  const [autoModeSwitch, setAutoModeSwitch] = useState<boolean>(status?.settings?.auto_mode_switch_enabled !== false);
-  const [autoModeHysteresis, setAutoModeHysteresis] = useState<string>(String(status?.settings?.auto_mode_switch_hysteresis_c ?? 1.0));
   const [floorPumpMode, setFloorPumpModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
   const [floorPumpCutoff, setFloorPumpCutoff] = useState<string>('20.0');
   const [floorPumpSummerPulse, setFloorPumpSummerPulse] = useState<boolean>(true);
@@ -154,8 +152,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setDhwHours(String(status.settings.dhw_duration_hours ?? 2));
       setHeatingCutoff(String(status.settings.heating_cutoff_c ?? 13));
       setPreventCurveShift(status.settings.prevent_curve_shift_above_cutoff !== false);
-      setAutoModeSwitch(status.settings.auto_mode_switch_enabled !== false);
-      setAutoModeHysteresis(String(status.settings.auto_mode_switch_hysteresis_c ?? 1.0));
       setFloorPumpModeState(status.settings.floor_pump_mode ?? 'auto');
       setFloorPumpCutoff(String(status.settings.floor_pump_summer_cutoff_temp ?? 20.0));
       setFloorPumpSummerPulse(status.settings.floor_pump_summer_pulse_enabled !== false);
@@ -209,6 +205,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly) return;
     const ok = await updateSettings({
       buffer_boost_c: Number(bufferBoost),
       buffer_setback_c: Number(bufferSetback),
@@ -222,8 +219,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       dhw_duration_hours: parseInt(dhwHours, 10) || 2,
       heating_cutoff_c: parseFloat(heatingCutoff) || 13,
       prevent_curve_shift_above_cutoff: Boolean(preventCurveShift),
-      auto_mode_switch_enabled: Boolean(autoModeSwitch),
-      auto_mode_switch_hysteresis_c: parseFloat(autoModeHysteresis) || 1.0,
       floor_pump_mode: floorPumpMode,
       floor_pump_summer_cutoff_temp: parseFloat(floorPumpCutoff) || 20.0,
       floor_pump_summer_pulse_enabled: Boolean(floorPumpSummerPulse),
@@ -1090,32 +1085,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
-                  Automaattisen tilanvaihdon hystereesi (±°C)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={autoModeHysteresis}
-                  onChange={(e) => setAutoModeHysteresis(e.target.value)}
-                  disabled={readOnly}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    background: 'rgba(0,0,0,0.3)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'var(--text-primary)',
-                    fontSize: 14,
-                    fontWeight: 600,
-                  }}
-                />
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Estää tilojen edestakaisen vaihtumisen rajalla (esim. 1.0 °C).
-                </div>
-              </div>
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
                   <input
@@ -1127,19 +1096,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                   />
                   <span>
                     <strong style={{ color: 'var(--text-primary)' }}>Estä APC-käyränsiirto (Boost)</strong> kun ulkolämpötila ylittää katkaisurajan
-                  </span>
-                </label>
-
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
-                  <input
-                    type="checkbox"
-                    checked={autoModeSwitch}
-                    onChange={(e) => setAutoModeSwitch(e.target.checked)}
-                    disabled={readOnly}
-                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#38bdf8' }}
-                  />
-                  <span>
-                    <strong style={{ color: 'var(--text-primary)' }}>Automaattinen kesätila</strong> (Vaihda Mode 3: Vain KV ≥ {(parseFloat(heatingCutoff) || 13) + (parseFloat(autoModeHysteresis) || 1.0)} °C / Mode 4: Lämmitys+KV ≤ {(parseFloat(heatingCutoff) || 13) - (parseFloat(autoModeHysteresis) || 1.0)} °C)
                   </span>
                 </label>
               </div>

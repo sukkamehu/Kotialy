@@ -413,8 +413,6 @@ function getApcSettings() {
     override_directive: null,
     heating_cutoff_c: 13,
     prevent_curve_shift_above_cutoff: true,
-    auto_mode_switch_enabled: true,
-    auto_mode_switch_hysteresis_c: 1.0,
     floor_pump_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
     floor_pump_summer_cutoff_temp: 20.0,
     floor_pump_summer_pulse_enabled: true,
@@ -430,8 +428,6 @@ function getApcSettings() {
       settings.dhw_boost_on_cheap = r.value === '1' || r.value === 'true';
     } else if (r.key === 'prevent_curve_shift_above_cutoff') {
       settings.prevent_curve_shift_above_cutoff = r.value === '1' || r.value === 'true';
-    } else if (r.key === 'auto_mode_switch_enabled') {
-      settings.auto_mode_switch_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_anti_seize_enabled') {
       settings.floor_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_summer_pulse_enabled') {
