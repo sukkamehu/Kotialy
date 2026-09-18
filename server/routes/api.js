@@ -209,21 +209,19 @@ router.post('/command', requireAdmin, express.json(), (req, res) => {
 
   let finalVal = value;
 
-  if (meta.type === 'enum') {
-    // Enum/string topics (e.g. Sonoff POWER 'ON' | 'OFF' | 1 | 0)
+  if (setTopic.startsWith('lattialampopumppu/')) {
+    // Sonoff / Tasmota relay commands (ON / OFF)
     if (typeof value === 'string') {
       const up = value.toUpperCase();
-      if (up === 'ON' || up === '1' || up === 'TRUE') finalVal = 'ON';
-      else if (up === 'OFF' || up === '0' || up === 'FALSE') finalVal = 'OFF';
-      else finalVal = value;
-    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      finalVal = (up === 'ON' || up === '1' || up === 'TRUE') ? 'ON' : 'OFF';
+    } else {
       finalVal = (value === 1 || value === true) ? 'ON' : 'OFF';
     }
-  } else {
-    // Range-check numeric values before anything reaches the heat pump
+  } else if (meta.type === 'enum' || meta.type === 'number') {
+    // Panasonic Heishamon commands require numeric values (e.g. 0, 1, 2, 3)
     const num = Number(value);
     if (!Number.isFinite(num)) {
-      return res.status(400).json({ error: 'value must be a number' });
+      return res.status(400).json({ error: 'value must be a valid number or enum key' });
     }
     if (meta.min !== undefined && num < meta.min) {
       return res.status(400).json({ error: `value below minimum (${meta.min})` });
@@ -231,7 +229,10 @@ router.post('/command', requireAdmin, express.json(), (req, res) => {
     if (meta.max !== undefined && num > meta.max) {
       return res.status(400).json({ error: `value above maximum (${meta.max})` });
     }
-    finalVal = num;
+    finalVal = Math.round(num);
+    if (meta.type === 'number' && meta.step && meta.step < 1) {
+      finalVal = num;
+    }
   }
 
   try {
