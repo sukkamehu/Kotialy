@@ -41,15 +41,16 @@ class FloorPumpDriver {
     }
     try {
       if (typeof this.mqttClient.publish === 'function') {
-        // Publish to primary topic
-        await this.mqttClient.publish('lattialampopumppu/cmnd/POWER', val);
+        // Publish to primary topic (mqtt-client publishes to all Tasmota topic variants)
+        await this.mqttClient.publish('cmnd/lattialampopumppu/POWER', val);
         // Also update local DB state immediately for reactive UI
         db.updateState('lattialampopumppu/stat/POWER', val);
+        db.updateState('stat/lattialampopumppu/POWER', val);
         this.lastState = val;
         return true;
       }
     } catch (err) {
-      warn(`Command failed for lattialampopumppu/cmnd/POWER = ${val}:`, err.message);
+      warn(`Command failed for floor pump = ${val}:`, err.message);
       return false;
     }
     return false;

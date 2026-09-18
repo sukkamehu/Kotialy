@@ -302,7 +302,16 @@ const TOPICS = {
     type: 'enum',
     map: { OFF: 'Pois päältä', ON: 'Käynnissä', 0: 'Pois päältä', 1: 'Käynnissä', '0': 'Pois päältä', '1': 'Käynnissä' },
     writable: true,
-    setTopic: 'lattialampopumppu/cmnd/POWER',
+    setTopic: 'cmnd/lattialampopumppu/POWER',
+  },
+  'stat/lattialampopumppu/POWER': {
+    label: 'Lattialämmityksen kiertopumppu (Sonoff)',
+    unit: '',
+    category: 'buffer',
+    type: 'enum',
+    map: { OFF: 'Pois päältä', ON: 'Käynnissä', 0: 'Pois päältä', 1: 'Käynnissä', '0': 'Pois päältä', '1': 'Käynnissä' },
+    writable: true,
+    setTopic: 'cmnd/lattialampopumppu/POWER',
   },
 
   // ─── Valves ─────────────────────────────────────────────────────────

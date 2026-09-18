@@ -19,6 +19,11 @@ const SUBSCRIBE_PATTERNS = [
   `${BASE_TOPIC}/extra/#`,
   `${BASE_TOPIC}/lattialampopumppu/#`,
   `lattialampopumppu/#`,
+  `stat/lattialampopumppu/#`,
+  `tele/lattialampopumppu/#`,
+  `cmnd/lattialampopumppu/#`,
+  `stat/#`,
+  `tele/#`,
   `${BASE_TOPIC}/LWT`,
   `${BASE_TOPIC}/stats`,
   `${BASE_TOPIC}/log`,
@@ -98,7 +103,7 @@ function init(wsBroadcast, onConnect) {
   });
 
   client.on('message', (fullTopic, payload) => {
-    // Strip base topic prefix
+    // Strip base topic prefix if present
     const topic = fullTopic.startsWith(BASE_TOPIC + '/')
       ? fullTopic.slice(BASE_TOPIC.length + 1)
       : fullTopic;
@@ -107,6 +112,56 @@ function init(wsBroadcast, onConnect) {
     if (rawValue === '') return;
 
     lastReceivedAt = Date.now();
+
+    // Handle Tasmota JSON telemetry / results (e.g. stat/lattialampopumppu/RESULT = {"POWER":"ON"})
+    if (
+      (topic.includes('lattialampopumppu') || fullTopic.includes('lattialampopumppu')) &&
+      rawValue.startsWith('{')
+    ) {
+      try {
+        const parsed = JSON.parse(rawValue);
+        if (parsed.POWER) {
+          const pVal = parsed.POWER.toUpperCase();
+          updateState('lattialampopumppu/stat/POWER', pVal);
+          updateState('stat/lattialampopumppu/POWER', pVal);
+          wsBroadcast({
+            type: 'state_update',
+            topic: 'lattialampopumppu/stat/POWER',
+            value: pVal,
+            label: 'Lattialämmityksen kiertopumppu (Sonoff)',
+            unit: '',
+            category: 'buffer',
+            displayValue: pVal === 'ON' ? 'Käynnissä' : 'Pois päältä',
+            ts: Date.now(),
+          });
+        }
+      } catch {
+        // Not valid json, proceed normally
+      }
+    }
+
+    // Handle direct Tasmota power status
+    if (
+      topic === 'stat/lattialampopumppu/POWER' ||
+      topic === 'lattialampopumppu/stat/POWER' ||
+      fullTopic === 'stat/lattialampopumppu/POWER' ||
+      fullTopic === 'lattialampopumppu/stat/POWER'
+    ) {
+      const pVal = rawValue.toUpperCase() === 'ON' || rawValue === '1' ? 'ON' : 'OFF';
+      updateState('lattialampopumppu/stat/POWER', pVal);
+      updateState('stat/lattialampopumppu/POWER', pVal);
+      wsBroadcast({
+        type: 'state_update',
+        topic: 'lattialampopumppu/stat/POWER',
+        value: pVal,
+        label: 'Lattialämmityksen kiertopumppu (Sonoff)',
+        unit: '',
+        category: 'buffer',
+        displayValue: pVal === 'ON' ? 'Käynnissä' : 'Pois päältä',
+        ts: Date.now(),
+      });
+      return;
+    }
 
     // Handle LWT (Last Will and Testament)
     if (topic === 'LWT') {
@@ -153,13 +208,36 @@ function init(wsBroadcast, onConnect) {
 }
 
 /**
- * Publish a command to Heishamon.
- * setTopic: e.g. 'commands/SetForceDHW'
+ * Publish a command to Heishamon or Tasmota/Sonoff.
+ * setTopic: e.g. 'commands/SetForceDHW' or 'cmnd/lattialampopumppu/POWER'
  */
 function publish(setTopic, value) {
   if (!client || !connected) {
     throw new Error('MQTT not connected');
   }
+
+  // If it is a floor pump command, publish to all possible Tasmota topic schemes
+  if (setTopic.includes('lattialampopumppu') || setTopic.endsWith('/POWER')) {
+    const pVal = (value === 'ON' || value === 1 || value === '1' || value === true) ? 'ON' : 'OFF';
+    const topicsToPublish = [
+      'cmnd/lattialampopumppu/POWER',
+      'lattialampopumppu/cmnd/POWER',
+      `${BASE_TOPIC}/lattialampopumppu/cmnd/POWER`,
+    ];
+    return new Promise((resolve) => {
+      topicsToPublish.forEach((t) => {
+        client.publish(t, pVal, { qos: 1 }, (err) => {
+          if (err) console.error(`[MQTT] Error publishing to ${t}:`, err);
+          else console.log(`[MQTT] Published ${t} = ${pVal}`);
+        });
+      });
+      // Also update local state
+      updateState('lattialampopumppu/stat/POWER', pVal);
+      updateState('stat/lattialampopumppu/POWER', pVal);
+      resolve(true);
+    });
+  }
+
   const fullTopic = `${BASE_TOPIC}/${setTopic}`;
   return new Promise((resolve, reject) => {
     client.publish(fullTopic, String(value), { qos: 1 }, (err) => {
@@ -168,10 +246,6 @@ function publish(setTopic, value) {
         reject(err);
       } else {
         console.log(`[MQTT] Published ${fullTopic} = ${value}`);
-        // If it's the floor pump topic, also publish to root lattialampopumppu/ topic
-        if (setTopic.startsWith('lattialampopumppu/')) {
-          client.publish(setTopic, String(value), { qos: 1 }, () => {});
-        }
         resolve(true);
       }
     });

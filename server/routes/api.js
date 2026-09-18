@@ -189,7 +189,7 @@ router.get('/topics', (req, res) => {
  * Publish a command to Heishamon.
  * Body: { setTopic: 'commands/SetForceDHW', value: 1 }
  */
-router.post('/command', requireAdmin, express.json(), (req, res) => {
+router.post('/command', requireAdmin, express.json(), async (req, res) => {
   const { setTopic, value } = req.body;
 
   if (!setTopic || value === undefined) {
@@ -246,10 +246,10 @@ router.post('/command', requireAdmin, express.json(), (req, res) => {
       }
     }
 
-    if (setTopic === 'lattialampopumppu/cmnd/POWER') {
+    if (setTopic === 'lattialampopumppu/cmnd/POWER' || setTopic === 'cmnd/lattialampopumppu/POWER') {
       const floorPumpDriver = require('../devices/floor-pump-driver');
       const stateStr = (finalVal === 'ON' || finalVal === 1) ? 'ON' : 'OFF';
-      floorPumpDriver.setManualOverride(stateStr, 0); // Indefinite manual override until cancelled
+      await floorPumpDriver.setManualOverride(stateStr, 0); // Indefinite manual override until cancelled
       return res.json({ ok: true, setTopic, value: stateStr });
     }
 
@@ -578,7 +578,7 @@ router.get('/apc/floor-pump/status', (req, res) => {
  * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
  * Passing state: null or duration_hours: 0 with state: null clears manual override.
  */
-router.post('/api/apc/floor-pump/override', requireAdmin, express.json(), async (req, res) => {
+router.post('/apc/floor-pump/override', requireAdmin, express.json(), async (req, res) => {
   try {
     const floorPumpDriver = require('../devices/floor-pump-driver');
     const { state, duration_hours = 0 } = req.body || {};
@@ -602,7 +602,7 @@ router.post('/api/apc/floor-pump/override', requireAdmin, express.json(), async 
  * POST /api/apc/floor-pump/mode
  * Body: { mode: 'auto' | 'constant_on' | 'constant_off' }
  */
-router.post('/api/apc/floor-pump/mode', requireAdmin, express.json(), async (req, res) => {
+router.post('/apc/floor-pump/mode', requireAdmin, express.json(), async (req, res) => {
   try {
     const floorPumpDriver = require('../devices/floor-pump-driver');
     const { mode } = req.body || {};
@@ -618,7 +618,7 @@ router.post('/api/apc/floor-pump/mode', requireAdmin, express.json(), async (req
  * POST /api/apc/floor-pump/settings
  * Body: { summer_cutoff_temp, anti_seize_enabled }
  */
-router.post('/api/apc/floor-pump/settings', requireAdmin, express.json(), async (req, res) => {
+router.post('/apc/floor-pump/settings', requireAdmin, express.json(), async (req, res) => {
   try {
     const { summer_cutoff_temp, anti_seize_enabled, summer_pulse_enabled } = req.body || {};
     const dbModule = require('../db');
