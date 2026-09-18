@@ -2,6 +2,8 @@ export type ApcMode = 'balanced' | 'eco' | 'comfort' | 'dhw_only';
 
 export type ApcDirective = 'BOOST' | 'NORMAL' | 'SETBACK' | 'ECO' | 'DHW_CYCLE';
 
+export type FloorPumpMode = 'auto' | 'constant_on' | 'constant_off';
+
 export interface ApcSettings {
   enabled: boolean;
   mode: ApcMode;
@@ -22,6 +24,30 @@ export interface ApcSettings {
   prevent_curve_shift_above_cutoff?: boolean;
   auto_mode_switch_enabled?: boolean;
   auto_mode_switch_hysteresis_c?: number;
+  floor_pump_mode?: FloorPumpMode;
+  floor_pump_summer_cutoff_temp?: number;
+  floor_pump_summer_pulse_enabled?: boolean;
+  floor_pump_anti_seize_enabled?: boolean;
+  floor_pump_override_until?: number;
+  floor_pump_override_state?: 'ON' | 'OFF' | null;
+}
+
+export interface FloorPumpStatus {
+  driver: 'floor_pump';
+  name: string;
+  type: string;
+  connected: boolean;
+  currentState: 'ON' | 'OFF' | string;
+  mode: FloorPumpMode;
+  overrideActive: boolean;
+  overrideUntil: number;
+  overrideState: 'ON' | 'OFF' | null;
+  reason: string;
+  antiSeizeActive: boolean;
+  lastAppliedAt: number;
+  summerCutoffTemp: number;
+  summerPulseEnabled?: boolean;
+  antiSeizeEnabled: boolean;
 }
 
 export interface ApcPlanSlot {
@@ -44,6 +70,13 @@ export interface ApcDeviceStatus {
   lastDirective?: ApcDirective;
   currentOffset?: number;
   targetOffset?: number;
+  currentState?: string;
+  mode?: string;
+  overrideActive?: boolean;
+  overrideUntil?: number;
+  overrideState?: string | null;
+  reason?: string;
+  antiSeizeActive?: boolean;
 }
 
 export interface ApcPriceStats {

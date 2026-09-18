@@ -8,6 +8,9 @@ topic readwrite panasonic_heat_pump/#
 user kotialy
 topic read panasonic_heat_pump/#
 topic write panasonic_heat_pump/commands/#
+topic write panasonic_heat_pump/lattialampopumppu/#
+topic read lattialampopumppu/#
+topic write lattialampopumppu/#
 topic read zigbee2mqtt/#
 topic read $SYS/broker/version
 

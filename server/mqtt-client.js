@@ -17,6 +17,8 @@ let lastReceivedAt = null;
 const SUBSCRIBE_PATTERNS = [
   `${BASE_TOPIC}/main/#`,
   `${BASE_TOPIC}/extra/#`,
+  `${BASE_TOPIC}/lattialampopumppu/#`,
+  `lattialampopumppu/#`,
   `${BASE_TOPIC}/LWT`,
   `${BASE_TOPIC}/stats`,
   `${BASE_TOPIC}/log`,
@@ -166,6 +168,10 @@ function publish(setTopic, value) {
         reject(err);
       } else {
         console.log(`[MQTT] Published ${fullTopic} = ${value}`);
+        // If it's the floor pump topic, also publish to root lattialampopumppu/ topic
+        if (setTopic.startsWith('lattialampopumppu/')) {
+          client.publish(setTopic, String(value), { qos: 1 }, () => {});
+        }
         resolve(true);
       }
     });

@@ -3,7 +3,7 @@ import { getAuthHeaders } from './useAuth';
 
 interface UseCommandReturn {
   /** Publish a command. Resolves true when the heat pump accepted it. */
-  send: (setTopic: string, value: number, successMsg?: string) => Promise<boolean>;
+  send: (setTopic: string, value: number | string, successMsg?: string) => Promise<boolean>;
   pending: boolean;
   error: string | null;
   success: string | null;
@@ -30,7 +30,7 @@ export function useCommand(): UseCommandReturn {
     }, 2500);
   }, []);
 
-  const send = useCallback(async (setTopic: string, value: number, successMsg?: string) => {
+  const send = useCallback(async (setTopic: string, value: number | string, successMsg?: string) => {
     setPending(true);
     setError(null);
     setSuccess(null);

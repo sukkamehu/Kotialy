@@ -78,6 +78,8 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     toggleEnabled,
     setMode,
     updateSettings,
+    setFloorPumpOverride,
+    setFloorPumpMode: setFloorPumpModeApi,
   } = useApc();
 
   // APC Settings form draft state
@@ -94,6 +96,11 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [preventCurveShift, setPreventCurveShift] = useState<boolean>(status?.settings?.prevent_curve_shift_above_cutoff !== false);
   const [autoModeSwitch, setAutoModeSwitch] = useState<boolean>(status?.settings?.auto_mode_switch_enabled !== false);
   const [autoModeHysteresis, setAutoModeHysteresis] = useState<string>(String(status?.settings?.auto_mode_switch_hysteresis_c ?? 1.0));
+  const [floorPumpMode, setFloorPumpModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
+  const [floorPumpCutoff, setFloorPumpCutoff] = useState<string>('20.0');
+  const [floorPumpSummerPulse, setFloorPumpSummerPulse] = useState<boolean>(true);
+  const [floorPumpAntiSeize, setFloorPumpAntiSeize] = useState<boolean>(true);
+  const [floorPumpOverrideDuration, setFloorPumpOverrideDuration] = useState<number>(0);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Sähkösopimus & Siirtohinnat state
@@ -149,6 +156,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setPreventCurveShift(status.settings.prevent_curve_shift_above_cutoff !== false);
       setAutoModeSwitch(status.settings.auto_mode_switch_enabled !== false);
       setAutoModeHysteresis(String(status.settings.auto_mode_switch_hysteresis_c ?? 1.0));
+      setFloorPumpModeState(status.settings.floor_pump_mode ?? 'auto');
+      setFloorPumpCutoff(String(status.settings.floor_pump_summer_cutoff_temp ?? 20.0));
+      setFloorPumpSummerPulse(status.settings.floor_pump_summer_pulse_enabled !== false);
+      setFloorPumpAntiSeize(status.settings.floor_pump_anti_seize_enabled !== false);
     }
   }, [status?.settings]);
 
@@ -213,6 +224,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       prevent_curve_shift_above_cutoff: Boolean(preventCurveShift),
       auto_mode_switch_enabled: Boolean(autoModeSwitch),
       auto_mode_switch_hysteresis_c: parseFloat(autoModeHysteresis) || 1.0,
+      floor_pump_mode: floorPumpMode,
+      floor_pump_summer_cutoff_temp: parseFloat(floorPumpCutoff) || 20.0,
+      floor_pump_summer_pulse_enabled: Boolean(floorPumpSummerPulse),
+      floor_pump_anti_seize_enabled: Boolean(floorPumpAntiSeize),
     });
     if (ok) {
       setSaveSuccess(true);
@@ -1128,6 +1143,226 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                   </span>
                 </label>
               </div>
+            </div>
+
+            {/* Column E: Lattialämmityksen kiertovesipumppu (Sonoff) */}
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🌀</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Lattialämmityspumppu (Sonoff)
+                  </span>
+                </div>
+                <span className="badge badge-online" style={{ fontSize: 10, padding: '2px 8px' }}>
+                  Toisiopiiri
+                </span>
+              </div>
+
+              {/* Live Status Box */}
+              {(() => {
+                const fp = status?.devices?.find(d => d.driver === 'floor_pump');
+                const isOn = fp?.currentState === 'ON';
+                const isOverride = fp?.overrideActive;
+                const isAntiSeize = fp?.antiSeizeActive;
+                return (
+                  <div style={{
+                    background: isOn ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                    border: isOn ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Reaaliaikainen tila:
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: isOn ? '#22c55e' : '#64748b',
+                          boxShadow: isOn ? '0 0 8px #22c55e' : 'none',
+                        }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: isOn ? '#22c55e' : 'var(--text-muted)' }}>
+                          {isOn ? 'Käynnissä (ON ~45 W)' : 'Lepotilassa (OFF 0 W)'}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {fp?.reason || 'Automaattinen lämmityskierto'}
+                    </div>
+                    {isOverride && (
+                      <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 4 }}>
+                        ⚡ Manuaalinen pakkokytkentä aktiivinen
+                      </div>
+                    )}
+                    {isAntiSeize && (
+                      <div style={{ fontSize: 11, color: '#c084fc', fontWeight: 600, marginTop: 4 }}>
+                        🔄 Päivittäinen jumiutumissuojan liikutteluajo aktiivinen
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Operating Mode Selector */}
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#60a5fa', display: 'block', marginBottom: 6 }}>
+                  Toimintatila:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  {[
+                    { id: 'auto', label: '⚡ Automaatti', desc: 'APC Smart' },
+                    { id: 'constant_on', label: '🟢 Jatkuva', desc: 'Aina päällä' },
+                    { id: 'constant_off', label: '🔴 Pois', desc: 'Aina pois' },
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setFloorPumpModeState(m.id as any);
+                        if (!readOnly) setFloorPumpModeApi(m.id as any);
+                      }}
+                      disabled={readOnly}
+                      style={{
+                        padding: '8px 6px',
+                        borderRadius: 8,
+                        border: floorPumpMode === m.id ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
+                        background: floorPumpMode === m.id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
+                        color: floorPumpMode === m.id ? '#60a5fa' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div>{m.label}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Manual Override Quick Controls */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Pakkokytkentä / Ohitus:
+                  </label>
+                  <select
+                    value={floorPumpOverrideDuration}
+                    onChange={(e) => setFloorPumpOverrideDuration(Number(e.target.value))}
+                    disabled={readOnly}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      fontSize: 11,
+                    }}
+                  >
+                    <option value="0">Toistaiseksi</option>
+                    <option value="1">1 tunti</option>
+                    <option value="2">2 tuntia</option>
+                    <option value="4">4 tuntia</option>
+                    <option value="8">8 tuntia</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-success"
+                    onClick={() => !readOnly && setFloorPumpOverride('ON', floorPumpOverrideDuration)}
+                    disabled={readOnly || saving}
+                    style={{ flex: 1, fontSize: 12, padding: '7px 10px', borderRadius: 8 }}
+                  >
+                    🟢 Pakota ON
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-danger"
+                    onClick={() => !readOnly && setFloorPumpOverride('OFF', floorPumpOverrideDuration)}
+                    disabled={readOnly || saving}
+                    style={{ flex: 1, fontSize: 12, padding: '7px 10px', borderRadius: 8 }}
+                  >
+                    🔴 Pakota OFF
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => !readOnly && setFloorPumpOverride(null, 0)}
+                    disabled={readOnly || saving}
+                    style={{ fontSize: 12, padding: '7px 12px', borderRadius: 8 }}
+                    title="Pura ohitus ja palauta automaattitila"
+                  >
+                    ⚡ Auto
+                  </button>
+                </div>
+              </div>
+
+              {/* Summer Cutoff Threshold */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>
+                    ☀️ Kesäkatkaisuraja (Ulkolämpötila)
+                  </label>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b' }}>
+                    {floorPumpCutoff} °C
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="28"
+                  step="0.5"
+                  value={floorPumpCutoff}
+                  onChange={(e) => setFloorPumpCutoff(e.target.value)}
+                  disabled={readOnly}
+                  style={{ width: '100%', accentColor: '#f59e0b', cursor: 'pointer' }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Alle tämän ulkolämpötilan pumppu käy jatkuvasti. Yli tämän lämpötilan siirrytään kesäjaksoajoon / lepotilaan.
+                </div>
+              </div>
+
+              {/* Summer Comfort Pulse & DHW Heat Capture Checkbox */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={floorPumpSummerPulse}
+                  onChange={(e) => setFloorPumpSummerPulse(e.target.checked)}
+                  disabled={readOnly}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#38bdf8' }}
+                />
+                <span>
+                  <strong style={{ color: 'var(--text-primary)' }}>Kesäajan mukavuusjaksoajo & LKV-talteenotto</strong>: Pyörittää pumppua lämpimällä säällä 15 min / 2 h välein sekä aina käyttövesilatauksen jälkeen, jotta kylpyhuoneen lattia pysyy kuivana ja mukavan lämpimänä.
+                </span>
+              </label>
+
+              {/* Anti-Seize Exercise Checkbox */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={floorPumpAntiSeize}
+                  onChange={(e) => setFloorPumpAntiSeize(e.target.checked)}
+                  disabled={readOnly}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#10b981' }}
+                />
+                <span>
+                  <strong style={{ color: 'var(--text-primary)' }}>Päivittäinen jumiutumisenesto</strong>: Pyörittää pumppua 5 minuutin ajan päivittäin (klo 12:00–12:05) kesätauon aikana juoksupyörän suojaamiseksi.
+                </span>
+              </label>
             </div>
           </div>
 

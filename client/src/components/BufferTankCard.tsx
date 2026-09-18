@@ -132,7 +132,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
 
   const { send, pending, error, success } = useCommand();
   const { calcCostPerHour } = useElectricityPrice();
-  const { status: apcStatus, updateSettings: updateApcSettings } = useApc();
+  const { status: apcStatus, updateSettings: updateApcSettings, setFloorPumpOverride } = useApc();
   const cost = calcCostPerHour(cons);
 
   const [mode, setMode] = useState<Z1Mode>(loadMode);
@@ -141,6 +141,24 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   const apcEnabled = apcStatus?.enabled ?? false;
   const baseZ1Shift = apcStatus?.settings?.base_z1_shift ?? 0;
   const directive = apcStatus?.currentDirective ?? 'NORMAL';
+
+  // Lattialämmityksen toisiokiertovesipumpun (Sonoff) tila ja ohjaus
+  const floorPumpRaw = state['lattialampopumppu/stat/POWER']?.value;
+  const isFloorPumpRunning = floorPumpRaw === 'ON' || floorPumpRaw === '1' || floorPumpRaw === 'true';
+  const floorPumpDevice = apcStatus?.devices?.find((d) => d.driver === 'floor_pump');
+  const floorPumpOverrideActive = floorPumpDevice?.overrideActive ?? (apcStatus?.settings?.floor_pump_override_until ? apcStatus.settings.floor_pump_override_until > Date.now() : false);
+  const floorPumpOverrideState = floorPumpDevice?.overrideState ?? apcStatus?.settings?.floor_pump_override_state;
+  const floorPumpReason = floorPumpDevice?.reason || (isFloorPumpRunning ? 'Käynnissä (Lattialämmityskierto)' : 'Lepotilassa (Pois päältä)');
+  const isAntiSeizeRunning = floorPumpDevice?.antiSeizeActive ?? false;
+
+  const handleFloorPumpToggle = async (target: 'ON' | 'OFF' | null) => {
+    if (readOnly) return;
+    if (target === null) {
+      await setFloorPumpOverride(null, 0);
+    } else {
+      await setFloorPumpOverride(target, 0);
+    }
+  };
 
   function changeMode(next: Z1Mode) {
     setMode(next);
@@ -431,6 +449,164 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
             }}>
               {pumpBadgeText}
             </span>
+          </div>
+        </div>
+
+        {/* Lattialämmityksen kiertopumppu (Toisiopiiri · Sonoff) */}
+        <div
+          style={{
+            background: isFloorPumpRunning ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+            border: isFloorPumpRunning ? '1px solid rgba(34, 197, 94, 0.28)' : '1px solid rgba(255, 255, 255, 0.07)',
+            borderRadius: 10,
+            padding: '12px 14px',
+            marginBottom: 14,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: isFloorPumpRunning ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: isFloorPumpRunning ? '1.5px solid rgba(34, 197, 94, 0.3)' : '1.5px solid rgba(255, 255, 255, 0.07)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isFloorPumpRunning ? '0 0 10px rgba(34, 197, 94, 0.25)' : 'none',
+                flexShrink: 0,
+              }}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={isFloorPumpRunning ? '#22c55e' : 'rgba(255, 255, 255, 0.4)'}
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={isFloorPumpRunning ? 'spinning' : ''}
+                  style={{ transition: 'stroke 0.3s' }}
+                >
+                  <circle cx="12" cy="12" r="10" strokeDasharray="5 3" />
+                  <path d="M12 7v5l3 3" />
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>Lattialämmityspumppu (Sonoff)</span>
+                  <span className="badge" style={{
+                    fontSize: 9,
+                    padding: '1px 6px',
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                  }}>
+                    Toisiopiiri
+                  </span>
+                  {floorPumpOverrideActive && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      color: '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                    }}>
+                      ⚡ Pakotettu {floorPumpOverrideState || (isFloorPumpRunning ? 'ON' : 'OFF')}
+                    </span>
+                  )}
+                  {isAntiSeizeRunning && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(168, 85, 247, 0.2)',
+                      color: '#c084fc',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                    }}>
+                      🔄 Jumiutumissuoja
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {floorPumpReason}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: isFloorPumpRunning ? 'var(--online, #22c55e)' : 'var(--text-muted, #64748b)',
+                  boxShadow: isFloorPumpRunning ? '0 0 8px var(--online, #22c55e)' : 'none',
+                }}
+              />
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: isFloorPumpRunning ? 'var(--online, #22c55e)' : 'var(--text-muted, #64748b)',
+              }}>
+                {isFloorPumpRunning ? 'Käynnissä' : 'Pois päältä'}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick override buttons */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 'auto' }}>
+              Pakkokytkentä:
+            </span>
+            <button
+              className={`btn btn-xs ${!floorPumpOverrideActive ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => handleFloorPumpToggle(null)}
+              disabled={readOnly || pending}
+              title="Palauta älykäs automaattiohjaus"
+              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6 }}
+            >
+              ⚡ Auto
+            </button>
+            <button
+              className={`btn btn-xs ${floorPumpOverrideActive && (floorPumpOverrideState === 'ON' || (isFloorPumpRunning && !floorPumpOverrideState)) ? 'btn-success' : 'btn-ghost'}`}
+              onClick={() => handleFloorPumpToggle('ON')}
+              disabled={readOnly || pending}
+              title="Pakota kiertovesipumppu päälle"
+              style={{
+                fontSize: 11,
+                padding: '3px 9px',
+                borderRadius: 6,
+                color: isFloorPumpRunning ? '#22c55e' : undefined,
+                border: floorPumpOverrideActive && floorPumpOverrideState === 'ON' ? '1px solid #22c55e' : undefined,
+              }}
+            >
+              🟢 Pakota Päälle
+            </button>
+            <button
+              className={`btn btn-xs ${floorPumpOverrideActive && (floorPumpOverrideState === 'OFF' || (!isFloorPumpRunning && !floorPumpOverrideState)) ? 'btn-danger' : 'btn-ghost'}`}
+              onClick={() => handleFloorPumpToggle('OFF')}
+              disabled={readOnly || pending}
+              title="Pakota kiertovesipumppu pois päältä"
+              style={{
+                fontSize: 11,
+                padding: '3px 9px',
+                borderRadius: 6,
+                color: !isFloorPumpRunning && floorPumpOverrideActive ? '#ef4444' : undefined,
+                border: floorPumpOverrideActive && floorPumpOverrideState === 'OFF' ? '1px solid #ef4444' : undefined,
+              }}
+            >
+              🔴 Pakota Pois
+            </button>
           </div>
         </div>
 

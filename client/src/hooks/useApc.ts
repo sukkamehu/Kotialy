@@ -108,6 +108,78 @@ export function useApc() {
     }
   };
 
+  const setFloorPumpOverride = async (state: 'ON' | 'OFF' | null, durationHours: number = 0) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/floor-pump/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state, duration_hours: durationHours }),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      } else {
+        const errData = await res.json().catch(() => ({ error: 'Kiertovesipumpun ohjaus epäonnistui' }));
+        setError(errData.error);
+        return false;
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setFloorPumpMode = async (mode: 'auto' | 'constant_on' | 'constant_off') => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/floor-pump/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateFloorPumpSettings = async (pumpSettings: { summer_cutoff_temp?: number; anti_seize_enabled?: boolean }) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/floor-pump/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pumpSettings),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return {
     status,
     logs,
@@ -119,5 +191,8 @@ export function useApc() {
     toggleEnabled,
     setMode,
     setOverride,
+    setFloorPumpOverride,
+    setFloorPumpMode,
+    updateFloorPumpSettings,
   };
 }

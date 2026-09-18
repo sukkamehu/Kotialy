@@ -415,6 +415,12 @@ function getApcSettings() {
     prevent_curve_shift_above_cutoff: true,
     auto_mode_switch_enabled: true,
     auto_mode_switch_hysteresis_c: 1.0,
+    floor_pump_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
+    floor_pump_summer_cutoff_temp: 20.0,
+    floor_pump_summer_pulse_enabled: true,
+    floor_pump_anti_seize_enabled: true,
+    floor_pump_override_until: 0,
+    floor_pump_override_state: null,
   };
 
   for (const r of rows) {
@@ -426,7 +432,11 @@ function getApcSettings() {
       settings.prevent_curve_shift_above_cutoff = r.value === '1' || r.value === 'true';
     } else if (r.key === 'auto_mode_switch_enabled') {
       settings.auto_mode_switch_enabled = r.value === '1' || r.value === 'true';
-    } else if (r.key === 'mode' || r.key === 'override_directive') {
+    } else if (r.key === 'floor_pump_anti_seize_enabled') {
+      settings.floor_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'floor_pump_summer_pulse_enabled') {
+      settings.floor_pump_summer_pulse_enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'mode' || r.key === 'override_directive' || r.key === 'floor_pump_mode' || r.key === 'floor_pump_override_state') {
       settings[r.key] = r.value;
     } else {
       const n = parseFloat(r.value);

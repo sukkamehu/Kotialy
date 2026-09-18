@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
+import { useApc } from '../hooks/useApc';
 
 interface HydraulicDiagramPageProps {
   state: HeishamonState;
@@ -25,6 +26,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const { send, pending } = useCommand();
+  const { setFloorPumpOverride } = useApc();
 
   // Extract real sensor data from state
   const rawOutsideTemp = numVal(state, 'main/Outside_Temp');
@@ -43,6 +45,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
   const rawForceDhw = state['main/Force_DHW_State']?.value === '1';
   const rawSterilization = state['main/Sterilization_State']?.value === '1';
   const rawFan1Speed = numVal(state, 'main/Fan1_Motor_Speed');
+  const floorPumpRaw = state['lattialampopumppu/stat/POWER']?.value;
 
   // Simulated or Live values depending on selected diagramMode
   const isSimulated = diagramMode !== 'live';
@@ -54,6 +57,10 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
   const isHeatingMode = isSimulated
     ? diagramMode === 'heating'
     : rawValveState === '0';
+
+  const isFloorPumpRunning = isSimulated
+    ? (diagramMode === 'heating' || diagramMode === 'dhw')
+    : (floorPumpRaw === 'ON' || floorPumpRaw === '1' || floorPumpRaw === 'true');
 
   const outsideTemp = rawOutsideTemp ?? 4.5;
   const dhwTemp = isSimulated && diagramMode === 'dhw' ? 53.5 : rawDhwTemp ?? 49.0;
@@ -185,6 +192,25 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
       technicalDetails: [
         'Kierrättää valmista käyttövettä erillisessä LKV-paluuputkessa.',
         'Ei vaikuta lämpöpumpun vesikiertoon tai lämmitysverkostoon.',
+      ],
+    },
+    floor_pump: {
+      id: 'floor_pump',
+      title: 'Lattialämmityksen kiertopumppu (Sonoff)',
+      icon: '🌀',
+      category: 'Toisiopiiri · Lämmönjako',
+      description: 'Älyohjattu toisiopiirin kiertovesipumppu puskurivaraajan ja jakotukin välissä. Ohjataan Sonoff/Tasmota-älyreleellä Kotiäly APC -strategian mukaisesti.',
+      metrics: [
+        { label: 'Tila', value: isFloorPumpRunning ? 'Käynnissä (ON)' : 'Lepotilassa (OFF)' },
+        { label: 'Teho (arvio)', value: isFloorPumpRunning ? '45 W' : '0 W' },
+        { label: 'Ohjaustapa', value: 'Sonoff Smart Relay (MQTT)' },
+        { label: 'Strategia', value: 'APC Kesäkatkaisu & Jumiutumissuoja' },
+      ],
+      technicalDetails: [
+        'Kierrättää puskurivaraajan lämpöä huonekohtaisille lattialämmityspiireille.',
+        'Sammutetaan automaattisesti kesällä (≥ 14 °C) sähkön ja kompressorin säästämiseksi.',
+        'Pyöritetään 5 min päivittäin klo 12:00 jumiutumisen estämiseksi kesäkaudella.',
+        'Hyödyntää käyttövesisyklin paluulämmön puskurista suoraan betonilaattaan.',
       ],
     },
   };
@@ -423,7 +449,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
               />
             )}
 
-            {/* 6. Buffer Tank -> Floor Heating Manifold (Supply from Buffer) */}
+            {/* 6. Buffer Tank -> Floor Heating Manifold (Supply from Buffer via Sonoff Pump) */}
             <path
               d="M 770 260 L 770 200 L 880 200 L 880 340"
               stroke="#b45309"
@@ -432,7 +458,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
               strokeLinecap="round"
               fill="none"
             />
-            {isMainPumpRunning && (
+            {isFloorPumpRunning && (
               <path
                 d="M 770 260 L 770 200 L 880 200 L 880 340"
                 stroke="#fbbf24"
@@ -651,6 +677,37 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
               </text>
             </g>
 
+            {/* NODE 5.5: Floor Heating Secondary Pump (Sonoff) */}
+            <g
+              className="diagram-node-clickable"
+              onClick={() => setSelectedNode('floor_pump')}
+              transform="translate(805, 178)"
+            >
+              <circle
+                cx="20"
+                cy="22"
+                r="18"
+                fill="rgba(30, 41, 59, 0.95)"
+                stroke={isFloorPumpRunning ? '#22c55e' : 'rgba(255,255,255,0.3)'}
+                strokeWidth="2"
+                filter={isFloorPumpRunning ? 'url(#glowHeat)' : undefined}
+              />
+              <text
+                x="20"
+                y="28"
+                fontSize="16"
+                textAnchor="middle"
+                className={isFloorPumpRunning ? 'spinning' : ''}
+              >
+                🌀
+              </text>
+              <rect x="-10" y="44" width="60" height="18" rx="4" fill="rgba(0,0,0,0.6)" />
+              <text x="20" y="56" fill="#60a5fa" fontSize="8.5" fontWeight="700" textAnchor="middle">
+                Sonoff-pumppu
+              </text>
+              <circle cx="20" cy="1" r="3.5" fill={isFloorPumpRunning ? '#22c55e' : '#64748b'} />
+            </g>
+
             {/* NODE 5: Floor Heating Manifold & Loops */}
             <g
               className="diagram-node-clickable"
@@ -814,6 +871,50 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
               ))}
             </ul>
           </div>
+
+          {/* Quick Override Action Buttons for Floor Pump */}
+          {selectedNode === 'floor_pump' && !readOnly && (
+            <div style={{
+              marginTop: 16,
+              paddingTop: 14,
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Pakkokytkentä / Ohitus:
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-sm btn-success"
+                  onClick={() => setFloorPumpOverride('ON', 0)}
+                  disabled={pending}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>🟢</span> Pakota Päälle
+                </button>
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={() => setFloorPumpOverride('OFF', 0)}
+                  disabled={pending}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>🔴</span> Pakota Pois
+                </button>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setFloorPumpOverride(null, 0)}
+                  disabled={pending}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>⚡</span> Palauta Auto
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

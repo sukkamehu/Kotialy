@@ -207,16 +207,31 @@ router.post('/command', requireAdmin, express.json(), (req, res) => {
     });
   }
 
-  // Range-check before anything reaches the heat pump.
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return res.status(400).json({ error: 'value must be a number' });
-  }
-  if (meta.min !== undefined && num < meta.min) {
-    return res.status(400).json({ error: `value below minimum (${meta.min})` });
-  }
-  if (meta.max !== undefined && num > meta.max) {
-    return res.status(400).json({ error: `value above maximum (${meta.max})` });
+  let finalVal = value;
+
+  if (meta.type === 'enum') {
+    // Enum/string topics (e.g. Sonoff POWER 'ON' | 'OFF' | 1 | 0)
+    if (typeof value === 'string') {
+      const up = value.toUpperCase();
+      if (up === 'ON' || up === '1' || up === 'TRUE') finalVal = 'ON';
+      else if (up === 'OFF' || up === '0' || up === 'FALSE') finalVal = 'OFF';
+      else finalVal = value;
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      finalVal = (value === 1 || value === true) ? 'ON' : 'OFF';
+    }
+  } else {
+    // Range-check numeric values before anything reaches the heat pump
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+      return res.status(400).json({ error: 'value must be a number' });
+    }
+    if (meta.min !== undefined && num < meta.min) {
+      return res.status(400).json({ error: `value below minimum (${meta.min})` });
+    }
+    if (meta.max !== undefined && num > meta.max) {
+      return res.status(400).json({ error: `value above maximum (${meta.max})` });
+    }
+    finalVal = num;
   }
 
   try {
@@ -224,13 +239,21 @@ router.post('/command', requireAdmin, express.json(), (req, res) => {
       const dbModule = require('../db');
       const apcSettings = dbModule.getApcSettings();
       if (apcSettings.enabled) {
-        dbModule.updateApcSetting('base_z1_shift', num);
+        dbModule.updateApcSetting('base_z1_shift', finalVal);
         apcService.evaluate();
-        return res.json({ ok: true, setTopic, value: num, isApcBase: true });
+        return res.json({ ok: true, setTopic, value: finalVal, isApcBase: true });
       }
     }
-    mqttClient.publish(setTopic, num);
-    res.json({ ok: true, setTopic, value: num });
+
+    if (setTopic === 'lattialampopumppu/cmnd/POWER') {
+      const floorPumpDriver = require('../devices/floor-pump-driver');
+      const stateStr = (finalVal === 'ON' || finalVal === 1) ? 'ON' : 'OFF';
+      floorPumpDriver.setManualOverride(stateStr, 0); // Indefinite manual override until cancelled
+      return res.json({ ok: true, setTopic, value: stateStr });
+    }
+
+    mqttClient.publish(setTopic, finalVal);
+    res.json({ ok: true, setTopic, value: finalVal });
   } catch (err) {
     res.status(503).json({ error: err.message });
   }
@@ -537,6 +560,84 @@ router.get('/apc/logs', (req, res) => {
   res.json({
     logs: getApcLogs(limit),
   });
+});
+
+// ─── Floor Heating Pump (Sonoff) Specific Endpoints ─────────────────────────
+
+/**
+ * GET /api/apc/floor-pump/status
+ */
+router.get('/apc/floor-pump/status', (req, res) => {
+  const floorPumpDriver = require('../devices/floor-pump-driver');
+  res.json(floorPumpDriver.getStatus());
+});
+
+/**
+ * POST /api/apc/floor-pump/override
+ * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
+ * Passing state: null or duration_hours: 0 with state: null clears manual override.
+ */
+router.post('/api/apc/floor-pump/override', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const floorPumpDriver = require('../devices/floor-pump-driver');
+    const { state, duration_hours = 0 } = req.body || {};
+
+    if (state === null || state === undefined || state === 'AUTO' || state === 'auto') {
+      const status = await floorPumpDriver.clearManualOverride();
+      // Re-evaluate APC
+      apcService.evaluate();
+      return res.json({ ok: true, status });
+    }
+
+    const stateStr = (state === 'ON' || state === 1 || state === true) ? 'ON' : 'OFF';
+    const status = await floorPumpDriver.setManualOverride(stateStr, parseFloat(duration_hours) || 0);
+    return res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/floor-pump/mode
+ * Body: { mode: 'auto' | 'constant_on' | 'constant_off' }
+ */
+router.post('/api/apc/floor-pump/mode', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const floorPumpDriver = require('../devices/floor-pump-driver');
+    const { mode } = req.body || {};
+    const status = await floorPumpDriver.setMode(mode);
+    apcService.evaluate();
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/floor-pump/settings
+ * Body: { summer_cutoff_temp, anti_seize_enabled }
+ */
+router.post('/api/apc/floor-pump/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { summer_cutoff_temp, anti_seize_enabled, summer_pulse_enabled } = req.body || {};
+    const dbModule = require('../db');
+
+    if (summer_cutoff_temp !== undefined && !isNaN(parseFloat(summer_cutoff_temp))) {
+      dbModule.updateApcSetting('floor_pump_summer_cutoff_temp', parseFloat(summer_cutoff_temp));
+    }
+    if (anti_seize_enabled !== undefined) {
+      dbModule.updateApcSetting('floor_pump_anti_seize_enabled', anti_seize_enabled ? '1' : '0');
+    }
+    if (summer_pulse_enabled !== undefined) {
+      dbModule.updateApcSetting('floor_pump_summer_pulse_enabled', summer_pulse_enabled ? '1' : '0');
+    }
+
+    apcService.evaluate();
+    const floorPumpDriver = require('../devices/floor-pump-driver');
+    res.json({ ok: true, status: floorPumpDriver.getStatus() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Camera / RTSP Monitoring Routes ─────────────────────────────────────────
