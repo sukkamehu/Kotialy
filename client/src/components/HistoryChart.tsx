@@ -15,18 +15,19 @@ interface ChartTopicConfig {
 }
 
 const CHART_TOPICS: ChartTopicConfig[] = [
-  { key: 'main/Outside_Temp', label: 'Ulkoilma', color: '#22d3ee', unit: '°C', yAxisId: 'left' },
+  { key: 'main/Outside_Temp', label: 'VILP Ulkolämpö', color: '#22d3ee', unit: '°C', yAxisId: 'left' },
+  { key: 'weather_temp', label: '🌤️ Sääennuste', color: '#06b6d4', unit: '°C', yAxisId: 'left', dash: '3 3' },
   { key: 'main/Main_Inlet_Temp', label: 'Tulo', color: '#38bdf8', unit: '°C', yAxisId: 'left' },
   { key: 'main/Main_Outlet_Temp', label: 'Meno', color: '#f59e0b', unit: '°C', yAxisId: 'left' },
   { key: 'main/DHW_Temp', label: 'Käyttövesi', color: '#10b981', unit: '°C', yAxisId: 'left' },
   { key: 'main/Buffer_Temp', label: 'Puskuri', color: '#a78bfa', unit: '°C', yAxisId: 'left' },
+  { key: 'herrfors_power', label: '🔌 Talon sähköteho (Herrfors)', color: '#ec4899', unit: 'kW', yAxisId: 'right' },
   { key: 'main/Compressor_Freq', label: 'Komp. Hz', color: '#fb923c', unit: 'Hz', yAxisId: 'right' },
-  { key: 'main/Pump_Flow', label: 'Virtaus', color: '#34d399', unit: 'L/min', yAxisId: 'right' },
+  { key: 'main/Heat_Power_Consumption', label: 'VILP Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right' },
   { key: 'main/Heat_Power_Production', label: 'Lämmitysteho', color: '#f97316', unit: 'W', yAxisId: 'right' },
-  { key: 'main/Heat_Power_Consumption', label: 'Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right' },
-  { key: 'main/DHW_Power_Production', label: 'KV-teho', color: '#059669', unit: 'W', yAxisId: 'right' },
-  { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3' },
   { key: 'electricity_price', label: '⚡ Pörssisähkö', color: '#facc15', unit: 'snt/kWh', yAxisId: 'right', dash: '4 2' },
+  { key: 'main/Pump_Flow', label: 'Virtaus', color: '#34d399', unit: 'L/min', yAxisId: 'right' },
+  { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3' },
 ];
 
 type QuickPreset = '1h' | '6h' | '24h' | 'today' | 'yesterday' | '7d' | '30d' | 'custom_day' | 'custom_range';
@@ -66,7 +67,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       padding: '10px 14px',
       backdropFilter: 'blur(12px)',
       boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-      minWidth: 160,
+      minWidth: 190,
     }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
         {new Date(label).toLocaleString('fi-FI', {
@@ -83,6 +84,12 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         let valStr = typeof p.value === 'number' ? p.value.toFixed(1) : String(p.value);
         if (p.dataKey === 'main/Defrosting_State') {
           valStr = p.value === 1 ? 'Käynnissä' : 'Pois';
+        } else if (p.dataKey === 'herrfors_power') {
+          valStr = `${typeof p.value === 'number' ? p.value.toFixed(2) : p.value} kW`;
+        } else if (p.dataKey === 'electricity_price') {
+          valStr = `${typeof p.value === 'number' ? p.value.toFixed(2) : p.value} snt/kWh`;
+        } else if (p.dataKey === 'weather_temp' || p.dataKey.includes('Temp')) {
+          valStr = `${typeof p.value === 'number' && p.value > 0 ? '+' : ''}${typeof p.value === 'number' ? p.value.toFixed(1) : p.value} °C`;
         } else if (unit === 'W' && typeof p.value === 'number' && p.value >= 1000) {
           valStr = `${(p.value / 1000).toFixed(2)} kW`;
         } else if (unit !== '') {
@@ -106,13 +113,16 @@ function interpolateTimeline(
   selectedTopics: string[],
   sensorsData: Record<string, HistoryRow[]>,
   priceRows: any[],
+  herrforsRows: any[],
+  weatherRows: any[],
   maxGapMs: number = 45 * 60 * 1000
 ): ChartDataPoint[] {
   const seriesMap = new Map<string, { time: number; value: number }[]>();
   const timeSet = new Set<number>();
 
+  // 1. Heatpump and MQTT Sensors
   for (const topic of selectedTopics) {
-    if (topic === 'electricity_price') continue;
+    if (topic === 'electricity_price' || topic === 'herrfors_power' || topic === 'weather_temp') continue;
     const rows = sensorsData[topic] || [];
     const sortedRows = rows
       .map((r) => ({ time: Number(r.recorded_at), value: Number(r.value) }))
@@ -122,18 +132,50 @@ function interpolateTimeline(
     for (const r of sortedRows) timeSet.add(r.time);
   }
 
+  // 2. Electricity Spot Price
   if (selectedTopics.includes('electricity_price') && Array.isArray(priceRows)) {
     const priceSeries: { time: number; value: number }[] = [];
     for (const p of priceRows) {
       const t = Number(p.start_time || p.timestamp || p.time);
-      const v = Number(p.price_cents || p.price || 0);
+      const rawPrice = Number(p.price_cents != null ? p.price_cents : (p.price != null ? p.price / 10 : 0));
       if (!isNaN(t)) {
-        priceSeries.push({ time: t, value: v });
+        priceSeries.push({ time: t, value: Number(rawPrice.toFixed(2)) });
         timeSet.add(t);
       }
     }
     priceSeries.sort((a, b) => a.time - b.time);
     seriesMap.set('electricity_price', priceSeries);
+  }
+
+  // 3. Herrfors Whole House Power (kW = 15min kWh * 4)
+  if (selectedTopics.includes('herrfors_power') && Array.isArray(herrforsRows)) {
+    const herrforsSeries: { time: number; value: number }[] = [];
+    for (const h of herrforsRows) {
+      const t = Number(h.start_time || h.timestamp || h.time);
+      const kwh = Number(h.consumption_kwh != null ? h.consumption_kwh : h.value || 0);
+      if (!isNaN(t) && !isNaN(kwh)) {
+        const kw = Number((kwh * 4).toFixed(2));
+        herrforsSeries.push({ time: t, value: kw });
+        timeSet.add(t);
+      }
+    }
+    herrforsSeries.sort((a, b) => a.time - b.time);
+    seriesMap.set('herrfors_power', herrforsSeries);
+  }
+
+  // 4. Weather Forecast / Temperature
+  if (selectedTopics.includes('weather_temp') && Array.isArray(weatherRows)) {
+    const weatherSeries: { time: number; value: number }[] = [];
+    for (const w of weatherRows) {
+      const t = Number(w.time || w.timestamp || w.start_time);
+      const temp = Number(w.temperature != null ? w.temperature : w.temp);
+      if (!isNaN(t) && !isNaN(temp)) {
+        weatherSeries.push({ time: t, value: Number(temp.toFixed(1)) });
+        timeSet.add(t);
+      }
+    }
+    weatherSeries.sort((a, b) => a.time - b.time);
+    seriesMap.set('weather_temp', weatherSeries);
   }
 
   const allTimes = Array.from(timeSet).sort((a, b) => a - b);
@@ -175,6 +217,8 @@ function interpolateTimeline(
       const p0 = series[idx];
       const p1 = series[idx + 1];
 
+      if (!p0) continue;
+
       if (p0.time === t) {
         pt[topic] = p0.value;
       } else if (t < p0.time) {
@@ -188,7 +232,7 @@ function interpolateTimeline(
       } else {
         const gap = p1.time - p0.time;
         if (gap <= maxGapMs) {
-          if (topic === 'main/Defrosting_State' || topic === 'electricity_price') {
+          if (topic === 'main/Defrosting_State' || topic === 'electricity_price' || topic === 'herrfors_power') {
             pt[topic] = p0.value;
           } else {
             const ratio = (t - p0.time) / gap;
@@ -206,7 +250,7 @@ function interpolateTimeline(
 
 export function HistoryChart() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([
-    'main/Outside_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp',
+    'main/Outside_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp', 'herrfors_power',
   ]);
   const [preset, setPreset] = useState<QuickPreset>('24h');
   
@@ -297,8 +341,10 @@ export function HistoryChart() {
     setLoading(true);
     setError(null);
 
-    const sensorTopics = selectedTopics.filter((t) => t !== 'electricity_price');
+    const sensorTopics = selectedTopics.filter((t) => t !== 'electricity_price' && t !== 'herrfors_power' && t !== 'weather_temp');
     const includePrice = selectedTopics.includes('electricity_price');
+    const includeHerrfors = selectedTopics.includes('herrfors_power');
+    const includeWeather = selectedTopics.includes('weather_temp');
 
     const fetches: Promise<any>[] = [];
 
@@ -324,21 +370,49 @@ export function HistoryChart() {
       );
     }
 
+    if (includeHerrfors) {
+      fetches.push(
+        apiFetch(`/api/herrfors/readings?from=${fromMs}&to=${toMs}`)
+          .then((r) => {
+            if (!r.ok) throw new Error(`Herrfors-kulutustietojen haku epäonnistui (${r.status})`);
+            return r.json();
+          })
+          .then((res) => ({ type: 'herrfors', readings: res.readings ?? [] }))
+      );
+    }
+
+    if (includeWeather) {
+      fetches.push(
+        apiFetch(`/api/weather/forecast?hours=72`)
+          .then((r) => {
+            if (!r.ok) throw new Error(`Sääennusteen haku epäonnistui (${r.status})`);
+            return r.json();
+          })
+          .then((res) => ({ type: 'weather', forecast: res.forecast ?? [] }))
+      );
+    }
+
     Promise.all(fetches)
       .then((results) => {
         if (cancelled) return;
         let sensorsData: Record<string, HistoryRow[]> = {};
         let pricesData: any[] = [];
+        let herrforsData: any[] = [];
+        let weatherData: any[] = [];
 
         for (const res of results) {
           if (res.type === 'sensors') {
             sensorsData = res.data;
           } else if (res.type === 'price') {
             pricesData = res.prices;
+          } else if (res.type === 'herrfors') {
+            herrforsData = res.readings;
+          } else if (res.type === 'weather') {
+            weatherData = res.forecast;
           }
         }
 
-        const interpolated = interpolateTimeline(selectedTopics, sensorsData, pricesData);
+        const interpolated = interpolateTimeline(selectedTopics, sensorsData, pricesData, herrforsData, weatherData);
         setData(interpolated);
       })
       .catch((err) => {
@@ -384,7 +458,12 @@ export function HistoryChart() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="card-icon">📈</span>
-            <span className="card-title" style={{ fontSize: 17 }}>Trendit ja historia</span>
+            <div>
+              <span className="card-title" style={{ fontSize: 17 }}>Trendit ja historia</span>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                Lämpöpumpun diagnostiikka, talon kokonaiskulutus, sääennuste ja pörssihinta
+              </div>
+            </div>
           </div>
 
           {/* Quick preset buttons */}
@@ -606,22 +685,22 @@ export function HistoryChart() {
 
         {/* Chart */}
         {loading ? (
-          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: 340, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Ladataan trenditietoja...</span>
           </div>
         ) : error ? (
-          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: 340, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'var(--offline)', fontSize: 13 }}>{error}</span>
           </div>
         ) : data.length === 0 ? (
-          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
+          <div style={{ height: 340, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: 28 }}>📊</span>
             <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
               {selectedTopics.length === 0 ? 'Valitse kuvaajassa näytettävät kohteet yltä' : 'Ei historiadataa valitulle aikajaksolle'}
             </span>
           </div>
         ) : (
-          <div className="chart-container" style={{ height: 340 }}>
+          <div className="chart-container" style={{ height: 360 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 5, right: hasRightAxis ? 10 : 15, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -645,7 +724,7 @@ export function HistoryChart() {
                   width={38}
                   tickFormatter={(v) => `${Math.round(v)}°`}
                 />
-                {/* Right Y Axis for Price (c/kWh) & Compressor Freq (Hz) */}
+                {/* Right Y Axis for Price (c/kWh), Power (kW), Compressor Freq (Hz) */}
                 {hasRightAxis && (
                   <YAxis
                     yAxisId="right"
@@ -665,7 +744,7 @@ export function HistoryChart() {
                     dataKey={key}
                     name={label}
                     stroke={color}
-                    strokeWidth={key === 'electricity_price' ? 2.5 : 2}
+                    strokeWidth={key === 'herrfors_power' || key === 'electricity_price' ? 2.5 : 2}
                     strokeDasharray={dash}
                     dot={false}
                     connectNulls

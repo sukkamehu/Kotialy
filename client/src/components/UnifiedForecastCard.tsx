@@ -10,10 +10,12 @@ import {
   Legend,
   CartesianGrid,
   ReferenceLine,
+  Cell,
 } from 'recharts';
 import { apiFetch } from '../lib/api';
 import type { NordpoolPrice, NordpoolStats, NordpoolWindow } from '../types/nordpool';
 import type { WeatherForecast } from '../types/weather';
+import type { ApcPlanSlot, ApcStatus } from '../types/apc';
 
 interface UnifiedData {
   currentPrice: (NordpoolPrice & { rank?: number }) | null;
@@ -23,6 +25,8 @@ interface UnifiedData {
   prices: NordpoolPrice[];
   weather: WeatherForecast[];
   currentWeather: WeatherForecast | null;
+  apcPlan: ApcPlanSlot[];
+  apcStatus: ApcStatus | null;
   loading: boolean;
 }
 
@@ -77,6 +81,8 @@ export function UnifiedForecastCard() {
     prices: [],
     weather: [],
     currentWeather: null,
+    apcPlan: [],
+    apcStatus: null,
     loading: true,
   });
 
@@ -85,7 +91,7 @@ export function UnifiedForecastCard() {
 
   const fetchAll = async () => {
     try {
-      const [curRes, statsRes, cheap3Res, cheap6Res, pricesRes, weatherRes, curWeatherRes] = await Promise.all([
+      const [curRes, statsRes, cheap3Res, cheap6Res, pricesRes, weatherRes, curWeatherRes, apcRes] = await Promise.all([
         apiFetch('/api/nordpool/current'),
         apiFetch('/api/nordpool/stats'),
         apiFetch('/api/nordpool/cheapest?hours=3'),
@@ -93,6 +99,7 @@ export function UnifiedForecastCard() {
         apiFetch('/api/nordpool/prices'),
         apiFetch('/api/weather/forecast?hours=48'),
         apiFetch('/api/weather/current'),
+        apiFetch('/api/apc/status'),
       ]);
 
       const currentPrice = await curRes.json();
@@ -102,6 +109,7 @@ export function UnifiedForecastCard() {
       const pricesData = await pricesRes.json();
       const weatherData = await weatherRes.json();
       const currentWeather = await curWeatherRes.json();
+      const apcData = await apcRes.json();
 
       setData({
         currentPrice: currentPrice?.message ? null : currentPrice,
@@ -111,6 +119,8 @@ export function UnifiedForecastCard() {
         prices: pricesData.prices || [],
         weather: weatherData.forecast || [],
         currentWeather: currentWeather?.temperature != null ? currentWeather : null,
+        apcPlan: apcData?.plan || [],
+        apcStatus: apcData?.enabled !== undefined ? apcData : null,
         loading: false,
       });
     } catch (err) {
@@ -127,13 +137,13 @@ export function UnifiedForecastCard() {
 
   const now = Date.now();
 
-  // Combine hourly price and weather data into unified timeline points
+  // Combine hourly price, weather, and APC plan data into unified timeline points
   const combinedSeries = useMemo(() => {
     if (!data.prices.length) return [];
 
     const nowStart = new Date();
     nowStart.setMinutes(0, 0, 0);
-    const filterStart = nowStart.getTime() - 2 * 3600_000; // include past 2 hours for context
+    const filterStart = nowStart.getTime() - 2 * 3600_000; // past 2 hours
     const maxEnd = timeRange === '24h' ? now + 24 * 3600_000 : now + 48 * 3600_000;
 
     // Filter relevant prices
@@ -154,6 +164,12 @@ export function UnifiedForecastCard() {
       const roundedTime = Math.round(p.start_time / 3600_000) * 3600_000;
       const w = weatherMap.get(roundedTime) || data.weather.find(item => Math.abs(item.time - p.start_time) < 1800_000);
 
+      // Find corresponding APC slot(s) for this hour
+      const matchingSlot = data.apcPlan.find(s => s.start_time <= p.start_time && s.end_time > p.start_time);
+      const directive = matchingSlot?.directive || 'NORMAL';
+      const isDhw = matchingSlot?.is_dhw_slot || directive === 'DHW_CYCLE';
+      const reason = matchingSlot?.reason || 'Normaali lämmityskäynti';
+
       const isCurrent = now >= p.start_time && now < p.end_time;
       const isPast = p.end_time < now;
 
@@ -172,6 +188,18 @@ export function UnifiedForecastCard() {
         p.start_time < data.cheapest3h.end
       );
 
+      // Directive colors
+      let barColor = '#fbbf24'; // default yellow
+      if (directive === 'BOOST') {
+        barColor = '#34d399'; // green boost
+      } else if (isDhw) {
+        barColor = '#38bdf8'; // sky blue DHW
+      } else if (directive === 'SETBACK') {
+        barColor = '#f87171'; // red setback
+      } else if (directive === 'ECO') {
+        barColor = '#f59e0b'; // amber eco
+      }
+
       return {
         time: p.start_time,
         timeStr: fmtHour(p.start_time),
@@ -181,6 +209,10 @@ export function UnifiedForecastCard() {
         isCurrent,
         isPast,
         inCheap3h,
+        directive,
+        isDhw,
+        reason,
+        barColor,
         temp: w?.temperature != null ? Number(w.temperature.toFixed(1)) : null,
         feels_like: w?.feels_like != null ? Number(w.feels_like.toFixed(1)) : null,
         wind_speed: w?.wind_speed != null ? Number(w.wind_speed.toFixed(1)) : null,
@@ -189,7 +221,7 @@ export function UnifiedForecastCard() {
         emoji: getEmoji(w?.symbol),
       };
     });
-  }, [data.prices, data.weather, data.stats, data.cheapest3h, timeRange, now]);
+  }, [data.prices, data.weather, data.stats, data.cheapest3h, data.apcPlan, timeRange, now]);
 
   const curPriceCents = data.currentPrice ? (data.currentPrice.price / 10).toFixed(2) : '-';
   const curTemp = data.currentWeather?.temperature != null ? `${data.currentWeather.temperature > 0 ? '+' : ''}${data.currentWeather.temperature.toFixed(1)}` : '-';
@@ -204,6 +236,16 @@ export function UnifiedForecastCard() {
     const levelColor = pt.level === 'cheap' ? '#4ade80' : pt.level === 'expensive' ? '#f87171' : '#fbbf24';
     const levelText = pt.level === 'cheap' ? 'Edullinen sähkö' : pt.level === 'expensive' ? 'Kallis sähkö' : 'Normaalihintainen sähkö';
 
+    const dirBadgeText = pt.directive === 'BOOST'
+      ? '⚡ Esilämmitys / Lataus (+3°C)'
+      : pt.isDhw
+      ? '🚿 Käyttövesilataus (55°C)'
+      : pt.directive === 'SETBACK'
+      ? '💤 Säästötila / Setback (-2°C)'
+      : pt.directive === 'ECO'
+      ? '🌱 Ekotila (-1°C)'
+      : '⚖️ Normaali peruskäynti';
+
     return (
       <div style={{
         background: 'rgba(15, 23, 42, 0.95)',
@@ -212,7 +254,7 @@ export function UnifiedForecastCard() {
         padding: '10px 14px',
         boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
         fontSize: 12,
-        minWidth: 220,
+        minWidth: 240,
       }}>
         <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
           <span>{pt.fullDateStr}</span>
@@ -230,6 +272,17 @@ export function UnifiedForecastCard() {
           {pt.inCheap3h && <span style={{ color: '#4ade80', marginLeft: 6 }}>★ Halvin 3h jakso</span>}
         </div>
 
+        {/* APC Directive in Tooltip */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6, marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: pt.barColor, fontWeight: 700, marginBottom: 2 }}>
+            🧠 APC: {dirBadgeText}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            {pt.reason}
+          </div>
+        </div>
+
+        {/* Weather in Tooltip */}
         {pt.temp != null && (
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8' }}>
@@ -260,7 +313,28 @@ export function UnifiedForecastCard() {
       <div className="card-header" style={{ flexWrap: 'wrap', gap: 10, padding: '14px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="card-icon">⚡</span>
-          <span className="card-title">Älykäs Sähkö- & Sääennuste</span>
+          <div>
+            <div className="card-title" style={{ fontSize: 16 }}>Älykäs Sähkö- & Sääennuste</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              Spot-hinnat, sääolosuhteet ja APC-automaation ohjausikkunat yhdessä näkymässä
+            </div>
+          </div>
+        </div>
+
+        {/* Legend pills */}
+        <div style={{ display: 'flex', gap: 10, fontSize: 11, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399' }} /> Esilämmitys
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#38bdf8' }} /> Käyttövesi
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#f87171' }} /> Säästöjakso
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#fbbf24' }} /> Normaali
+          </span>
         </div>
 
         {/* Toolbar */}
@@ -297,7 +371,7 @@ export function UnifiedForecastCard() {
                 cursor: 'pointer',
               }}
             >
-              Kaikki (tänään + huominen)
+              Kaikki (48h)
             </button>
           </div>
 
@@ -393,7 +467,7 @@ export function UnifiedForecastCard() {
             padding: '12px 14px',
           }}>
             <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginBottom: 2 }}>
-              🟢 HALVIN 3H JAKSO
+              🟢 HALVIN 3H JAKSO (LATAUS)
             </div>
             {data.cheapest3h ? (
               <>
@@ -418,7 +492,7 @@ export function UnifiedForecastCard() {
             padding: '12px 14px',
           }}>
             <div style={{ fontSize: 11, color: '#c084fc', fontWeight: 600, marginBottom: 2 }}>
-              🟣 HALVIN 6H LATAUSIKKUNA
+              🟣 HALVIN 6H IKKUNA (KÄYTTÖVESI)
             </div>
             {data.cheapest6h ? (
               <>
@@ -482,14 +556,17 @@ export function UnifiedForecastCard() {
                 {/* Reference line for 0 c / kWh */}
                 <ReferenceLine yAxisId="left" y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="2 2" />
 
-                {/* Electricity price bars */}
+                {/* Electricity price bars colored by APC directive */}
                 <Bar
                   yAxisId="left"
                   dataKey="price_cents"
-                  name="Pörssisähkö (c/kWh)"
-                  fill="#fbbf24"
+                  name="Pörssisähkö & APC-ohjaus"
                   radius={[3, 3, 0, 0]}
-                />
+                >
+                  {combinedSeries.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.barColor} />
+                  ))}
+                </Bar>
 
                 {/* Temperature forecast curve */}
                 <Line
@@ -520,17 +597,26 @@ export function UnifiedForecastCard() {
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '8px 10px' }}>Kellonaika</th>
                   <th style={{ padding: '8px 10px' }}>Sähkön hinta</th>
-                  <th style={{ padding: '8px 10px' }}>Hintataso</th>
+                  <th style={{ padding: '8px 10px' }}>APC-ohjaus</th>
                   <th style={{ padding: '8px 10px' }}>Sää</th>
                   <th style={{ padding: '8px 10px' }}>Ulkolämpö</th>
-                  <th style={{ padding: '8px 10px' }}>Tuntuu kuin</th>
-                  <th style={{ padding: '8px 10px' }}>Tuuli</th>
+                  <th style={{ padding: '8px 10px' }}>Tuuli / Sade</th>
+                  <th style={{ padding: '8px 10px' }}>Perustelu</th>
                 </tr>
               </thead>
               <tbody>
                 {combinedSeries.map((pt) => {
                   const levelColor = pt.level === 'cheap' ? '#4ade80' : pt.level === 'expensive' ? '#f87171' : '#fbbf24';
-                  const levelLabel = pt.level === 'cheap' ? '🟢 Halpa' : pt.level === 'expensive' ? '🔴 Kallis' : '🟡 Normaali';
+                  const dirBadge = pt.directive === 'BOOST'
+                    ? '⚡ Esilämmitys'
+                    : pt.isDhw
+                    ? '🚿 Käyttövesi'
+                    : pt.directive === 'SETBACK'
+                    ? '💤 Säästöjakso'
+                    : pt.directive === 'ECO'
+                    ? '🌱 Ekotila'
+                    : '⚖️ Normaali';
+
                   return (
                     <tr
                       key={pt.time}
@@ -545,8 +631,18 @@ export function UnifiedForecastCard() {
                       <td style={{ padding: '8px 10px', fontWeight: 700, color: levelColor }}>
                         {pt.price_cents} c/kWh
                       </td>
-                      <td style={{ padding: '8px 10px', fontSize: 11, color: levelColor }}>
-                        {levelLabel}
+                      <td style={{ padding: '8px 10px' }}>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: pt.barColor,
+                          background: 'rgba(255,255,255,0.06)',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          border: `1px solid ${pt.barColor}40`,
+                        }}>
+                          {dirBadge}
+                        </span>
                       </td>
                       <td style={{ padding: '8px 10px', fontSize: 14 }}>
                         {pt.emoji}
@@ -555,10 +651,10 @@ export function UnifiedForecastCard() {
                         {pt.temp != null ? `${pt.temp > 0 ? '+' : ''}${pt.temp} °C` : '-'}
                       </td>
                       <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>
-                        {pt.feels_like != null ? `${pt.feels_like > 0 ? '+' : ''}${pt.feels_like} °C` : '-'}
+                        {pt.wind_speed != null ? `${pt.wind_speed} m/s` : '-'} {pt.rain_mm ? `• ${pt.rain_mm} mm` : ''}
                       </td>
-                      <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>
-                        {pt.wind_speed != null ? `${pt.wind_speed} m/s` : '-'}
+                      <td style={{ padding: '8px 10px', color: 'var(--text-secondary)', fontSize: 11 }}>
+                        {pt.reason}
                       </td>
                     </tr>
                   );
@@ -571,7 +667,7 @@ export function UnifiedForecastCard() {
         {/* Empty state */}
         {!data.loading && combinedSeries.length === 0 && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            Sähkön hinta- ja sääennusteita ladataan...
+            Sähkön hinta-, sää- ja optimointitietoja ladataan...
           </div>
         )}
       </div>
