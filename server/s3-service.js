@@ -1,3 +1,4 @@
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
@@ -87,6 +88,14 @@ class S3Service {
 
     this.lastBackupStatus = 'running';
     try {
+      // Passive WAL checkpoint so uncheckpointed frames are flushed safely
+      try {
+        const { db } = require('./db');
+        if (db && typeof db.exec === 'function') {
+          db.exec('PRAGMA wal_checkpoint(PASSIVE)');
+        }
+      } catch {}
+
       const data = fs.readFileSync(dbPath);
       const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -168,6 +177,7 @@ class S3Service {
       endpoint: this.endpoint,
       publicUrl: this.publicUrl,
       prefix: this.prefix,
+      intervalMinutes: parseInt(process.env.BACKUP_INTERVAL_MINUTES || '10'),
       lastBackupAt: this.lastBackupAt,
       lastBackupStatus: this.lastBackupStatus,
       lastBackupError: this.lastBackupError,
@@ -175,20 +185,25 @@ class S3Service {
   }
 
   /**
-   * Start periodic backup scheduler (every 6 hours)
+   * Start periodic backup scheduler (every 10 minutes)
    */
   startScheduler() {
     if (this.backupIntervalTimer) clearInterval(this.backupIntervalTimer);
 
+    const intervalMinutes = parseInt(process.env.BACKUP_INTERVAL_MINUTES || '10');
+    const intervalMs = Math.max(1, intervalMinutes) * 60 * 1000;
+
+    console.log(`[R2] Käynnistetään Cloudflare R2 automaattinen varmuuskopiointi (${intervalMinutes} minuutin välein)...`);
+
     if (this.isConfigured()) {
       setTimeout(() => {
         this.backupDatabase().catch(() => {});
-      }, 30_000);
+      }, 15_000);
     }
 
     this.backupIntervalTimer = setInterval(() => {
       this.backupDatabase().catch(() => {});
-    }, 6 * 60 * 60 * 1000);
+    }, intervalMs);
   }
 }
 

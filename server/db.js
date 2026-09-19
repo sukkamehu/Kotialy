@@ -114,6 +114,27 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_apc_logs_time
     ON apc_logs (timestamp);
+
+  CREATE TABLE IF NOT EXISTS herrfors_readings (
+    start_time      INTEGER PRIMARY KEY,
+    end_time        INTEGER NOT NULL,
+    date_str        TEXT NOT NULL,
+    consumption_kwh REAL,
+    price           REAL,
+    price_with_vat  REAL,
+    fetched_at      INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_herrfors_start
+    ON herrfors_readings (start_time);
+
+  CREATE INDEX IF NOT EXISTS idx_herrfors_date
+    ON herrfors_readings (date_str);
+
+  CREATE TABLE IF NOT EXISTS herrfors_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
 `);
 
 // ─── Prepared Statements ─────────────────────────────────────────────────────
@@ -219,6 +240,43 @@ const stmtUpsertCostSetting = db.prepare(`
   VALUES (?, ?)
   ON CONFLICT(key) DO UPDATE SET value = excluded.value
 `);
+
+const stmtUpsertHerrforsReading = db.prepare(`
+  INSERT INTO herrfors_readings (start_time, end_time, date_str, consumption_kwh, price, price_with_vat, fetched_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(start_time) DO UPDATE SET
+    end_time = excluded.end_time,
+    date_str = excluded.date_str,
+    consumption_kwh = COALESCE(excluded.consumption_kwh, herrfors_readings.consumption_kwh),
+    price = COALESCE(excluded.price, herrfors_readings.price),
+    price_with_vat = COALESCE(excluded.price_with_vat, herrfors_readings.price_with_vat),
+    fetched_at = excluded.fetched_at
+`);
+
+const stmtGetHerrforsReadings = db.prepare(`
+  SELECT start_time, end_time, date_str, consumption_kwh, price, price_with_vat, fetched_at
+  FROM herrfors_readings
+  WHERE start_time >= ? AND start_time <= ?
+  ORDER BY start_time ASC
+`);
+
+const stmtGetHerrforsSettings = db.prepare(`SELECT key, value FROM herrfors_settings`);
+
+const stmtUpsertHerrforsSetting = db.prepare(`
+  INSERT INTO herrfors_settings (key, value)
+  VALUES (?, ?)
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value
+`);
+
+const stmtGetHerrforsLatestReading = db.prepare(`
+  SELECT start_time, date_str, consumption_kwh, price, fetched_at
+  FROM herrfors_readings
+  WHERE consumption_kwh IS NOT NULL
+  ORDER BY start_time DESC
+  LIMIT 1
+`);
+
+const stmtGetHerrforsCount = db.prepare(`SELECT COUNT(*) as count FROM herrfors_readings`);
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -649,6 +707,89 @@ function getCompressorAnalytics(days = 7) {
   };
 }
 
+/**
+ * Herrfors Database Methods
+ */
+function upsertHerrforsReadings(readings) {
+  if (!Array.isArray(readings) || readings.length === 0) return 0;
+  let count = 0;
+  for (const r of readings) {
+    if (!r.start_time || !r.end_time) continue;
+    stmtUpsertHerrforsReading.run(
+      r.start_time,
+      r.end_time,
+      r.date_str || new Date(r.start_time).toISOString().slice(0, 10),
+      r.consumption_kwh != null ? r.consumption_kwh : null,
+      r.price != null ? r.price : null,
+      r.price_with_vat != null ? r.price_with_vat : null,
+      r.fetched_at || Date.now()
+    );
+    count++;
+  }
+  return count;
+}
+
+function getHerrforsReadings(fromMs, toMs) {
+  return stmtGetHerrforsReadings.all(fromMs, toMs).map(r => ({
+    start_time: Number(r.start_time),
+    end_time: Number(r.end_time),
+    date_str: r.date_str,
+    consumption_kwh: r.consumption_kwh != null ? Number(r.consumption_kwh) : null,
+    price: r.price != null ? Number(r.price) : null,
+    price_with_vat: r.price_with_vat != null ? Number(r.price_with_vat) : null,
+    fetched_at: Number(r.fetched_at),
+  }));
+}
+
+function getHerrforsSettings() {
+  const rows = stmtGetHerrforsSettings.all();
+  const settings = {
+    enabled: process.env.HERRFORS_ENABLED === 'true' || process.env.HERRFORS_ENABLED === '1',
+    co_id: process.env.HERRFORS_CO_ID || '60931591',
+    session_token: process.env.HERRFORS_SESSION_TOKEN || '',
+    refresh_interval_minutes: parseInt(process.env.HERRFORS_REFRESH_INTERVAL_MINUTES || '5'),
+    customer_name: null,
+    customer_email: null,
+    token_expires: null,
+    last_refresh_at: null,
+    last_sync_at: null,
+    last_sync_status: null,
+  };
+  for (const r of rows) {
+    if (r.key === 'enabled') {
+      settings.enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'refresh_interval_minutes') {
+      const n = parseInt(r.value);
+      if (!isNaN(n)) settings.refresh_interval_minutes = n;
+    } else if (r.key === 'last_refresh_at' || r.key === 'last_sync_at') {
+      const n = parseInt(r.value);
+      if (!isNaN(n)) settings[r.key] = n;
+    } else {
+      settings[r.key] = r.value;
+    }
+  }
+  return settings;
+}
+
+function updateHerrforsSetting(key, value) {
+  stmtUpsertHerrforsSetting.run(key, value != null ? String(value) : '');
+}
+
+function getHerrforsStats() {
+  const countRow = stmtGetHerrforsCount.get();
+  const latestRow = stmtGetHerrforsLatestReading.get();
+  return {
+    totalReadings: countRow?.count ? Number(countRow.count) : 0,
+    latestReading: latestRow ? {
+      start_time: Number(latestRow.start_time),
+      date_str: latestRow.date_str,
+      consumption_kwh: latestRow.consumption_kwh != null ? Number(latestRow.consumption_kwh) : null,
+      price: latestRow.price != null ? Number(latestRow.price) : null,
+      fetched_at: Number(latestRow.fetched_at),
+    } : null,
+  };
+}
+
 module.exports = {
   db,
   updateState,
@@ -667,4 +808,9 @@ module.exports = {
   insertApcLog,
   getApcLogs,
   getCompressorAnalytics,
+  upsertHerrforsReadings,
+  getHerrforsReadings,
+  getHerrforsSettings,
+  updateHerrforsSetting,
+  getHerrforsStats,
 };

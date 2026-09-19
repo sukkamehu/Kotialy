@@ -397,7 +397,6 @@ export function HistoryChart() {
               { id: 'yesterday', label: 'Eilen' },
               { id: '7d', label: '7 pv' },
               { id: '30d', label: '30 pv' },
-              { id: 'custom_day', label: '📅 Päivä' },
               { id: 'custom_range', label: '🗓️ Aikajakso' },
             ].map((p) => (
               <button

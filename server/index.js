@@ -14,6 +14,7 @@ const costCalculator = require('./cost-calculator');
 const apcService = require('./apc-service');
 const cameraService = require('./camera-service');
 const s3Service = require('./s3-service');
+const herrforsClient = require('./herrfors-client');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -167,6 +168,7 @@ weatherClient.startScheduler();
 costCalculator.startScheduler();
 cameraService.startScheduler();
 s3Service.startScheduler();
+herrforsClient.startScheduler();
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 

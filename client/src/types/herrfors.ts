@@ -1,0 +1,81 @@
+export interface HerrforsStatus {
+  enabled: boolean;
+  configured: boolean;
+  session_active?: boolean;
+  co_id: string;
+  token_expires: string | null;
+  last_refresh_at: number | null;
+  next_refresh_at: number | null;
+  last_sync_at: number | null;
+  last_sync_status: string | null;
+  last_error: string | null;
+  is_refreshing: boolean;
+  is_syncing: boolean;
+  stats: {
+    totalReadings: number;
+    latestReading: {
+      start_time: number;
+      date_str: string;
+      consumption_kwh: number | null;
+      price: number | null;
+      fetched_at: number;
+    } | null;
+  };
+}
+
+export interface HerrforsDataPoint {
+  time: number;
+  date_str: string;
+  house_kwh: number;
+  heatpump_kwh: number;
+  heating_kwh: number;
+  dhw_kwh: number;
+  other_kwh: number;
+  price_cents: number;
+  full_price_cents: number;
+  house_power_kw: number;
+  heatpump_power_kw: number;
+  other_power_kw: number;
+}
+
+export interface HerrforsDailyItem {
+  date: string;
+  timestamp: number;
+  house_kwh: number;
+  heatpump_kwh: number;
+  heating_kwh: number;
+  dhw_kwh: number;
+  other_kwh: number;
+  house_cost_eur: number;
+  heatpump_cost_eur: number;
+  other_cost_eur: number;
+  heating_share_percent: number;
+  slot_count: number;
+}
+
+export interface HerrforsSummary {
+  total_house_kwh: number;
+  total_heatpump_kwh: number;
+  total_heating_kwh: number;
+  total_dhw_kwh: number;
+  total_other_kwh: number;
+  heating_share_percent: number;
+  other_share_percent: number;
+  total_house_cost_eur: number;
+  total_heatpump_cost_eur: number;
+  total_other_cost_eur: number;
+  avg_realized_price_cents: number;
+  cop: number | null;
+  savings_eur: number;
+  peak_power_kw: number;
+  peak_power_time: number | null;
+  readings_count: number;
+}
+
+export interface HerrforsAnalyticsResponse {
+  summary: HerrforsSummary;
+  daily: HerrforsDailyItem[];
+  series: HerrforsDataPoint[];
+  from: number;
+  to: number;
+}

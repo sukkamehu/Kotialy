@@ -21,6 +21,7 @@ const costCalculator = require('../cost-calculator');
 const apcService = require('../apc-service');
 const cameraService = require('../camera-service');
 const s3Service = require('../s3-service');
+const herrforsClient = require('../herrfors-client');
 
 
 const {
@@ -731,6 +732,118 @@ router.get('/backup/list', requireAdmin, async (req, res) => {
   try {
     const list = await s3Service.listBackups();
     res.json({ backups: list, count: list.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Herrfors Electricity Portal Routes ──────────────────────────────────────
+
+/**
+ * GET /api/herrfors/status
+ * Returns session health, token expiration, last refresh & sync timestamps.
+ */
+router.get('/herrfors/status', (req, res) => {
+  res.json(herrforsClient.getStatus());
+});
+
+/**
+ * GET /api/herrfors/analytics?from=<ms>&to=<ms>&days=7
+ * Returns comprehensive heating vs household electricity breakdown, totals, and series.
+ */
+router.get('/herrfors/analytics', (req, res) => {
+  try {
+    const days = req.query.days ? parseInt(req.query.days) : 7;
+    const now = Date.now();
+    const fromMs = req.query.from ? parseInt(req.query.from) : now - (days * 24 * 60 * 60 * 1000);
+    const toMs = req.query.to ? parseInt(req.query.to) : now;
+
+    const data = herrforsClient.getHeatingComparison(fromMs, toMs);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/herrfors/readings?from=<ms>&to=<ms>
+ * Returns raw 15-minute readings stored from Herrfors.
+ */
+router.get('/herrfors/readings', (req, res) => {
+  const now = Date.now();
+  const fromMs = req.query.from ? parseInt(req.query.from) : now - (7 * 24 * 60 * 60 * 1000);
+  const toMs = req.query.to ? parseInt(req.query.to) : now;
+
+  const { getHerrforsReadings } = require('../db');
+  const rows = getHerrforsReadings(fromMs, toMs);
+  res.json({ readings: rows, count: rows.length });
+});
+
+/**
+ * POST /api/herrfors/sync
+ * Manually trigger data sync for past N days (default 7).
+ * Body: { days: 7, startDate, endDate }
+ */
+router.post('/herrfors/sync', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { days = 7, startDate, endDate } = req.body || {};
+    let result;
+    if (startDate && endDate) {
+      result = await herrforsClient.syncRange(startDate, endDate);
+    } else {
+      result = await herrforsClient.syncRecentDays(parseInt(days) || 7);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/herrfors/refresh
+ * Manually trigger a session token refresh with Herrfors.
+ */
+router.post('/herrfors/refresh', requireAdmin, async (req, res) => {
+  try {
+    const result = await herrforsClient.refreshSession();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/herrfors/settings
+ * Update session token, co_id, or enabled setting.
+ * Body: { session_token, co_id, enabled, refresh_interval_minutes }
+ */
+router.post('/herrfors/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { session_token, co_id, enabled, refresh_interval_minutes } = req.body || {};
+    const { updateHerrforsSetting } = require('../db');
+
+    if (session_token !== undefined) {
+      updateHerrforsSetting('session_token', String(session_token).trim());
+    }
+    if (co_id !== undefined) {
+      updateHerrforsSetting('co_id', String(co_id).trim());
+    }
+    if (enabled !== undefined) {
+      updateHerrforsSetting('enabled', enabled ? '1' : '0');
+    }
+    if (refresh_interval_minutes !== undefined && !isNaN(parseInt(refresh_interval_minutes))) {
+      updateHerrforsSetting('refresh_interval_minutes', parseInt(refresh_interval_minutes));
+    }
+
+    // Attempt an immediate session refresh with new token if provided
+    if (session_token) {
+      await herrforsClient.refreshSession();
+    }
+
+    res.json({
+      ok: true,
+      status: herrforsClient.getStatus(),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

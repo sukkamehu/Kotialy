@@ -9,6 +9,7 @@ import { OutdoorCard } from './OutdoorCard';
 import { ThreeWayValveCard } from './ThreeWayValveCard';
 import { EnergyStatsCard } from './EnergyStatsCard';
 import { DailyCostsCard } from './DailyCostsCard';
+import { HerrforsAnalyticsCard } from './HerrforsAnalyticsCard';
 import { ApcCard } from './ApcCard';
 import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
@@ -55,7 +56,7 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'apc_strategy' | 'heatpump_guide' | 'hydraulics'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'herrfors' | 'apc_strategy' | 'heatpump_guide' | 'hydraulics'>('dashboard');
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
   const readOnly = role === 'viewer';
@@ -108,6 +109,26 @@ export function Dashboard({
                 }}
               >
                 <span>📊</span> Kojelauta
+              </button>
+
+              <button
+                onClick={() => setActiveTab('herrfors')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: activeTab === 'herrfors' ? '1px solid #a855f7' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeTab === 'herrfors' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeTab === 'herrfors' ? '#c084fc' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>⚡</span> Herrfors & Lämmitys
               </button>
 
               <button
@@ -171,6 +192,14 @@ export function Dashboard({
               </button>
             </div>
           </div>
+
+          {activeTab === 'herrfors' && (
+            <div style={{ marginBottom: 32 }}>
+              <ErrorBoundary>
+                <HerrforsAnalyticsCard readOnly={readOnly} />
+              </ErrorBoundary>
+            </div>
+          )}
 
           {activeTab === 'apc_strategy' && (
             <div style={{ marginBottom: 32 }}>
@@ -273,7 +302,14 @@ export function Dashboard({
               </ErrorBoundary>
             </div>
 
-            {/* Row 4: Daily Energy Costs & Savings */}
+            {/* Row 4: Herrfors Total Electricity & Heating Analysis */}
+            <div style={{ marginBottom: 20 }}>
+              <ErrorBoundary>
+                <HerrforsAnalyticsCard readOnly={readOnly} />
+              </ErrorBoundary>
+            </div>
+
+            {/* Row 5: Daily Energy Costs & Savings */}
             <div style={{ marginBottom: 20 }}>
               <ErrorBoundary>
                 <DailyCostsCard readOnly={readOnly} />
