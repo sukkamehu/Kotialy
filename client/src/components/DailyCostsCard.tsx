@@ -15,9 +15,6 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
   const [transferNight, setTransferNight] = useState<string>('3.12');
   const [transfer, setTransfer] = useState<string>('4.50');
   const [margin, setMargin] = useState<string>('0.286');
-  const [monthlyBaseFee, setMonthlyBaseFee] = useState<string>('0');
-  const [fuseSize, setFuseSize] = useState<string>('25A');
-  const [vat, setVat] = useState<string>('25.5');
   const [savingSettings, setSavingSettings] = useState(false);
 
   const fetchData = async () => {
@@ -39,9 +36,6 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
         setTransferNight(String(sumData.settings.transfer_night_cents_kwh ?? '3.12'));
         setTransfer(String(sumData.settings.transfer_cents_kwh ?? '4.50'));
         setMargin(String(sumData.settings.margin_cents_kwh ?? '0.286'));
-        setMonthlyBaseFee(String(sumData.settings.monthly_base_fee_eur ?? '38.03'));
-        setFuseSize(String(sumData.settings.fuse_size ?? '25A'));
-        setVat(String(sumData.settings.vat_percent ?? '25.5'));
       }
     } catch (err) {
       console.error('Failed to fetch cost data', err);
@@ -69,9 +63,6 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
           transfer_night_cents_kwh: parseFloat(transferNight) || 3.12,
           transfer_cents_kwh: parseFloat(transfer) || 4.50,
           margin_cents_kwh: parseFloat(margin) || 0.50,
-          monthly_base_fee_eur: parseFloat(monthlyBaseFee) || 38.03,
-          fuse_size: fuseSize,
-          vat_percent: parseFloat(vat) || 25.5,
         }),
       });
       if (res.ok) {

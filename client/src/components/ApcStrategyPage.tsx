@@ -107,9 +107,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [transferNight, setTransferNight] = useState<string>('3.12');
   const [transferFlat, setTransferFlat] = useState<string>('4.50');
   const [margin, setMargin] = useState<string>('0.286');
-  const [monthlyBaseFee, setMonthlyBaseFee] = useState<string>('0');
-  const [fuseSize, setFuseSize] = useState<string>('25A');
-  const [vat, setVat] = useState<string>('25.5');
   const [savingCosts, setSavingCosts] = useState(false);
   const [costsSuccess, setCostsSuccess] = useState(false);
 
@@ -125,9 +122,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
           setTransferNight(String(s.transfer_night_cents_kwh ?? '3.12'));
           setTransferFlat(String(s.transfer_cents_kwh ?? '4.50'));
           setMargin(String(s.margin_cents_kwh ?? '0.286'));
-          setMonthlyBaseFee(String(s.monthly_base_fee_eur ?? '0'));
-          setFuseSize(String(s.fuse_size ?? '25A'));
-          setVat(String(s.vat_percent ?? '25.5'));
         }
       }
     } catch (err) {
@@ -243,9 +237,6 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
           transfer_night_cents_kwh: parseFloat(transferNight) || 3.12,
           transfer_cents_kwh: parseFloat(transferFlat) || 4.50,
           margin_cents_kwh: parseFloat(margin) || 0.286,
-          monthly_base_fee_eur: parseFloat(monthlyBaseFee) || 0,
-          fuse_size: fuseSize,
-          vat_percent: parseFloat(vat) || 25.5,
         }),
       });
       if (res.ok) {
@@ -493,7 +484,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                 </div>
               )}
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                Yösiirto 3,12 snt/kWh (alv 0 %: 2,49), Päiväsiirto 5,11 snt/kWh (alv 0 %: 4,07).
+                Yösiirto 3,12 snt/kWh, Päiväsiirto 5,11 snt/kWh (sis. sähköveron ja alv 25,5 %).
               </div>
             </div>
 
