@@ -115,7 +115,7 @@ function interpolateTimeline(
   priceRows: any[],
   herrforsRows: any[],
   weatherRows: any[],
-  maxGapMs: number = 45 * 60 * 1000
+  maxGapMs: number = 75 * 60 * 1000
 ): ChartDataPoint[] {
   const seriesMap = new Map<string, { time: number; value: number }[]>();
   const timeSet = new Set<number>();
@@ -360,8 +360,9 @@ export function HistoryChart() {
     }
 
     if (includePrice) {
+      const priceToMs = Math.max(toMs, Date.now() + 54 * 3600_000);
       fetches.push(
-        apiFetch(`/api/nordpool/prices?from=${fromMs}&to=${toMs}`)
+        apiFetch(`/api/nordpool/prices?from=${fromMs}&to=${priceToMs}`)
           .then((r) => {
             if (!r.ok) throw new Error(`Sähkön hintatietojen haku epäonnistui (${r.status})`);
             return r.json();
