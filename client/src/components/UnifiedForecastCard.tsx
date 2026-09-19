@@ -71,11 +71,6 @@ function fmtTime(ts: number) {
   return new Date(ts).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
 }
 
-function fmtHour(ts: number) {
-  const d = new Date(ts);
-  return `${d.getHours()}:00`;
-}
-
 export function UnifiedForecastCard({ onOpenApc }: UnifiedForecastCardProps) {
   const [data, setData] = useState<UnifiedData>({
     currentPrice: null,
@@ -154,29 +149,42 @@ export function UnifiedForecastCard({ onOpenApc }: UnifiedForecastCardProps) {
     // Filter relevant prices
     const relevantPrices = data.prices.filter(p => p.start_time >= filterStart && p.start_time <= maxEnd);
 
+    // Group 15-minute Nord Pool prices by whole hour
+    const hourlyGroups = new Map<number, { sumPrice: number; count: number }>();
+    for (const p of relevantPrices) {
+      const hourKey = Math.floor(p.start_time / 3600_000) * 3600_000;
+      const grp = hourlyGroups.get(hourKey) || { sumPrice: 0, count: 0 };
+      grp.sumPrice += p.price;
+      grp.count += 1;
+      hourlyGroups.set(hourKey, grp);
+    }
+
     // Build map of weather by closest hour
     const weatherMap = new Map<number, WeatherForecast>();
     for (const w of data.weather) {
-      const roundedTime = Math.round(w.time / 3600_000) * 3600_000;
+      const roundedTime = Math.floor(w.time / 3600_000) * 3600_000;
       weatherMap.set(roundedTime, w);
     }
 
     const minPrice = data.stats?.min ? data.stats.min / 10 : 1.0;
     const maxPrice = data.stats?.max ? data.stats.max / 10 : 10.0;
 
-    return relevantPrices.map((p) => {
-      const pCents = Number((p.price / 10).toFixed(2));
-      const roundedTime = Math.round(p.start_time / 3600_000) * 3600_000;
-      const w = weatherMap.get(roundedTime) || data.weather.find(item => Math.abs(item.time - p.start_time) < 1800_000);
+    const sortedHourKeys = Array.from(hourlyGroups.keys()).sort((a, b) => a - b);
+
+    return sortedHourKeys.map((hourKey) => {
+      const grp = hourlyGroups.get(hourKey)!;
+      const avgPrice = grp.sumPrice / grp.count;
+      const pCents = Number((avgPrice / 10).toFixed(2));
+      const w = weatherMap.get(hourKey) || data.weather.find(item => Math.abs(item.time - hourKey) < 1800_000);
 
       // Match APC slot for this hour
-      const matchingSlot = data.apcPlan.find(s => s.start_time <= p.start_time && s.end_time > p.start_time);
+      const matchingSlot = data.apcPlan.find(s => s.start_time <= hourKey && s.end_time > hourKey);
       const directive = matchingSlot?.directive || 'NORMAL';
       const isDhw = matchingSlot?.is_dhw_slot || directive === 'DHW_CYCLE';
       const reason = matchingSlot?.reason || 'Normaali peruslämmitys';
 
-      const isCurrent = now >= p.start_time && now < p.end_time;
-      const isPast = p.end_time < now;
+      const isCurrent = now >= hourKey && now < hourKey + 3600_000;
+      const isPast = (hourKey + 3600_000) < now;
 
       // Classify price level
       let level: 'cheap' | 'normal' | 'expensive' = 'normal';
@@ -189,8 +197,8 @@ export function UnifiedForecastCard({ onOpenApc }: UnifiedForecastCardProps) {
       // Check if within cheapest window
       const inCheap3h = Boolean(
         data.cheapest3h &&
-        p.start_time >= data.cheapest3h.start &&
-        p.start_time < data.cheapest3h.end
+        hourKey >= data.cheapest3h.start &&
+        hourKey < data.cheapest3h.end
       );
 
       // Directive colors and labels
@@ -221,10 +229,14 @@ export function UnifiedForecastCard({ onOpenApc }: UnifiedForecastCardProps) {
         opIcon = '🌱';
       }
 
+      const d = new Date(hourKey);
+      const weekday = d.toLocaleDateString('fi-FI', { weekday: 'short' });
+      const nextH = (d.getHours() + 1) % 24;
+      const fullDateStr = `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${d.getDate()}.${d.getMonth() + 1}. klo ${String(d.getHours()).padStart(2, '0')}:00–${String(nextH).padStart(2, '0')}:00`;
+
       return {
-        time: p.start_time,
-        timeStr: fmtHour(p.start_time),
-        fullDateStr: new Date(p.start_time).toLocaleString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        time: hourKey,
+        fullDateStr,
         price_cents: pCents,
         level,
         isCurrent,
@@ -559,10 +571,19 @@ export function UnifiedForecastCard({ onOpenApc }: UnifiedForecastCardProps) {
               <ComposedChart data={combinedSeries} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis
-                  dataKey="timeStr"
+                  dataKey="time"
                   stroke="var(--text-muted)"
                   fontSize={11}
-                  minTickGap={20}
+                  minTickGap={24}
+                  tickFormatter={(ts: number) => {
+                    const d = new Date(ts);
+                    const hours = d.getHours();
+                    if (hours === 0) {
+                      const weekday = d.toLocaleDateString('fi-FI', { weekday: 'short' });
+                      return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} 00:00`;
+                    }
+                    return `${String(hours).padStart(2, '0')}:00`;
+                  }}
                 />
                 <YAxis
                   yAxisId="left"
