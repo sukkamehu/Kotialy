@@ -254,10 +254,10 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Marginaali (snt/kWh)</label>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Marginaali (snt/kWh, sis. alv)</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.001"
                   value={margin}
                   onChange={(e) => setMargin(e.target.value)}
                   style={{
@@ -266,68 +266,7 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
                     background: 'var(--bg-secondary)',
                     border: '1px solid var(--border)',
                     color: 'var(--text-primary)',
-                    width: 110,
-                    fontSize: 13,
-                  }}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Perusmaksu (€/kk)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={monthlyBaseFee}
-                  onChange={(e) => setMonthlyBaseFee(e.target.value)}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-primary)',
-                    width: 110,
-                    fontSize: 13,
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sulakekoko</label>
-                <select
-                  value={fuseSize}
-                  onChange={(e) => setFuseSize(e.target.value)}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-primary)',
-                    width: 90,
-                    fontSize: 13,
-                  }}
-                >
-                  <option value="25A">25A</option>
-                  <option value="35A">35A</option>
-                  <option value="50A">50A</option>
-                  <option value="63A">63A</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>ALV (%)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={vat}
-                  onChange={(e) => setVat(e.target.value)}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-primary)',
-                    width: 80,
+                    width: 140,
                     fontSize: 13,
                   }}
                   required

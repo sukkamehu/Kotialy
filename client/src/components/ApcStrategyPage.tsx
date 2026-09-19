@@ -497,7 +497,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
               </div>
             </div>
 
-            {/* Pörssisähkön marginaali & ALV */}
+            {/* Pörssisähkön marginaali (sis. alv) */}
             <div style={{
               padding: '16px',
               borderRadius: 10,
@@ -508,125 +508,33 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
               gap: 12,
             }}>
               <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>📈</span> Marginaali & ALV
+                <span>📈</span> Marginaali (snt/kWh, sis. alv)
               </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: '#f59e0b', display: 'block', marginBottom: 4 }}>
-                    Marginaali (snt/kWh)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={margin}
-                    onChange={(e) => setMargin(e.target.value)}
-                    disabled={readOnly}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: '#f59e0b',
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                    ALV (%)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={vat}
-                    onChange={(e) => setVat(e.target.value)}
-                    disabled={readOnly}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: 'var(--text-primary)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  />
-                </div>
+              <div>
+                <label style={{ fontSize: 11, color: '#f59e0b', display: 'block', marginBottom: 4 }}>
+                  Pörssisähkön marginaali (snt/kWh)
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  value={margin}
+                  onChange={(e) => setMargin(e.target.value)}
+                  disabled={readOnly}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#f59e0b',
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                />
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                Nykyinen marginaalisi: 0,286 snt/kWh (sis. alv 25,5 %).
-              </div>
-            </div>
-
-            {/* Sulakekoko & Perusmaksu */}
-            <div style={{
-              padding: '16px',
-              borderRadius: 10,
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>🏠</span> Sulake & Perusmaksu
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                    Pääsulake
-                  </label>
-                  <select
-                    value={fuseSize}
-                    onChange={(e) => setFuseSize(e.target.value)}
-                    disabled={readOnly}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: 'var(--text-primary)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <option value="25A">3x25A (Omakotitalo)</option>
-                    <option value="35A">3x35A</option>
-                    <option value="50A">3x50A</option>
-                    <option value="63A">3x63A</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                    Perusmaksu (€/kk)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={monthlyBaseFee}
-                    onChange={(e) => setMonthlyBaseFee(e.target.value)}
-                    disabled={readOnly}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: 'var(--text-primary)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                Perusmaksu (0 €/kk) jätetään huomioimatta pumpun säästölaskennassa.
+                Kaikki hinnat (siirto, marginaali, pörssihinta) syötetään suoraan loppuhintoina sisältäen arvonlisäveron.
               </div>
             </div>
           </div>
