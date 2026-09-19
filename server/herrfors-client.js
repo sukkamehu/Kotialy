@@ -122,7 +122,7 @@ class HerrforsClient {
       throw new Error('Herrfors token tai coId puuttuu');
     }
 
-    const url = `${HERRFORS_BASE_URL}/api/charts/readings?coId=${encodeURIComponent(coId)}&consumption=true&price=true&temp=false&timeStep=15&from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+    const url = `${HERRFORS_BASE_URL}/api/charts/readings?coId=${encodeURIComponent(coId)}&consumption=true&price=true&temp=true&timeStep=15&from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
 
     const res = await fetch(url, {
       method: 'GET',
@@ -136,6 +136,7 @@ class HerrforsClient {
     const data = await res.json();
     const values = data.values || [];
     const readings = [];
+    let lastKnownTemp = null;
 
     for (const v of values) {
       if (!v.date) continue;
@@ -144,6 +145,10 @@ class HerrforsClient {
       const endMs = startMs + 15 * 60 * 1000;
       const dateStr = new Date(startMs).toISOString().slice(0, 10);
 
+      if (v.temperature != null && !isNaN(Number(v.temperature))) {
+        lastKnownTemp = Number(v.temperature);
+      }
+
       readings.push({
         start_time: startMs,
         end_time: endMs,
@@ -151,6 +156,7 @@ class HerrforsClient {
         consumption_kwh: v.consumption != null ? Number(v.consumption) : null,
         price: v.price != null ? Number(v.price) : null,
         price_with_vat: v.priceWithVat != null ? Number(v.priceWithVat) : null,
+        temperature: v.temperature != null ? Number(v.temperature) : lastKnownTemp,
         fetched_at: Date.now(),
       });
     }
@@ -376,6 +382,7 @@ class HerrforsClient {
         house_power_kw: Number(houseKw.toFixed(2)),
         heatpump_power_kw: Number(((hpTotalKwh * 4)).toFixed(2)),
         other_power_kw: Number(((otherKwh * 4)).toFixed(2)),
+        temperature: h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null,
       });
     }
 
@@ -409,6 +416,7 @@ class HerrforsClient {
           heatpump_cost_eur: 0,
           other_cost_eur: 0,
           slot_count: 0,
+          temps: [],
         };
       }
       const d = dailyMap[pt.date_str];
@@ -421,20 +429,38 @@ class HerrforsClient {
       d.heatpump_cost_eur += pt.heatpump_kwh * (pt.full_price_cents / 100);
       d.other_cost_eur += pt.other_kwh * (pt.full_price_cents / 100);
       d.slot_count++;
+      if (pt.temperature != null && !isNaN(pt.temperature)) {
+        d.temps.push(pt.temperature);
+      }
     }
 
-    const dailyBreakdown = Object.values(dailyMap).map(d => ({
-      ...d,
-      house_kwh: Number(d.house_kwh.toFixed(2)),
-      heatpump_kwh: Number(d.heatpump_kwh.toFixed(2)),
-      heating_kwh: Number(d.heating_kwh.toFixed(2)),
-      dhw_kwh: Number(d.dhw_kwh.toFixed(2)),
-      other_kwh: Number(d.other_kwh.toFixed(2)),
-      house_cost_eur: Number(d.house_cost_eur.toFixed(2)),
-      heatpump_cost_eur: Number(d.heatpump_cost_eur.toFixed(2)),
-      other_cost_eur: Number(d.other_cost_eur.toFixed(2)),
-      heating_share_percent: d.house_kwh > 0 ? Number(((d.heatpump_kwh / d.house_kwh) * 100).toFixed(1)) : 0,
-    }));
+    const dailyBreakdown = Object.values(dailyMap).map(d => {
+      const avgTemp = d.temps.length > 0 ? Number((d.temps.reduce((a, b) => a + b, 0) / d.temps.length).toFixed(1)) : null;
+      const minTemp = d.temps.length > 0 ? Number(Math.min(...d.temps).toFixed(1)) : null;
+      const maxTemp = d.temps.length > 0 ? Number(Math.max(...d.temps).toFixed(1)) : null;
+      return {
+        date: d.date,
+        timestamp: d.timestamp,
+        house_kwh: Number(d.house_kwh.toFixed(2)),
+        heatpump_kwh: Number(d.heatpump_kwh.toFixed(2)),
+        heating_kwh: Number(d.heating_kwh.toFixed(2)),
+        dhw_kwh: Number(d.dhw_kwh.toFixed(2)),
+        other_kwh: Number(d.other_kwh.toFixed(2)),
+        house_cost_eur: Number(d.house_cost_eur.toFixed(2)),
+        heatpump_cost_eur: Number(d.heatpump_cost_eur.toFixed(2)),
+        other_cost_eur: Number(d.other_cost_eur.toFixed(2)),
+        heating_share_percent: d.house_kwh > 0 ? Number(((d.heatpump_kwh / d.house_kwh) * 100).toFixed(1)) : 0,
+        slot_count: d.slot_count,
+        avg_temp: avgTemp,
+        min_temp: minTemp,
+        max_temp: maxTemp,
+      };
+    });
+
+    const allTemps = series.map(s => s.temperature).filter(t => t != null && !isNaN(t));
+    const overallAvgTemp = allTemps.length > 0 ? Number((allTemps.reduce((a, b) => a + b, 0) / allTemps.length).toFixed(1)) : null;
+    const overallMinTemp = allTemps.length > 0 ? Number(Math.min(...allTemps).toFixed(1)) : null;
+    const overallMaxTemp = allTemps.length > 0 ? Number(Math.max(...allTemps).toFixed(1)) : null;
 
     return {
       summary: {
@@ -454,6 +480,9 @@ class HerrforsClient {
         peak_power_kw: Number(peakHousePowerKw.toFixed(2)),
         peak_power_time: peakHousePowerTime,
         readings_count: herrforsRows.length,
+        avg_temp: overallAvgTemp,
+        min_temp: overallMinTemp,
+        max_temp: overallMaxTemp,
       },
       daily: dailyBreakdown,
       series,

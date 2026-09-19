@@ -10,11 +10,10 @@ import { ThreeWayValveCard } from './ThreeWayValveCard';
 import { EnergyStatsCard } from './EnergyStatsCard';
 import { DailyCostsCard } from './DailyCostsCard';
 import { HerrforsAnalyticsCard } from './HerrforsAnalyticsCard';
+import { UnifiedForecastCard } from './UnifiedForecastCard';
 import { ApcCard } from './ApcCard';
 import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
-import { NordpoolPanel } from './NordpoolPanel';
-import { WeatherPanel } from './WeatherPanel';
 import { CameraCard } from './CameraCard';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 import { OutdoorWeatherModal } from './OutdoorWeatherModal';
@@ -56,7 +55,7 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'herrfors' | 'apc_strategy' | 'heatpump_guide' | 'hydraulics'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'herrfors' | 'apc_strategy' | 'history' | 'hydraulics' | 'heatpump_guide'>('dashboard');
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
   const readOnly = role === 'viewer';
@@ -92,11 +91,12 @@ export function Dashboard({
           }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
+                type="button"
                 onClick={() => setActiveTab('dashboard')}
                 style={{
-                  padding: '8px 18px',
+                  padding: '8px 16px',
                   borderRadius: 10,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   border: activeTab === 'dashboard' ? '1px solid var(--accent-primary, #3b82f6)' : '1px solid rgba(255,255,255,0.08)',
                   background: activeTab === 'dashboard' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
@@ -112,11 +112,12 @@ export function Dashboard({
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab('herrfors')}
                 style={{
-                  padding: '8px 18px',
+                  padding: '8px 16px',
                   borderRadius: 10,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   border: activeTab === 'herrfors' ? '1px solid #a855f7' : '1px solid rgba(255,255,255,0.08)',
                   background: activeTab === 'herrfors' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.03)',
@@ -128,15 +129,16 @@ export function Dashboard({
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span>⚡</span> Herrfors & Lämmitys
+                <span>🔌</span> Sähkönkulutus
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab('apc_strategy')}
                 style={{
-                  padding: '8px 18px',
+                  padding: '8px 16px',
                   borderRadius: 10,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   border: activeTab === 'apc_strategy' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)',
                   background: activeTab === 'apc_strategy' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.03)',
@@ -148,15 +150,37 @@ export function Dashboard({
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span>⚡</span> APC-strategia & Sähkösopimus
+                <span>⚡</span> APC-automaatio
               </button>
 
               <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  border: activeTab === 'history' ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeTab === 'history' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeTab === 'history' ? '#38bdf8' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>📈</span> Historia & Trendit
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveTab('hydraulics')}
                 style={{
-                  padding: '8px 18px',
+                  padding: '8px 16px',
                   borderRadius: 10,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   border: activeTab === 'hydraulics' ? '1px solid #06b6d4' : '1px solid rgba(255,255,255,0.08)',
                   background: activeTab === 'hydraulics' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255,255,255,0.03)',
@@ -168,15 +192,16 @@ export function Dashboard({
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span>🛠️</span> Tekninen tila & Kytkentäkaavio
+                <span>🛠️</span> Tekninen tila
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab('heatpump_guide')}
                 style={{
-                  padding: '8px 18px',
+                  padding: '8px 16px',
                   borderRadius: 10,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   border: activeTab === 'heatpump_guide' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
                   background: activeTab === 'heatpump_guide' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.03)',
@@ -188,19 +213,24 @@ export function Dashboard({
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span>⚙️</span> Lämpöpumpun asetusmuistio
+                <span>⚙️</span> Asetusmuistio
               </button>
             </div>
           </div>
 
+          {/* TAB 1: Sähkönkulutus (Herrfors + Daily costs) */}
           {activeTab === 'herrfors' && (
-            <div style={{ marginBottom: 32 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
               <ErrorBoundary>
                 <HerrforsAnalyticsCard readOnly={readOnly} />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <DailyCostsCard readOnly={readOnly} />
               </ErrorBoundary>
             </div>
           )}
 
+          {/* TAB 2: APC Automaatiostrategia */}
           {activeTab === 'apc_strategy' && (
             <div style={{ marginBottom: 32 }}>
               <ErrorBoundary>
@@ -209,6 +239,22 @@ export function Dashboard({
             </div>
           )}
 
+          {/* TAB 3: Historia & Trendit & Sensorit */}
+          {activeTab === 'history' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
+              <ErrorBoundary>
+                <HistoryChart />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <EnergyStatsCard state={state} onOpenTrend={setTrendTarget} />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <ZigbeePanel devices={zigbeeDevices} connected={zigbeeConnected} />
+              </ErrorBoundary>
+            </div>
+          )}
+
+          {/* TAB 4: Hydraulikaavio */}
           {activeTab === 'hydraulics' && (
             <div style={{ marginBottom: 32 }}>
               <ErrorBoundary>
@@ -217,6 +263,7 @@ export function Dashboard({
             </div>
           )}
 
+          {/* TAB 5: Lämpöpumpun asetusmuistio */}
           {activeTab === 'heatpump_guide' && (
             <div style={{ marginBottom: 32 }}>
               <ErrorBoundary>
@@ -225,129 +272,88 @@ export function Dashboard({
             </div>
           )}
 
+          {/* MAIN TAB: Kojelauta (Reaaliaikainen tila + APC-tilanne + Yhdistetty Sähkö & Sää) */}
           {activeTab === 'dashboard' && (
             <>
-        {/* Waiting for data */}
-        {!hasAnyData && (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            minHeight: 300, gap: 16, marginBottom: 32,
-          }}>
-            <div style={{ fontSize: 48 }}>🌡️</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Yhdistetään Heishamoniin...
-            </div>
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>
-              Odotetaan MQTT-tietoja Kotiäly-välittäjältä
-            </div>
-            <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: wsConnected ? 'var(--online)' : 'var(--offline)', boxShadow: wsConnected ? '0 0 8px var(--online)' : undefined }} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  WebSocket: {wsConnected ? 'Yhdistetty' : 'Yhdistetään...'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: zigbeeConnected ? 'var(--online)' : 'var(--offline)', boxShadow: zigbeeConnected ? '0 0 8px var(--online)' : undefined }} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Zigbee: {zigbeeConnected ? 'Yhdistetty' : 'Yhdistetään...'}
-                </span>
-              </div>
-            </div>
+              {!hasAnyData && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  minHeight: 300, gap: 16, marginBottom: 32,
+                }}>
+                  <div style={{ fontSize: 48 }}>🌡️</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Yhdistetään Heishamoniin...
+                  </div>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>
+                    Odotetaan MQTT-tietoja Kotiäly-välittäjältä
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: wsConnected ? 'var(--online)' : 'var(--offline)', boxShadow: wsConnected ? '0 0 8px var(--online)' : undefined }} />
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        WebSocket: {wsConnected ? 'Yhdistetty' : 'Yhdistetään...'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: zigbeeConnected ? 'var(--online)' : 'var(--offline)', boxShadow: zigbeeConnected ? '0 0 8px var(--online)' : undefined }} />
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Zigbee: {zigbeeConnected ? 'Yhdistetty' : 'Yhdistetään...'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-          </div>
-        )}
-        {/* Always show Zigbee panel if we have any devices */}
-        {!hasAnyData && Object.keys(zigbeeDevices).length > 0 && (
-          <ZigbeePanel devices={zigbeeDevices} connected={zigbeeConnected} />
-        )}
+              {hasAnyData && (
+                <>
+                  {/* Row 1: Primary heat pump & tank status cards */}
+                  <div className="dashboard-grid dashboard-grid-main">
+                    <ErrorBoundary>
+                      <HeatpumpCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                    </ErrorBoundary>
+                    <ErrorBoundary>
+                      <DHWCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                    </ErrorBoundary>
+                    <ErrorBoundary>
+                      <BufferTankCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                    </ErrorBoundary>
+                  </div>
 
-        {hasAnyData && (
-          <>
-            {/* Row 1: Main monitoring cards */}
-            <div className="dashboard-grid dashboard-grid-main">
-              <ErrorBoundary>
-                <HeatpumpCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <DHWCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <BufferTankCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              </ErrorBoundary>
-            </div>
+                  {/* Row 2: Outdoor + Valve + Camera */}
+                  <div className="dashboard-grid dashboard-grid-sub">
+                    <ErrorBoundary>
+                      <OutdoorCard
+                        state={state}
+                        onOpenTrend={setTrendTarget}
+                        onOpenOutdoorWeather={() => setOutdoorModalOpen(true)}
+                        readOnly={readOnly}
+                      />
+                    </ErrorBoundary>
+                    <ErrorBoundary>
+                      <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
+                    </ErrorBoundary>
+                    <ErrorBoundary>
+                      <CameraCard />
+                    </ErrorBoundary>
+                  </div>
 
-            {/* Row 2: Outdoor + Valve + Camera — technical room & outdoor monitoring */}
-            <div className="dashboard-grid dashboard-grid-sub">
-              <ErrorBoundary>
-                <OutdoorCard
-                  state={state}
-                  onOpenTrend={setTrendTarget}
-                  onOpenOutdoorWeather={() => setOutdoorModalOpen(true)}
-                  readOnly={readOnly}
-                />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <CameraCard />
-              </ErrorBoundary>
-            </div>
+                  {/* Row 3: APC Smart Optimizer (Current decision & directive) */}
+                  <div style={{ marginBottom: 20 }}>
+                    <ErrorBoundary>
+                      <ApcCard readOnly={readOnly} onOpenStrategy={() => setActiveTab('apc_strategy')} />
+                    </ErrorBoundary>
+                  </div>
 
-            {/* Row 3: APC Smart Optimizer (Auto Power & Price Controller) */}
-            <div style={{ marginBottom: 20 }}>
-              <ErrorBoundary>
-                <ApcCard readOnly={readOnly} onOpenStrategy={() => setActiveTab('apc_strategy')} />
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 4: Herrfors Total Electricity & Heating Analysis */}
-            <div style={{ marginBottom: 20 }}>
-              <ErrorBoundary>
-                <HerrforsAnalyticsCard readOnly={readOnly} />
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 5: Daily Energy Costs & Savings */}
-            <div style={{ marginBottom: 20 }}>
-              <ErrorBoundary>
-                <DailyCostsCard readOnly={readOnly} />
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 5: Energy & Lifecycle Analytics */}
-            <div style={{ marginBottom: 20 }}>
-              <ErrorBoundary>
-                <EnergyStatsCard state={state} onOpenTrend={setTrendTarget} />
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 6: History chart (full width) */}
-            <ErrorBoundary>
-              <HistoryChart />
-            </ErrorBoundary>
-
-            {/* Row 7: Electricity price + Weather */}
-            <div className="dashboard-grid dashboard-grid-sub" style={{ marginTop: 24 }}>
-              <ErrorBoundary>
-                <NordpoolPanel />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <WeatherPanel />
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 8: Zigbee Sensors */}
-            <div style={{ marginTop: 24 }}>
-              <ErrorBoundary>
-                <ZigbeePanel devices={zigbeeDevices} connected={zigbeeConnected} />
-              </ErrorBoundary>
-            </div>
-          </>
-        )}
-        </>
-        )}
+                  {/* Row 4: UNIFIED FORECAST CARD (Spot prices + Weather + Smart heating window timeline) */}
+                  <div style={{ marginBottom: 24 }}>
+                    <ErrorBoundary>
+                      <UnifiedForecastCard />
+                    </ErrorBoundary>
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </main>
       </PullToRefresh>
 

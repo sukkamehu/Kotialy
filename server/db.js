@@ -122,6 +122,7 @@ db.exec(`
     consumption_kwh REAL,
     price           REAL,
     price_with_vat  REAL,
+    temperature     REAL,
     fetched_at      INTEGER NOT NULL
   );
 
@@ -136,6 +137,13 @@ db.exec(`
     value TEXT NOT NULL
   );
 `);
+
+// Safe migrations
+try {
+  db.exec(`ALTER TABLE herrfors_readings ADD COLUMN temperature REAL;`);
+} catch {
+  // column already exists
+}
 
 // ─── Prepared Statements ─────────────────────────────────────────────────────
 // node:sqlite uses ? placeholders and positional arguments
@@ -242,19 +250,20 @@ const stmtUpsertCostSetting = db.prepare(`
 `);
 
 const stmtUpsertHerrforsReading = db.prepare(`
-  INSERT INTO herrfors_readings (start_time, end_time, date_str, consumption_kwh, price, price_with_vat, fetched_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO herrfors_readings (start_time, end_time, date_str, consumption_kwh, price, price_with_vat, temperature, fetched_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(start_time) DO UPDATE SET
     end_time = excluded.end_time,
     date_str = excluded.date_str,
     consumption_kwh = COALESCE(excluded.consumption_kwh, herrfors_readings.consumption_kwh),
     price = COALESCE(excluded.price, herrfors_readings.price),
     price_with_vat = COALESCE(excluded.price_with_vat, herrfors_readings.price_with_vat),
+    temperature = COALESCE(excluded.temperature, herrfors_readings.temperature),
     fetched_at = excluded.fetched_at
 `);
 
 const stmtGetHerrforsReadings = db.prepare(`
-  SELECT start_time, end_time, date_str, consumption_kwh, price, price_with_vat, fetched_at
+  SELECT start_time, end_time, date_str, consumption_kwh, price, price_with_vat, temperature, fetched_at
   FROM herrfors_readings
   WHERE start_time >= ? AND start_time <= ?
   ORDER BY start_time ASC
@@ -269,7 +278,7 @@ const stmtUpsertHerrforsSetting = db.prepare(`
 `);
 
 const stmtGetHerrforsLatestReading = db.prepare(`
-  SELECT start_time, date_str, consumption_kwh, price, fetched_at
+  SELECT start_time, date_str, consumption_kwh, price, temperature, fetched_at
   FROM herrfors_readings
   WHERE consumption_kwh IS NOT NULL
   ORDER BY start_time DESC
@@ -722,6 +731,7 @@ function upsertHerrforsReadings(readings) {
       r.consumption_kwh != null ? r.consumption_kwh : null,
       r.price != null ? r.price : null,
       r.price_with_vat != null ? r.price_with_vat : null,
+      r.temperature != null ? r.temperature : null,
       r.fetched_at || Date.now()
     );
     count++;
@@ -737,6 +747,7 @@ function getHerrforsReadings(fromMs, toMs) {
     consumption_kwh: r.consumption_kwh != null ? Number(r.consumption_kwh) : null,
     price: r.price != null ? Number(r.price) : null,
     price_with_vat: r.price_with_vat != null ? Number(r.price_with_vat) : null,
+    temperature: r.temperature != null ? Number(r.temperature) : null,
     fetched_at: Number(r.fetched_at),
   }));
 }
@@ -748,8 +759,6 @@ function getHerrforsSettings() {
     co_id: process.env.HERRFORS_CO_ID || '60931591',
     session_token: process.env.HERRFORS_SESSION_TOKEN || '',
     refresh_interval_minutes: parseInt(process.env.HERRFORS_REFRESH_INTERVAL_MINUTES || '5'),
-    customer_name: null,
-    customer_email: null,
     token_expires: null,
     last_refresh_at: null,
     last_sync_at: null,

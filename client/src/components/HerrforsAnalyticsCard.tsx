@@ -205,6 +205,12 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
           <span>💡 Taloussähkö:</span>
           <strong>{pt.other_kwh != null ? `${pt.other_kwh.toFixed(3)} kWh (${pt.other_power_kw} kW)` : '-'}</strong>
         </div>
+        {pt.temperature != null && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34d399', marginTop: 2 }}>
+            <span>🌡️ Ulkolämpötila:</span>
+            <strong>{pt.temperature > 0 ? `+${pt.temperature}` : pt.temperature} °C</strong>
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fbbf24', marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4 }}>
           <span>⚡ Sähkön hinta:</span>
           <strong>{pt.full_price_cents ? `${pt.full_price_cents.toFixed(2)} c/kWh` : `${pt.price_cents} c/kWh`}</strong>
@@ -218,8 +224,8 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
       {/* Header */}
       <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="card-icon">⚡</span>
-          <span className="card-title">Herrfors Sähkönkulutus & Lämmitysanalyysi</span>
+          <span className="card-icon">🔌</span>
+          <span className="card-title">Sähkönkulutus</span>
         </div>
 
         {/* Live session & action buttons */}
@@ -530,6 +536,27 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               </div>
             </div>
 
+            {/* Outdoor Temperature */}
+            {summary.avg_temp != null && (
+              <div style={{
+                background: 'rgba(52, 211, 153, 0.08)',
+                border: '1px solid rgba(52, 211, 153, 0.25)',
+                borderRadius: 12,
+                padding: 14,
+              }}>
+                <div style={{ fontSize: 12, color: '#34d399', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🌡️</span> Ulkolämpötila (Herrfors)
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {summary.avg_temp > 0 ? `+${summary.avg_temp}` : summary.avg_temp} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>°C</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Min / Max:</span>
+                  <strong>{summary.min_temp}°C .. {summary.max_temp}°C</strong>
+                </div>
+              </div>
+            )}
+
             {/* Peak Power */}
             <div style={{
               background: 'rgba(245, 158, 11, 0.08)',
@@ -735,6 +762,18 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   </>
                 )}
 
+                {/* Outdoor Temperature */}
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="temperature"
+                  name="Ulkolämpö (°C)"
+                  stroke="#34d399"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  dot={false}
+                />
+
                 {/* Electricity Price Line on Right Axis */}
                 <Line
                   yAxisId="right"
@@ -762,6 +801,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '8px 10px' }}>Päivämäärä</th>
+                  <th style={{ padding: '8px 10px' }}>Ulkolämpö</th>
                   <th style={{ padding: '8px 10px' }}>Talon kokonais</th>
                   <th style={{ padding: '8px 10px' }}>Lämpöpumppu</th>
                   <th style={{ padding: '8px 10px' }}>Lämmityksen osuus</th>
@@ -774,6 +814,20 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                 {data.daily.map((d: HerrforsDailyItem) => (
                   <tr key={d.date} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '8px 10px', fontWeight: 600 }}>{d.date}</td>
+                    <td style={{ padding: '8px 10px', color: '#34d399' }}>
+                      {d.avg_temp != null ? (
+                        <span>
+                          <strong>{d.avg_temp > 0 ? `+${d.avg_temp}` : d.avg_temp} °C</strong>
+                          {d.min_temp != null && d.max_temp != null && (
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>
+                              ({d.min_temp}..{d.max_temp})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td style={{ padding: '8px 10px', color: '#c084fc' }}>{d.house_kwh.toFixed(1)} kWh</td>
                     <td style={{ padding: '8px 10px', color: '#f87171' }}>{d.heatpump_kwh.toFixed(1)} kWh</td>
                     <td style={{ padding: '8px 10px' }}>

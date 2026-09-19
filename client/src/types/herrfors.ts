@@ -18,6 +18,7 @@ export interface HerrforsStatus {
       date_str: string;
       consumption_kwh: number | null;
       price: number | null;
+      temperature?: number | null;
       fetched_at: number;
     } | null;
   };
@@ -36,6 +37,7 @@ export interface HerrforsDataPoint {
   house_power_kw: number;
   heatpump_power_kw: number;
   other_power_kw: number;
+  temperature?: number | null;
 }
 
 export interface HerrforsDailyItem {
@@ -51,6 +53,9 @@ export interface HerrforsDailyItem {
   other_cost_eur: number;
   heating_share_percent: number;
   slot_count: number;
+  avg_temp?: number | null;
+  min_temp?: number | null;
+  max_temp?: number | null;
 }
 
 export interface HerrforsSummary {
@@ -70,6 +75,9 @@ export interface HerrforsSummary {
   peak_power_kw: number;
   peak_power_time: number | null;
   readings_count: number;
+  avg_temp?: number | null;
+  min_temp?: number | null;
+  max_temp?: number | null;
 }
 
 export interface HerrforsAnalyticsResponse {

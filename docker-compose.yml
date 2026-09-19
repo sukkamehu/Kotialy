@@ -82,9 +82,21 @@ services:
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - dashboard
+  openvpn:
+    build: ./openvpn
+    container_name: kotialy-openvpn
+    restart: unless-stopped
+    ports:
+      - "1194:1194/udp"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    volumes:
+      - openvpn-data:/etc/openvpn
 
 volumes:
   mqtt-data:
   server-data:
+  openvpn-data:
+    external: true
