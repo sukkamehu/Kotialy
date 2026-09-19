@@ -17,6 +17,10 @@ import type { NordpoolPrice, NordpoolStats, NordpoolWindow } from '../types/nord
 import type { WeatherForecast } from '../types/weather';
 import type { ApcPlanSlot, ApcStatus } from '../types/apc';
 
+interface UnifiedForecastCardProps {
+  onOpenApc?: () => void;
+}
+
 interface UnifiedData {
   currentPrice: (NordpoolPrice & { rank?: number }) | null;
   stats: NordpoolStats | null;
@@ -72,7 +76,7 @@ function fmtHour(ts: number) {
   return `${d.getHours()}:00`;
 }
 
-export function UnifiedForecastCard() {
+export function UnifiedForecastCard({ onOpenApc }: UnifiedForecastCardProps) {
   const [data, setData] = useState<UnifiedData>({
     currentPrice: null,
     stats: null,
@@ -91,13 +95,14 @@ export function UnifiedForecastCard() {
 
   const fetchAll = async () => {
     try {
+      const nowTs = Date.now();
       const [curRes, statsRes, cheap3Res, cheap6Res, pricesRes, weatherRes, curWeatherRes, apcRes] = await Promise.all([
         apiFetch('/api/nordpool/current'),
         apiFetch('/api/nordpool/stats'),
         apiFetch('/api/nordpool/cheapest?hours=3'),
         apiFetch('/api/nordpool/cheapest?hours=6'),
-        apiFetch('/api/nordpool/prices'),
-        apiFetch('/api/weather/forecast?hours=48'),
+        apiFetch(`/api/nordpool/prices?from=${nowTs - 4 * 3600_000}&to=${nowTs + 54 * 3600_000}`),
+        apiFetch('/api/weather/forecast?hours=54'),
         apiFetch('/api/weather/current'),
         apiFetch('/api/apc/status'),
       ]);
@@ -143,8 +148,8 @@ export function UnifiedForecastCard() {
 
     const nowStart = new Date();
     nowStart.setMinutes(0, 0, 0);
-    const filterStart = nowStart.getTime() - 2 * 3600_000; // past 2 hours
-    const maxEnd = timeRange === '24h' ? now + 24 * 3600_000 : now + 48 * 3600_000;
+    const filterStart = nowStart.getTime() - 2 * 3600_000;
+    const maxEnd = timeRange === '24h' ? now + 24 * 3600_000 : now + 50 * 3600_000;
 
     // Filter relevant prices
     const relevantPrices = data.prices.filter(p => p.start_time >= filterStart && p.start_time <= maxEnd);
@@ -164,11 +169,11 @@ export function UnifiedForecastCard() {
       const roundedTime = Math.round(p.start_time / 3600_000) * 3600_000;
       const w = weatherMap.get(roundedTime) || data.weather.find(item => Math.abs(item.time - p.start_time) < 1800_000);
 
-      // Find corresponding APC slot(s) for this hour
+      // Match APC slot for this hour
       const matchingSlot = data.apcPlan.find(s => s.start_time <= p.start_time && s.end_time > p.start_time);
       const directive = matchingSlot?.directive || 'NORMAL';
       const isDhw = matchingSlot?.is_dhw_slot || directive === 'DHW_CYCLE';
-      const reason = matchingSlot?.reason || 'Normaali lämmityskäynti';
+      const reason = matchingSlot?.reason || 'Normaali peruslämmitys';
 
       const isCurrent = now >= p.start_time && now < p.end_time;
       const isPast = p.end_time < now;
@@ -188,16 +193,32 @@ export function UnifiedForecastCard() {
         p.start_time < data.cheapest3h.end
       );
 
-      // Directive colors
-      let barColor = '#fbbf24'; // default yellow
+      // Directive colors and labels
+      let barColor = '#fbbf24'; // Default normal
+      let opLabel = 'Normaali käynti (0°C)';
+      let opShort = 'Normaali';
+      let opIcon = '⚖️';
+
       if (directive === 'BOOST') {
-        barColor = '#34d399'; // green boost
+        barColor = '#34d399'; // Green boost
+        opLabel = '⚡ Esilämmitys / Lataus (+3°C)';
+        opShort = 'Lataus +3°';
+        opIcon = '⚡';
       } else if (isDhw) {
-        barColor = '#38bdf8'; // sky blue DHW
+        barColor = '#38bdf8'; // Sky blue DHW
+        opLabel = '🚿 Käyttövesilataus (55°C)';
+        opShort = 'KV-lataus';
+        opIcon = '🚿';
       } else if (directive === 'SETBACK') {
-        barColor = '#f87171'; // red setback
+        barColor = '#f87171'; // Red setback
+        opLabel = '💤 Säästötila / Setback (-2°C)';
+        opShort = 'Säästö -2°';
+        opIcon = '💤';
       } else if (directive === 'ECO') {
-        barColor = '#f59e0b'; // amber eco
+        barColor = '#f59e0b'; // Amber eco
+        opLabel = '🌱 Ekotila (-1°C)';
+        opShort = 'Eko -1°';
+        opIcon = '🌱';
       }
 
       return {
@@ -213,6 +234,9 @@ export function UnifiedForecastCard() {
         isDhw,
         reason,
         barColor,
+        opLabel,
+        opShort,
+        opIcon,
         temp: w?.temperature != null ? Number(w.temperature.toFixed(1)) : null,
         feels_like: w?.feels_like != null ? Number(w.feels_like.toFixed(1)) : null,
         wind_speed: w?.wind_speed != null ? Number(w.wind_speed.toFixed(1)) : null,
@@ -227,80 +251,54 @@ export function UnifiedForecastCard() {
   const curTemp = data.currentWeather?.temperature != null ? `${data.currentWeather.temperature > 0 ? '+' : ''}${data.currentWeather.temperature.toFixed(1)}` : '-';
   const curEmoji = getEmoji(data.currentWeather?.symbol);
 
-  // Custom Recharts Tooltip
+  // Active current APC slot
+  const currentSlot = data.apcPlan.find(s => s.start_time <= now && s.end_time > now);
+  const currentDirective = currentSlot?.directive || data.apcStatus?.currentDirective || 'NORMAL';
+  const currentReason = currentSlot?.reason || 'Normaali lämmityksen ohjauskäyrä';
+
+  // Compact, Sleek Modern Recharts Tooltip
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     const pt = payload[0]?.payload;
     if (!pt) return null;
 
     const levelColor = pt.level === 'cheap' ? '#4ade80' : pt.level === 'expensive' ? '#f87171' : '#fbbf24';
-    const levelText = pt.level === 'cheap' ? 'Edullinen sähkö' : pt.level === 'expensive' ? 'Kallis sähkö' : 'Normaalihintainen sähkö';
-
-    const dirBadgeText = pt.directive === 'BOOST'
-      ? '⚡ Esilämmitys / Lataus (+3°C)'
-      : pt.isDhw
-      ? '🚿 Käyttövesilataus (55°C)'
-      : pt.directive === 'SETBACK'
-      ? '💤 Säästötila / Setback (-2°C)'
-      : pt.directive === 'ECO'
-      ? '🌱 Ekotila (-1°C)'
-      : '⚖️ Normaali peruskäynti';
 
     return (
       <div style={{
-        background: 'rgba(15, 23, 42, 0.95)',
-        border: '1px solid rgba(255, 255, 255, 0.15)',
+        background: 'rgba(15, 23, 42, 0.96)',
+        border: '1px solid rgba(255, 255, 255, 0.18)',
         borderRadius: 8,
-        padding: '10px 14px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-        fontSize: 12,
-        minWidth: 240,
+        padding: '8px 12px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.65)',
+        fontSize: 11,
+        lineHeight: 1.4,
+        maxWidth: 240,
+        pointerEvents: 'none',
       }}>
-        <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+        {/* Header line */}
+        <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{pt.fullDateStr}</span>
-          {pt.isCurrent && <span style={{ color: '#60a5fa', fontSize: 10, border: '1px solid #60a5fa', padding: '1px 4px', borderRadius: 4 }}>NYT</span>}
+          {pt.isCurrent && <span style={{ color: '#60a5fa', fontSize: 9, border: '1px solid #60a5fa', padding: '0 4px', borderRadius: 3 }}>NYT</span>}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: levelColor, marginBottom: 4 }}>
-          <span>⚡ Sähkön hinta:</span>
+        {/* Spot Price */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: levelColor, marginBottom: 3 }}>
+          <span>⚡ Pörssisähkö:</span>
           <strong>{pt.price_cents} c/kWh</strong>
         </div>
 
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-          <span>Taso: </span>
-          <strong style={{ color: levelColor }}>{levelText}</strong>
-          {pt.inCheap3h && <span style={{ color: '#4ade80', marginLeft: 6 }}>★ Halvin 3h jakso</span>}
+        {/* Heat Pump Operation Mode */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: pt.barColor, marginBottom: 3 }}>
+          <span>🧠 Lämpöpumppu:</span>
+          <strong>{pt.opShort}</strong>
         </div>
 
-        {/* APC Directive in Tooltip */}
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6, marginBottom: 6 }}>
-          <div style={{ fontSize: 11, color: pt.barColor, fontWeight: 700, marginBottom: 2 }}>
-            🧠 APC: {dirBadgeText}
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-            {pt.reason}
-          </div>
-        </div>
-
-        {/* Weather in Tooltip */}
+        {/* Weather */}
         {pt.temp != null && (
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8' }}>
-              <span>{pt.emoji} Sää & Lämpötila:</span>
-              <strong>{pt.temp > 0 ? `+${pt.temp}` : pt.temp} °C</strong>
-            </div>
-            {pt.feels_like != null && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: 11 }}>
-                <span>Tuntuu kuin:</span>
-                <span>{pt.feels_like > 0 ? `+${pt.feels_like}` : pt.feels_like} °C</span>
-              </div>
-            )}
-            {pt.wind_speed != null && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 11 }}>
-                <span>Tuuli / Sade:</span>
-                <span>{pt.wind_speed} m/s {pt.rain_mm ? `• ${pt.rain_mm} mm` : ''}</span>
-              </div>
-            )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8' }}>
+            <span>{pt.emoji} Sää:</span>
+            <span>{pt.temp > 0 ? `+${pt.temp}` : pt.temp}°C {pt.wind_speed != null ? `(${pt.wind_speed} m/s)` : ''}</span>
           </div>
         )}
       </div>
@@ -309,31 +307,75 @@ export function UnifiedForecastCard() {
 
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
-      {/* Header */}
+      {/* Real-time APC Status Banner integrated seamlessly at top */}
+      <div style={{
+        background: 'rgba(255, 255, 255, 0.03)',
+        borderBottom: '1px solid var(--border)',
+        padding: '10px 18px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            📌 TÄLLÄ HETKELLÄ:
+          </span>
+          <span style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: currentDirective === 'BOOST' ? '#34d399' : currentDirective === 'SETBACK' ? '#f87171' : '#fbbf24',
+            background: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            padding: '3px 10px',
+            borderRadius: 6,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span>{currentDirective === 'BOOST' ? '⚡' : currentDirective === 'SETBACK' ? '💤' : '⚖️'}</span>
+            <span>{currentReason}</span>
+          </span>
+        </div>
+
+        {onOpenApc && (
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost"
+            onClick={onOpenApc}
+            style={{ fontSize: 11, padding: '3px 10px', color: 'var(--text-secondary)' }}
+          >
+            ⚙️ APC-asetukset & strategia →
+          </button>
+        )}
+      </div>
+
+      {/* Card Header & Controls */}
       <div className="card-header" style={{ flexWrap: 'wrap', gap: 10, padding: '14px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="card-icon">⚡</span>
           <div>
             <div className="card-title" style={{ fontSize: 16 }}>Älykäs Sähkö- & Sääennuste</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-              Spot-hinnat, sääolosuhteet ja APC-automaation ohjausikkunat yhdessä näkymässä
+              Spot-hinnat, sääolosuhteet ja lämpöpumpun ohjausikkunat
             </div>
           </div>
         </div>
 
         {/* Legend pills */}
-        <div style={{ display: 'flex', gap: 10, fontSize: 11, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, fontSize: 11, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399' }} /> Esilämmitys
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399' }} /> ⚡ Lataus (+3°)
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#38bdf8' }} /> Käyttövesi
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#38bdf8' }} /> 🚿 KV (55°)
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#f87171' }} /> Säästöjakso
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#f87171' }} /> 💤 Säästö (-2°)
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#fbbf24' }} /> Normaali
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#fbbf24' }} /> ⚖️ Normaali
           </span>
         </div>
 
@@ -527,7 +569,7 @@ export function UnifiedForecastCard() {
                   stroke="#fbbf24"
                   fontSize={11}
                   unit=" c"
-                  domain={[0, 'auto']}
+                  domain={['auto', 'auto']}
                   label={{
                     value: 'Sähkö (c/kWh)',
                     angle: -90,
@@ -556,11 +598,11 @@ export function UnifiedForecastCard() {
                 {/* Reference line for 0 c / kWh */}
                 <ReferenceLine yAxisId="left" y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="2 2" />
 
-                {/* Electricity price bars colored by APC directive */}
+                {/* Electricity price bars colored by heat pump operation mode */}
                 <Bar
                   yAxisId="left"
                   dataKey="price_cents"
-                  name="Pörssisähkö & APC-ohjaus"
+                  name="Pörssisähkö (c/kWh)"
                   radius={[3, 3, 0, 0]}
                 >
                   {combinedSeries.map((entry, index) => (
@@ -597,25 +639,16 @@ export function UnifiedForecastCard() {
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '8px 10px' }}>Kellonaika</th>
                   <th style={{ padding: '8px 10px' }}>Sähkön hinta</th>
-                  <th style={{ padding: '8px 10px' }}>APC-ohjaus</th>
+                  <th style={{ padding: '8px 10px' }}>Lämpöpumpun ohjaus</th>
                   <th style={{ padding: '8px 10px' }}>Sää</th>
                   <th style={{ padding: '8px 10px' }}>Ulkolämpö</th>
-                  <th style={{ padding: '8px 10px' }}>Tuuli / Sade</th>
+                  <th style={{ padding: '8px 10px' }}>Tuuli</th>
                   <th style={{ padding: '8px 10px' }}>Perustelu</th>
                 </tr>
               </thead>
               <tbody>
                 {combinedSeries.map((pt) => {
                   const levelColor = pt.level === 'cheap' ? '#4ade80' : pt.level === 'expensive' ? '#f87171' : '#fbbf24';
-                  const dirBadge = pt.directive === 'BOOST'
-                    ? '⚡ Esilämmitys'
-                    : pt.isDhw
-                    ? '🚿 Käyttövesi'
-                    : pt.directive === 'SETBACK'
-                    ? '💤 Säästöjakso'
-                    : pt.directive === 'ECO'
-                    ? '🌱 Ekotila'
-                    : '⚖️ Normaali';
 
                   return (
                     <tr
@@ -641,7 +674,7 @@ export function UnifiedForecastCard() {
                           borderRadius: 4,
                           border: `1px solid ${pt.barColor}40`,
                         }}>
-                          {dirBadge}
+                          {pt.opLabel}
                         </span>
                       </td>
                       <td style={{ padding: '8px 10px', fontSize: 14 }}>
@@ -651,7 +684,7 @@ export function UnifiedForecastCard() {
                         {pt.temp != null ? `${pt.temp > 0 ? '+' : ''}${pt.temp} °C` : '-'}
                       </td>
                       <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>
-                        {pt.wind_speed != null ? `${pt.wind_speed} m/s` : '-'} {pt.rain_mm ? `• ${pt.rain_mm} mm` : ''}
+                        {pt.wind_speed != null ? `${pt.wind_speed} m/s` : '-'}
                       </td>
                       <td style={{ padding: '8px 10px', color: 'var(--text-secondary)', fontSize: 11 }}>
                         {pt.reason}

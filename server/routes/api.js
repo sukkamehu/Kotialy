@@ -271,8 +271,8 @@ module.exports = router;
  */
 router.get('/nordpool/prices', (req, res) => {
   const now = Date.now();
-  const from = req.query.from ? parseInt(req.query.from) : now - 60 * 60 * 1000;
-  const to   = req.query.to   ? parseInt(req.query.to)   : now + 24 * 60 * 60 * 1000;
+  const from = req.query.from ? parseInt(req.query.from) : now - 12 * 60 * 60 * 1000;
+  const to   = req.query.to   ? parseInt(req.query.to)   : now + 48 * 60 * 60 * 1000;
   const prices = nordpoolClient.getPrices(from, to);
   res.json({ area: 'FI', currency: 'EUR', resolution: 15, prices, count: prices.length });
 });

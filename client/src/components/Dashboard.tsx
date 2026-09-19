@@ -230,9 +230,12 @@ export function Dashboard({
             </div>
           )}
 
-          {/* TAB 2: APC Automaatiostrategia */}
+          {/* TAB 2: APC Automaatiostrategia & Ohjain */}
           {activeTab === 'apc_strategy' && (
-            <div style={{ marginBottom: 32 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
+              <ErrorBoundary>
+                <ApcCard readOnly={readOnly} />
+              </ErrorBoundary>
               <ErrorBoundary>
                 <ApcStrategyPage readOnly={readOnly} />
               </ErrorBoundary>
@@ -337,17 +340,10 @@ export function Dashboard({
                     </ErrorBoundary>
                   </div>
 
-                  {/* Row 3: APC Smart Optimizer (Current decision & directive) */}
-                  <div style={{ marginBottom: 20 }}>
-                    <ErrorBoundary>
-                      <ApcCard readOnly={readOnly} onOpenStrategy={() => setActiveTab('apc_strategy')} />
-                    </ErrorBoundary>
-                  </div>
-
-                  {/* Row 4: UNIFIED FORECAST CARD (Spot prices + Weather + Smart heating window timeline) */}
+                  {/* UNIFIED FORECAST CARD with integrated real-time APC directive */}
                   <div style={{ marginBottom: 24 }}>
                     <ErrorBoundary>
-                      <UnifiedForecastCard />
+                      <UnifiedForecastCard onOpenApc={() => setActiveTab('apc_strategy')} />
                     </ErrorBoundary>
                   </div>
                 </>
