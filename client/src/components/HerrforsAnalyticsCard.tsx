@@ -30,6 +30,14 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
   const [rangeDays, setRangeDays] = useState<number>(7);
   const [viewMode, setViewMode] = useState<'stacked' | 'bars' | 'power' | 'table'>('stacked');
   const [showSettings, setShowSettings] = useState(false);
+  const [hiddenSeries, setHiddenSeries] = useState<Record<string, boolean>>({});
+
+  const toggleSeries = (dataKey: string) => {
+    setHiddenSeries((prev) => ({
+      ...prev,
+      [dataKey]: !prev[dataKey],
+    }));
+  };
 
   // Settings form state
   const [tokenInput, setTokenInput] = useState('');
@@ -145,13 +153,17 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
   const summary = data?.summary;
   const isSessionValid = Boolean((status?.session_active || status?.token_expires) && !status?.last_error);
 
+  const sortedSeries = data?.series ? data.series.slice().sort((a, b) => a.time - b.time) : [];
+
   // Format date for chart X-axis
   const formatTimeX = (timeMs: number) => {
     const d = new Date(timeMs);
+    const weekday = d.toLocaleDateString('fi-FI', { weekday: 'short' });
+    const weekdayCap = weekday.charAt(0).toUpperCase() + weekday.slice(1);
     if (rangeDays <= 2) {
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      return `${weekdayCap} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
-    return `${d.getDate()}.${d.getMonth() + 1}. ${String(d.getHours()).padStart(2, '0')}:00`;
+    return `${weekdayCap} ${d.getDate()}.${d.getMonth() + 1}.`;
   };
 
   // Custom Recharts Tooltip
@@ -649,10 +661,10 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
         </div>
 
         {/* Chart View */}
-        {viewMode !== 'table' && data && data.series.length > 0 && (
+        {viewMode !== 'table' && sortedSeries.length > 0 && (
           <div style={{ width: '100%', height: 340, marginTop: 10 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={data.series} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+              <ComposedChart data={sortedSeries} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorHouse" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#a855f7" stopOpacity={0.6}/>
@@ -696,7 +708,14 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   domain={[0, 'auto']}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <Legend
+                  onClick={(e: any) => {
+                    if (e && e.dataKey) {
+                      toggleSeries(String(e.dataKey));
+                    }
+                  }}
+                  wrapperStyle={{ fontSize: 12, paddingTop: 8, cursor: 'pointer', userSelect: 'none' }}
+                />
 
                 {viewMode === 'stacked' && (
                   <>
@@ -708,6 +727,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       stackId="1"
                       stroke="#ef4444"
                       fill="url(#colorHP)"
+                      hide={hiddenSeries['heatpump_kwh']}
                     />
                     <Area
                       yAxisId="left"
@@ -717,6 +737,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       stackId="1"
                       stroke="#38bdf8"
                       fill="url(#colorOther)"
+                      hide={hiddenSeries['other_kwh']}
                     />
                   </>
                 )}
@@ -729,6 +750,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       name="Talon kokonais (kWh)"
                       fill="#a855f7"
                       radius={[3, 3, 0, 0]}
+                      hide={hiddenSeries['house_kwh']}
                     />
                     <Bar
                       yAxisId="left"
@@ -736,6 +758,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       name="Lämpöpumppu (kWh)"
                       fill="#ef4444"
                       radius={[3, 3, 0, 0]}
+                      hide={hiddenSeries['heatpump_kwh']}
                     />
                   </>
                 )}
@@ -749,6 +772,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       name="Talon kokonaisteho (kW)"
                       stroke="#a855f7"
                       fill="url(#colorHouse)"
+                      hide={hiddenSeries['house_power_kw']}
                     />
                     <Line
                       yAxisId="left"
@@ -758,6 +782,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       stroke="#ef4444"
                       strokeWidth={2}
                       dot={false}
+                      hide={hiddenSeries['heatpump_power_kw']}
                     />
                   </>
                 )}
@@ -772,6 +797,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   strokeWidth={1.5}
                   strokeDasharray="4 4"
                   dot={false}
+                  hide={hiddenSeries['temperature']}
                 />
 
                 {/* Electricity Price Line on Right Axis */}
@@ -783,6 +809,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   stroke="#fbbf24"
                   strokeWidth={1.5}
                   dot={false}
+                  hide={hiddenSeries['full_price_cents']}
                 />
               </ComposedChart>
             </ResponsiveContainer>
