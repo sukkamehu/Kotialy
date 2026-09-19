@@ -11,7 +11,6 @@ import { EnergyStatsCard } from './EnergyStatsCard';
 import { DailyCostsCard } from './DailyCostsCard';
 import { HerrforsAnalyticsCard } from './HerrforsAnalyticsCard';
 import { UnifiedForecastCard } from './UnifiedForecastCard';
-import { ApcCard } from './ApcCard';
 import { HistoryChart } from './HistoryChart';
 import { ZigbeePanel } from './ZigbeePanel';
 import { CameraCard } from './CameraCard';
@@ -233,9 +232,6 @@ export function Dashboard({
           {/* TAB 2: APC Automaatiostrategia & Ohjain */}
           {activeTab === 'apc_strategy' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
-              <ErrorBoundary>
-                <ApcCard readOnly={readOnly} />
-              </ErrorBoundary>
               <ErrorBoundary>
                 <ApcStrategyPage readOnly={readOnly} />
               </ErrorBoundary>
