@@ -4,8 +4,8 @@ class CameraService {
   constructor() {
     this.enabled = process.env.CAMERA_ENABLED !== 'false';
     this.name = process.env.CAMERA_NAME || 'Pannuhuone / Tekninen tila';
-    this.subRtspUrl = process.env.CAMERA_RTSP_URL || 'rtsp://admin:123456789@192.168.68.57:554/0/av1';
-    this.mainRtspUrl = process.env.CAMERA_MAIN_RTSP_URL || 'rtsp://admin:123456789@192.168.68.57:554/0/av0';
+    this.subRtspUrl = process.env.CAMERA_RTSP_URL || '';
+    this.mainRtspUrl = process.env.CAMERA_MAIN_RTSP_URL || '';
     this.cacheMs = parseInt(process.env.CAMERA_CACHE_MS || '600', 10);
 
     // Separate caches for SD (Sub) and HD (1080p)

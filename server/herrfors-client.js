@@ -63,7 +63,7 @@ class HerrforsClient {
    */
   getCoId() {
     const settings = this.getSettings();
-    return settings.co_id || process.env.HERRFORS_CO_ID || '60931591';
+    return settings.co_id || process.env.HERRFORS_CO_ID || '';
   }
 
   /**

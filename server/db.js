@@ -769,7 +769,7 @@ function getHerrforsSettings() {
   const rows = stmtGetHerrforsSettings.all();
   const settings = {
     enabled: process.env.HERRFORS_ENABLED === 'true' || process.env.HERRFORS_ENABLED === '1',
-    co_id: process.env.HERRFORS_CO_ID || '60931591',
+    co_id: process.env.HERRFORS_CO_ID || '',
     session_token: process.env.HERRFORS_SESSION_TOKEN || '',
     username: process.env.HERRFORS_USERNAME || '',
     password: process.env.HERRFORS_PASSWORD || '',
