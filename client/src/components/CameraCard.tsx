@@ -633,7 +633,7 @@ export function CameraCard() {
 
               {/* 1080p Main Stream */}
               {(() => {
-                const streamUrl = cameraStatus?.mainRtspUrlDisplay || 'rtsp://***:***@192.168.68.57:554/0/av0';
+                const streamUrl = status?.mainRtspUrlDisplay || 'rtsp://***:***@192.168.68.57:554/0/av0';
                 return (
                   <div
                     onClick={() => copyToClipboard(streamUrl, 'main')}
