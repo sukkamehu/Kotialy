@@ -134,20 +134,25 @@ class DefrostCableDriver {
         targetState = 'OFF';
         reason = `Ulkolämpötila plussalla (${outdoorTemp.toFixed(1)}°C > +${tempThreshold}°C, kaapeli lepotilassa)`;
       }
-      // Condition D: Severe Freezing (<= -5.0°C)
+      // Condition D: Deep Freeze (<= -10.0°C, e.g. -20°C) -> Always 100% Continuous ON
+      else if (outdoorTemp != null && outdoorTemp <= -10.0) {
+        targetState = 'ON';
+        reason = `Kova pakkanen (${outdoorTemp.toFixed(1)}°C ≤ -10.0°C) · Jatkuva sulanapitolämmitys (Aina päällä)`;
+      }
+      // Condition E: Moderate Freeze (-10.0°C ... -5.0°C)
       else if (outdoorTemp != null && outdoorTemp <= hardFreezeTemp) {
         if (isCompressorRunning) {
           targetState = 'ON';
           reason = `Pakkassuojaus (${outdoorTemp.toFixed(1)}°C ≤ ${hardFreezeTemp}°C) & kompressori käynnissä (${compressorFreq.toFixed(0)} Hz)`;
         } else {
-          // Sub-zero but compressor off: 50% duty cycle to prevent freezing without wasting energy
+          // Sub-zero but compressor off: 50% duty cycle to maintain pipe warmth without wasting energy
           const cycleMin = (Math.floor(now / 60000) % dutyCycleMinutes);
           if (cycleMin < dutyCycleMinutes / 2) {
             targetState = 'ON';
-            reason = `Kova pakkanen (${outdoorTemp.toFixed(1)}°C), kompressori lepotilassa (50% jaksotus)`;
+            reason = `Pakkassuojaus (${outdoorTemp.toFixed(1)}°C), kompressori lepotilassa (50% jaksotus)`;
           } else {
             targetState = 'OFF';
-            reason = `Kova pakkanen (${outdoorTemp.toFixed(1)}°C), lepojakso jaksotuksessa`;
+            reason = `Pakkassuojaus (${outdoorTemp.toFixed(1)}°C), lepojakso jaksotuksessa`;
           }
         }
       }
