@@ -254,6 +254,13 @@ router.post('/command', requireAdmin, express.json(), async (req, res) => {
       return res.json({ ok: true, setTopic, value: stateStr });
     }
 
+    if (setTopic === 'sulanapito/cmnd/POWER' || setTopic === 'cmnd/sulanapito/POWER') {
+      const defrostCableDriver = require('../devices/defrost-cable-driver');
+      const stateStr = (finalVal === 'ON' || finalVal === 1) ? 'ON' : 'OFF';
+      await defrostCableDriver.setManualOverride(stateStr, 0); // Indefinite manual override until cancelled
+      return res.json({ ok: true, setTopic, value: stateStr });
+    }
+
     mqttClient.publish(setTopic, finalVal);
     res.json({ ok: true, setTopic, value: finalVal });
   } catch (err) {
@@ -637,6 +644,56 @@ router.post('/apc/floor-pump/settings', requireAdmin, express.json(), async (req
     apcService.evaluate();
     const floorPumpDriver = require('../devices/floor-pump-driver');
     res.json({ ok: true, status: floorPumpDriver.getStatus() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Defrost Cable (Sonoff) Specific Endpoints ───────────────────────────────
+
+/**
+ * GET /api/apc/defrost-cable/status
+ */
+router.get('/apc/defrost-cable/status', (req, res) => {
+  const defrostCableDriver = require('../devices/defrost-cable-driver');
+  res.json(defrostCableDriver.getStatus());
+});
+
+/**
+ * POST /api/apc/defrost-cable/override
+ * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
+ */
+router.post('/api/apc/defrost-cable/override', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const defrostCableDriver = require('../devices/defrost-cable-driver');
+    const { state, duration_hours = 0 } = req.body || {};
+
+    if (state === null || state === undefined || state === 'AUTO' || state === 'auto') {
+      const dbModule = require('../db');
+      dbModule.updateApcSetting('defrost_cable_override_state', '');
+      dbModule.updateApcSetting('defrost_cable_override_until', 0);
+      apcService.evaluate();
+      return res.json({ ok: true, status: defrostCableDriver.getStatus() });
+    }
+
+    const stateStr = (state === 'ON' || state === 1 || state === true) ? 'ON' : 'OFF';
+    const status = await defrostCableDriver.setManualOverride(stateStr, parseFloat(duration_hours) || 0);
+    return res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/defrost-cable/settings
+ * Body: { mode, temp_threshold, hard_freeze_temp, defrost_runover_min }
+ */
+router.post('/api/apc/defrost-cable/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const defrostCableDriver = require('../devices/defrost-cable-driver');
+    const status = await defrostCableDriver.updateSettings(req.body || {});
+    apcService.evaluate();
+    res.json({ ok: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

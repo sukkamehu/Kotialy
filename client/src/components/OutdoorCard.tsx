@@ -1,9 +1,11 @@
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
+import { useApc } from '../hooks/useApc';
 import { SegmentedControl } from './SegmentedControl';
 import { SetpointControl } from './SetpointControl';
 import type { TrendTopicTarget } from './VariableTrendModal';
+import type { DefrostCableStatus } from '../types/apc';
 
 /* Quiet mode throttles the outdoor fan/compressor, so it lives with the unit. */
 const QUIET_LEVELS = [
@@ -103,6 +105,15 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
   const heatingOffTemp = numVal(state, 'main/Heating_Off_Outdoor_Temp');
 
   const { send, pending, error, success } = useCommand();
+  const { status: apcStatus, setDefrostCableOverride } = useApc();
+
+  // Defrost cable live telemetry & APC status
+  const defrostCableDevice = apcStatus?.devices?.find((d) => d.driver === 'defrost_cable') as DefrostCableStatus | undefined;
+  const rawDefrostStat = state['sulanapito/stat/POWER']?.value || state['stat/sulanapito/POWER']?.value || defrostCableDevice?.currentState;
+  const isDefrostCableRunning = rawDefrostStat === 'ON' || rawDefrostStat === '1';
+  const defrostCableOverrideActive = defrostCableDevice?.overrideActive ?? (apcStatus?.settings?.defrost_cable_override_until ? apcStatus.settings.defrost_cable_override_until > Date.now() : false);
+  const defrostCableOverrideState = defrostCableDevice?.overrideState ?? apcStatus?.settings?.defrost_cable_override_state;
+  const defrostCableReason = defrostCableDevice?.reason || (isDefrostCableRunning ? 'Sulanapitokaapeli lämmittää' : 'Sulanapito lepotilassa');
 
   const tempColor = outsideTemp === null ? 'var(--text-muted)'
     : outsideTemp < 0 ? 'var(--cool-primary)'
@@ -265,46 +276,213 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
 
         <div className="divider" />
 
-        {/* Pohjavastus -tilarivi */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '8px 12px',
-          background: baseHeater ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.02)',
-          border: `1px solid ${baseHeater ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.05)'}`,
-          borderRadius: 8,
-          marginBottom: 14,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>{baseHeater ? '🔥' : '♨️'}</span>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: baseHeater ? 'var(--heat-primary)' : 'var(--text-secondary)' }}>
-                Pohjavastus (Base Pan Heater)
+        {/* VILP Sulanapitokaapeli (Sonoff) & Pohjavastus -ohjausosio */}
+        <div
+          style={{
+            background: isDefrostCableRunning ? 'rgba(245, 158, 11, 0.09)' : 'rgba(255, 255, 255, 0.02)',
+            border: isDefrostCableRunning ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(255, 255, 255, 0.06)',
+            borderRadius: 10,
+            padding: '12px 14px',
+            marginBottom: 14,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                background: isDefrostCableRunning ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                border: isDefrostCableRunning ? '1.5px solid rgba(245, 158, 11, 0.4)' : '1.5px solid rgba(255, 255, 255, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isDefrostCableRunning ? '0 0 12px rgba(245, 158, 11, 0.3)' : 'none',
+                flexShrink: 0,
+              }}>
+                <span style={{ fontSize: 18, filter: isDefrostCableRunning ? 'drop-shadow(0 0 4px #f59e0b)' : 'grayscale(1)', transition: 'all 0.3s' }}>
+                  {isDefrostCableRunning ? '🔥' : '♨️'}
+                </span>
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                {baseHeater ? 'Sulanapitovastus päällä' : 'Ei aktiivinen / lepotilassa'}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>Sulanapitokaapeli (Sonoff)</span>
+                  <span className="badge" style={{
+                    fontSize: 9,
+                    padding: '1px 6px',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: '#f59e0b',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                  }}>
+                    Sulatusputki
+                  </span>
+                  {defrostCableOverrideActive && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(239, 68, 68, 0.18)',
+                      color: '#f87171',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                    }}>
+                      ⚡ Pakotettu {defrostCableOverrideState || (isDefrostCableRunning ? 'ON' : 'OFF')}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {defrostCableReason}
+                </div>
               </div>
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: isDefrostCableRunning ? '#f59e0b' : 'var(--text-muted, #64748b)',
+                  boxShadow: isDefrostCableRunning ? '0 0 8px #f59e0b' : 'none',
+                }}
+              />
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: isDefrostCableRunning ? '#f59e0b' : 'var(--text-muted, #64748b)',
+              }}>
+                {isDefrostCableRunning ? 'Lämmittää' : 'Lepotilassa'}
+              </span>
+            </div>
           </div>
+
+          {!readOnly && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setDefrostCableOverride('ON', 1)}
+                style={{
+                  flex: 1,
+                  minWidth: 80,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: isDefrostCableRunning && defrostCableOverrideActive ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: isDefrostCableRunning && defrostCableOverrideActive ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                  color: isDefrostCableRunning && defrostCableOverrideActive ? '#f59e0b' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                🔥 Pakota 1h
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDefrostCableOverride('ON', 2)}
+                style={{
+                  flex: 1,
+                  minWidth: 80,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                🔥 Pakota 2h
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDefrostCableOverride('OFF', 1)}
+                style={{
+                  flex: 1,
+                  minWidth: 80,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                ⏸ Pakota Pois
+              </button>
+
+              {defrostCableOverrideActive && (
+                <button
+                  type="button"
+                  onClick={() => setDefrostCableOverride(null, 0)}
+                  style={{
+                    flex: '1 1 100%',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    background: 'rgba(34, 197, 94, 0.12)',
+                    color: '#4ade80',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  ✓ Palauta Automaatille
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Pohjavastus -tilarivi */}
+        {baseHeater && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            fontSize: 11,
-            fontWeight: 600,
-            color: baseHeater ? 'var(--heat-primary)' : 'var(--text-muted)',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.25)',
+            borderRadius: 8,
+            marginBottom: 14,
           }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>🔥</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--heat-primary)' }}>
+                  Pohjavastus (Base Pan Heater)
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  VILP-sisäinen sulanapitovastus päällä
+                </div>
+              </div>
+            </div>
             <div style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: baseHeater ? 'var(--heat-primary)' : 'rgba(255,255,255,0.2)',
-              boxShadow: baseHeater ? '0 0 8px var(--heat-primary)' : 'none'
-            }} />
-            {baseHeater ? 'PÄÄLLÄ' : 'POIS'}
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--heat-primary)',
+            }}>
+              <div style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: 'var(--heat-primary)',
+                boxShadow: '0 0 8px var(--heat-primary)'
+              }} />
+              PÄÄLLÄ
+            </div>
           </div>
-        </div>
+        )}
 
         <SegmentedControl
           label="🤫 Hiljainen tila"

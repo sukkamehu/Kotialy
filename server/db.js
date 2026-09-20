@@ -486,6 +486,12 @@ function getApcSettings() {
     floor_pump_anti_seize_enabled: true,
     floor_pump_override_until: 0,
     floor_pump_override_state: null,
+    defrost_cable_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
+    defrost_cable_temp_threshold: 2.0,
+    defrost_cable_hard_freeze_temp: -5.0,
+    defrost_cable_defrost_runover_min: 20,
+    defrost_cable_override_until: 0,
+    defrost_cable_override_state: null,
   };
 
   for (const r of rows) {
@@ -499,7 +505,14 @@ function getApcSettings() {
       settings.floor_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_summer_pulse_enabled') {
       settings.floor_pump_summer_pulse_enabled = r.value === '1' || r.value === 'true';
-    } else if (r.key === 'mode' || r.key === 'override_directive' || r.key === 'floor_pump_mode' || r.key === 'floor_pump_override_state') {
+    } else if (
+      r.key === 'mode' ||
+      r.key === 'override_directive' ||
+      r.key === 'floor_pump_mode' ||
+      r.key === 'floor_pump_override_state' ||
+      r.key === 'defrost_cable_mode' ||
+      r.key === 'defrost_cable_override_state'
+    ) {
       settings[r.key] = r.value;
     } else {
       const n = parseFloat(r.value);

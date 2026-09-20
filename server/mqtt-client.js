@@ -18,10 +18,15 @@ const SUBSCRIBE_PATTERNS = [
   `${BASE_TOPIC}/main/#`,
   `${BASE_TOPIC}/extra/#`,
   `${BASE_TOPIC}/lattialampopumppu/#`,
+  `${BASE_TOPIC}/sulanapito/#`,
   `lattialampopumppu/#`,
+  `sulanapito/#`,
   `stat/lattialampopumppu/#`,
+  `stat/sulanapito/#`,
   `tele/lattialampopumppu/#`,
+  `tele/sulanapito/#`,
   `cmnd/lattialampopumppu/#`,
+  `cmnd/sulanapito/#`,
   `stat/#`,
   `tele/#`,
   `${BASE_TOPIC}/LWT`,
@@ -140,7 +145,7 @@ function init(wsBroadcast, onConnect) {
       }
     }
 
-    // Handle direct Tasmota power status
+    // Handle direct Tasmota power status for floor pump
     if (
       topic === 'stat/lattialampopumppu/POWER' ||
       topic === 'lattialampopumppu/stat/POWER' ||
@@ -158,6 +163,56 @@ function init(wsBroadcast, onConnect) {
         unit: '',
         category: 'buffer',
         displayValue: pVal === 'ON' ? 'Käynnissä' : 'Pois päältä',
+        ts: Date.now(),
+      });
+      return;
+    }
+
+    // Handle Tasmota JSON telemetry / results for defrost cable
+    if (
+      (topic.includes('sulanapito') || fullTopic.includes('sulanapito')) &&
+      rawValue.startsWith('{')
+    ) {
+      try {
+        const parsed = JSON.parse(rawValue);
+        if (parsed.POWER) {
+          const pVal = parsed.POWER.toUpperCase();
+          updateState('sulanapito/stat/POWER', pVal);
+          updateState('stat/sulanapito/POWER', pVal);
+          wsBroadcast({
+            type: 'state_update',
+            topic: 'sulanapito/stat/POWER',
+            value: pVal,
+            label: 'VILP Sulanapitokaapeli (Sonoff)',
+            unit: '',
+            category: 'outdoor',
+            displayValue: pVal === 'ON' ? 'Päällä' : 'Pois päältä',
+            ts: Date.now(),
+          });
+        }
+      } catch {
+        // Not valid json, proceed normally
+      }
+    }
+
+    // Handle direct Tasmota power status for defrost cable
+    if (
+      topic === 'stat/sulanapito/POWER' ||
+      topic === 'sulanapito/stat/POWER' ||
+      fullTopic === 'stat/sulanapito/POWER' ||
+      fullTopic === 'sulanapito/stat/POWER'
+    ) {
+      const pVal = rawValue.toUpperCase() === 'ON' || rawValue === '1' ? 'ON' : 'OFF';
+      updateState('sulanapito/stat/POWER', pVal);
+      updateState('stat/sulanapito/POWER', pVal);
+      wsBroadcast({
+        type: 'state_update',
+        topic: 'sulanapito/stat/POWER',
+        value: pVal,
+        label: 'VILP Sulanapitokaapeli (Sonoff)',
+        unit: '',
+        category: 'outdoor',
+        displayValue: pVal === 'ON' ? 'Päällä' : 'Pois päältä',
         ts: Date.now(),
       });
       return;
@@ -216,8 +271,30 @@ function publish(setTopic, value) {
     throw new Error('MQTT not connected');
   }
 
+  // If it is a defrost cable command, publish to all possible Tasmota topic schemes
+  if (setTopic.includes('sulanapito')) {
+    const pVal = (value === 'ON' || value === 1 || value === '1' || value === true) ? 'ON' : 'OFF';
+    const topicsToPublish = [
+      'cmnd/sulanapito/POWER',
+      'sulanapito/cmnd/POWER',
+      `${BASE_TOPIC}/sulanapito/cmnd/POWER`,
+    ];
+    return new Promise((resolve) => {
+      topicsToPublish.forEach((t) => {
+        client.publish(t, pVal, { qos: 1 }, (err) => {
+          if (err) console.error(`[MQTT] Error publishing to ${t}:`, err);
+          else console.log(`[MQTT] Published ${t} = ${pVal}`);
+        });
+      });
+      // Also update local state
+      updateState('sulanapito/stat/POWER', pVal);
+      updateState('stat/sulanapito/POWER', pVal);
+      resolve(true);
+    });
+  }
+
   // If it is a floor pump command, publish to all possible Tasmota topic schemes
-  if (setTopic.includes('lattialampopumppu') || setTopic.endsWith('/POWER')) {
+  if (setTopic.includes('lattialampopumppu')) {
     const pVal = (value === 'ON' || value === 1 || value === '1' || value === true) ? 'ON' : 'OFF';
     const topicsToPublish = [
       'cmnd/lattialampopumppu/POWER',

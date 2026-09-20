@@ -313,6 +313,24 @@ const TOPICS = {
     writable: true,
     setTopic: 'cmnd/lattialampopumppu/POWER',
   },
+  'sulanapito/stat/POWER': {
+    label: 'VILP Sulanapitokaapeli (Sonoff)',
+    unit: '',
+    category: 'outdoor',
+    type: 'enum',
+    map: { OFF: 'Pois päältä', ON: 'Päällä', 0: 'Pois päältä', 1: 'Päällä', '0': 'Pois päältä', '1': 'Päällä' },
+    writable: true,
+    setTopic: 'cmnd/sulanapito/POWER',
+  },
+  'stat/sulanapito/POWER': {
+    label: 'VILP Sulanapitokaapeli (Sonoff)',
+    unit: '',
+    category: 'outdoor',
+    type: 'enum',
+    map: { OFF: 'Pois päältä', ON: 'Päällä', 0: 'Pois päältä', 1: 'Päällä', '0': 'Pois päältä', '1': 'Päällä' },
+    writable: true,
+    setTopic: 'cmnd/sulanapito/POWER',
+  },
 
   // ─── Valves ─────────────────────────────────────────────────────────
   'main/ThreeWay_Valve_State': {

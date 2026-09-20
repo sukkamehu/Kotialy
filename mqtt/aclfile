@@ -9,7 +9,9 @@ user kotialy
 topic read panasonic_heat_pump/#
 topic write panasonic_heat_pump/commands/#
 topic readwrite panasonic_heat_pump/lattialampopumppu/#
+topic readwrite panasonic_heat_pump/sulanapito/#
 topic readwrite lattialampopumppu/#
+topic readwrite sulanapito/#
 topic readwrite cmnd/#
 topic readwrite stat/#
 topic readwrite tele/#

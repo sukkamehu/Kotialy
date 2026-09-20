@@ -180,6 +180,55 @@ export function useApc() {
     }
   };
 
+  const setDefrostCableOverride = async (state: 'ON' | 'OFF' | null, durationHours: number = 0) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/defrost-cable/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state, duration_hours: durationHours }),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      } else {
+        const errData = await res.json().catch(() => ({ error: 'Sulanapitokaapelin ohjaus epäonnistui' }));
+        setError(errData.error);
+        return false;
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateDefrostCableSettings = async (cableSettings: { mode?: string; temp_threshold?: number; hard_freeze_temp?: number; defrost_runover_min?: number }) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/defrost-cable/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cableSettings),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return {
     status,
     logs,
@@ -194,5 +243,7 @@ export function useApc() {
     setFloorPumpOverride,
     setFloorPumpMode,
     updateFloorPumpSettings,
+    setDefrostCableOverride,
+    updateDefrostCableSettings,
   };
 }

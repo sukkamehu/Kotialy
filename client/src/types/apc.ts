@@ -3,6 +3,7 @@ export type ApcMode = 'balanced' | 'eco' | 'comfort' | 'dhw_only';
 export type ApcDirective = 'BOOST' | 'NORMAL' | 'SETBACK' | 'ECO' | 'DHW_CYCLE';
 
 export type FloorPumpMode = 'auto' | 'constant_on' | 'constant_off';
+export type DefrostCableMode = 'auto' | 'constant_on' | 'constant_off';
 
 export interface ApcSettings {
   enabled: boolean;
@@ -30,6 +31,12 @@ export interface ApcSettings {
   floor_pump_anti_seize_enabled?: boolean;
   floor_pump_override_until?: number;
   floor_pump_override_state?: 'ON' | 'OFF' | null;
+  defrost_cable_mode?: DefrostCableMode;
+  defrost_cable_temp_threshold?: number;
+  defrost_cable_hard_freeze_temp?: number;
+  defrost_cable_defrost_runover_min?: number;
+  defrost_cable_override_until?: number;
+  defrost_cable_override_state?: 'ON' | 'OFF' | null;
 }
 
 export interface FloorPumpStatus {
@@ -48,6 +55,23 @@ export interface FloorPumpStatus {
   summerCutoffTemp: number;
   summerPulseEnabled?: boolean;
   antiSeizeEnabled: boolean;
+}
+
+export interface DefrostCableStatus {
+  driver: 'defrost_cable';
+  name: string;
+  type: string;
+  connected: boolean;
+  currentState: 'ON' | 'OFF' | string;
+  mode: DefrostCableMode;
+  overrideActive: boolean;
+  overrideUntil: number;
+  overrideState: 'ON' | 'OFF' | null;
+  reason: string;
+  lastAppliedAt: number;
+  tempThreshold: number;
+  hardFreezeTemp: number;
+  defrostRunoverMin: number;
 }
 
 export interface ApcPlanSlot {
