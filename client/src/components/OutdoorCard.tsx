@@ -105,7 +105,7 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
   const heatingOffTemp = numVal(state, 'main/Heating_Off_Outdoor_Temp');
 
   const { send, pending, error, success } = useCommand();
-  const { status: apcStatus, setDefrostCableOverride } = useApc();
+  const { status: apcStatus, setDefrostCableOverride, saving: apcSaving } = useApc();
 
   // Defrost cable live telemetry & APC status
   const defrostCableDevice = apcStatus?.devices?.find((d) => d.driver === 'defrost_cable') as DefrostCableStatus | undefined;
@@ -359,6 +359,7 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
             <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
               <button
                 type="button"
+                disabled={readOnly || apcSaving || pending}
                 onClick={() => setDefrostCableOverride('ON', 1)}
                 style={{
                   flex: 1,
@@ -370,15 +371,18 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
                   border: isDefrostCableRunning && defrostCableOverrideActive ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
                   background: isDefrostCableRunning && defrostCableOverrideActive ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)',
                   color: isDefrostCableRunning && defrostCableOverrideActive ? '#f59e0b' : 'var(--text-secondary)',
-                  cursor: 'pointer',
+                  cursor: (readOnly || apcSaving || pending) ? 'not-allowed' : 'pointer',
+                  opacity: (readOnly || apcSaving || pending) ? 0.6 : 1,
                   transition: 'all 0.2s',
                 }}
+                title="Pakota sulanapitokaapeli päälle 1 tunniksi"
               >
                 🔥 Pakota 1h
               </button>
 
               <button
                 type="button"
+                disabled={readOnly || apcSaving || pending}
                 onClick={() => setDefrostCableOverride('ON', 2)}
                 style={{
                   flex: 1,
@@ -390,15 +394,18 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   background: 'rgba(255, 255, 255, 0.05)',
                   color: 'var(--text-secondary)',
-                  cursor: 'pointer',
+                  cursor: (readOnly || apcSaving || pending) ? 'not-allowed' : 'pointer',
+                  opacity: (readOnly || apcSaving || pending) ? 0.6 : 1,
                   transition: 'all 0.2s',
                 }}
+                title="Pakota sulanapitokaapeli päälle 2 tunniksi"
               >
                 🔥 Pakota 2h
               </button>
 
               <button
                 type="button"
+                disabled={readOnly || apcSaving || pending}
                 onClick={() => setDefrostCableOverride('OFF', 1)}
                 style={{
                   flex: 1,
@@ -410,9 +417,11 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   background: 'rgba(255, 255, 255, 0.05)',
                   color: 'var(--text-secondary)',
-                  cursor: 'pointer',
+                  cursor: (readOnly || apcSaving || pending) ? 'not-allowed' : 'pointer',
+                  opacity: (readOnly || apcSaving || pending) ? 0.6 : 1,
                   transition: 'all 0.2s',
                 }}
+                title="Pakota sulanapitokaapeli pois päältä 1 tunniksi"
               >
                 ⏸ Pakota Pois
               </button>
@@ -420,6 +429,7 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
               {defrostCableOverrideActive && (
                 <button
                   type="button"
+                  disabled={readOnly || apcSaving || pending}
                   onClick={() => setDefrostCableOverride(null, 0)}
                   style={{
                     flex: '1 1 100%',
@@ -430,9 +440,11 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
                     border: '1px solid rgba(34, 197, 94, 0.3)',
                     background: 'rgba(34, 197, 94, 0.12)',
                     color: '#4ade80',
-                    cursor: 'pointer',
+                    cursor: (readOnly || apcSaving || pending) ? 'not-allowed' : 'pointer',
+                    opacity: (readOnly || apcSaving || pending) ? 0.6 : 1,
                     transition: 'all 0.2s',
                   }}
+                  title="Palauta älykäs automaattinen sulanapitolämmitys"
                 >
                   ✓ Palauta Automaatille
                 </button>

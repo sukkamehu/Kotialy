@@ -210,7 +210,7 @@ router.post('/command', requireAdmin, express.json(), async (req, res) => {
 
   let finalVal = value;
 
-  if (setTopic.startsWith('lattialampopumppu/')) {
+  if (setTopic.includes('lattialampopumppu') || setTopic.includes('sulanapito')) {
     // Sonoff / Tasmota relay commands (ON / OFF)
     if (typeof value === 'string') {
       const up = value.toUpperCase();
@@ -663,7 +663,7 @@ router.get('/apc/defrost-cable/status', (req, res) => {
  * POST /api/apc/defrost-cable/override
  * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
  */
-router.post('/api/apc/defrost-cable/override', requireAdmin, express.json(), async (req, res) => {
+router.post('/apc/defrost-cable/override', requireAdmin, express.json(), async (req, res) => {
   try {
     const defrostCableDriver = require('../devices/defrost-cable-driver');
     const { state, duration_hours = 0 } = req.body || {};
@@ -688,7 +688,7 @@ router.post('/api/apc/defrost-cable/override', requireAdmin, express.json(), asy
  * POST /api/apc/defrost-cable/settings
  * Body: { mode, temp_threshold, hard_freeze_temp, defrost_runover_min }
  */
-router.post('/api/apc/defrost-cable/settings', requireAdmin, express.json(), async (req, res) => {
+router.post('/apc/defrost-cable/settings', requireAdmin, express.json(), async (req, res) => {
   try {
     const defrostCableDriver = require('../devices/defrost-cable-driver');
     const status = await defrostCableDriver.updateSettings(req.body || {});
