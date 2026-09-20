@@ -170,6 +170,13 @@ cameraService.startScheduler();
 s3Service.startScheduler();
 herrforsClient.startScheduler();
 
+// Daily database maintenance (prune records older than 30 days & truncate WAL)
+const { pruneOldHistory, vacuumDatabase } = require('./db');
+setTimeout(() => pruneOldHistory(30), 60_000);
+setInterval(() => {
+  pruneOldHistory(30);
+}, 24 * 60 * 60 * 1000);
+
 // ─── Start ───────────────────────────────────────────────────────────────────
 
 server.listen(PORT, () => {

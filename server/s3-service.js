@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, CopyObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 class S3Service {
   constructor() {
@@ -75,6 +75,10 @@ class S3Service {
 
   /**
    * Backup SQLite database to Cloudflare R2
+   * Max 2 copies strategy:
+   * 1. kotialy-latest.db (continuously synced latest copy)
+   * 2. kotialy-previous.db (previous snapshot rotated before updating latest)
+   * Any older timestamped files are automatically pruned.
    */
   async backupDatabase() {
     if (!this.isConfigured()) {
@@ -88,35 +92,51 @@ class S3Service {
 
     this.lastBackupStatus = 'running';
     try {
-      // Passive WAL checkpoint so uncheckpointed frames are flushed safely
+      // WAL checkpoint so all committed transactions are in main file
       try {
         const { db } = require('./db');
         if (db && typeof db.exec === 'function') {
-          db.exec('PRAGMA wal_checkpoint(PASSIVE)');
+          db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
         }
       } catch {}
 
       const data = fs.readFileSync(dbPath);
-      const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-      // Upload timestamped backup and latest pointer
-      const datedKey = `backups/kotialy-${dateStr}-${timestamp}.db`;
-      const latestKey = 'backups/latest.db';
+      const latestRelKey = 'backups/kotialy-latest.db';
+      const previousRelKey = 'backups/kotialy-previous.db';
 
-      await this.uploadFile(datedKey, data, 'application/x-sqlite3');
-      const latestRes = await this.uploadFile(latestKey, data, 'application/x-sqlite3');
+      const fullLatestKey = this.prefix ? `${this.prefix.replace(/\/+$/, '')}/${latestRelKey}` : latestRelKey;
+      const fullPreviousKey = this.prefix ? `${this.prefix.replace(/\/+$/, '')}/${previousRelKey}` : previousRelKey;
+
+      // 1. Rotate current latest to previous if latest already exists
+      try {
+        const copyCmd = new CopyObjectCommand({
+          Bucket: this.bucketName,
+          CopySource: `${this.bucketName}/${fullLatestKey}`,
+          Key: fullPreviousKey,
+        });
+        await this.client.send(copyCmd);
+        console.log(`[R2] Rotated previous backup: ${fullLatestKey} -> ${fullPreviousKey}`);
+      } catch (copyErr) {
+        // Initial run or no latest exists yet - ignorable
+      }
+
+      // 2. Upload fresh database snapshot to latest.db
+      const latestRes = await this.uploadFile(latestRelKey, data, 'application/x-sqlite3');
+
+      // 3. Prune any other legacy or old timestamped backups (keeps strictly max 2)
+      await this.pruneExcessBackups([fullLatestKey, fullPreviousKey]);
 
       this.lastBackupAt = Date.now();
       this.lastBackupStatus = 'success';
       this.lastBackupError = null;
 
-      console.log(`[R2] Database backup uploaded successfully to Cloudflare R2 (${(data.length / 1024 / 1024).toFixed(2)} MB): ${latestRes.key}`);
+      console.log(`[R2] Database backup synced to Cloudflare R2 (${(data.length / 1024 / 1024).toFixed(2)} MB): ${latestRes.key}`);
       return {
         success: true,
         sizeBytes: data.length,
-        key: datedKey,
-        latestKey: latestKey,
+        latestKey: fullLatestKey,
+        previousKey: fullPreviousKey,
         uploadedAt: this.lastBackupAt,
       };
     } catch (err) {
@@ -124,6 +144,35 @@ class S3Service {
       this.lastBackupError = err.message;
       console.error('[R2] Database backup failed:', err);
       return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Prunes all backups except the allowed keys (strictly maintains max 2 copies)
+   */
+  async pruneExcessBackups(keepKeys = []) {
+    if (!this.isConfigured()) return;
+    try {
+      const prefix = `${this.prefix.replace(/\/+$/, '')}/backups/`;
+      const listCmd = new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: prefix,
+      });
+      const response = await this.client.send(listCmd);
+      const items = response.Contents || [];
+
+      for (const item of items) {
+        if (!keepKeys.includes(item.Key)) {
+          console.log(`[R2] Pruning old backup: ${item.Key}`);
+          const delCmd = new DeleteObjectCommand({
+            Bucket: this.bucketName,
+            Key: item.Key,
+          });
+          await this.client.send(delCmd);
+        }
+      }
+    } catch (err) {
+      console.warn('[R2] Pruning excess backups warning:', err.message);
     }
   }
 
@@ -142,7 +191,7 @@ class S3Service {
   }
 
   /**
-   * List backups stored in Cloudflare R2
+   * List backups stored in Cloudflare R2 (at most 2: latest + previous)
    */
   async listBackups() {
     if (!this.isConfigured()) return [];

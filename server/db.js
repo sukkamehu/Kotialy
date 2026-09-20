@@ -815,6 +815,32 @@ function getHerrforsStats() {
   };
 }
 
+function pruneOldHistory(retentionDays = 30) {
+  const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  try {
+    const res1 = db.prepare('DELETE FROM sensor_history WHERE recorded_at < ?').run(cutoffMs);
+    const res2 = db.prepare('DELETE FROM weather_forecast WHERE time < ?').run(cutoffMs);
+    const res3 = db.prepare('DELETE FROM apc_logs WHERE timestamp < ?').run(cutoffMs);
+    console.log(`[DB] Pruned history older than ${retentionDays} days: ${res1.changes} sensor records, ${res2.changes} weather records, ${res3.changes} logs removed`);
+    return { sensor_records: res1.changes, weather_records: res2.changes, log_records: res3.changes };
+  } catch (err) {
+    console.error('[DB] pruneOldHistory failed:', err.message);
+    return { error: err.message };
+  }
+}
+
+function vacuumDatabase() {
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    db.exec('VACUUM');
+    console.log('[DB] Database vacuumed and WAL truncated successfully');
+    return { success: true };
+  } catch (err) {
+    console.error('[DB] vacuumDatabase failed:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = {
   db,
   updateState,
@@ -838,4 +864,6 @@ module.exports = {
   getHerrforsSettings,
   updateHerrforsSetting,
   getHerrforsStats,
+  pruneOldHistory,
+  vacuumDatabase,
 };
