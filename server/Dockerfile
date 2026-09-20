@@ -2,7 +2,9 @@ FROM node:22.19-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg chromium
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev

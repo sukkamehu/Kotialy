@@ -771,9 +771,12 @@ function getHerrforsSettings() {
     enabled: process.env.HERRFORS_ENABLED === 'true' || process.env.HERRFORS_ENABLED === '1',
     co_id: process.env.HERRFORS_CO_ID || '60931591',
     session_token: process.env.HERRFORS_SESSION_TOKEN || '',
+    username: process.env.HERRFORS_USERNAME || '',
+    password: process.env.HERRFORS_PASSWORD || '',
     refresh_interval_minutes: parseInt(process.env.HERRFORS_REFRESH_INTERVAL_MINUTES || '5'),
     token_expires: null,
     last_refresh_at: null,
+    last_login_at: null,
     last_sync_at: null,
     last_sync_status: null,
   };
@@ -783,7 +786,7 @@ function getHerrforsSettings() {
     } else if (r.key === 'refresh_interval_minutes') {
       const n = parseInt(r.value);
       if (!isNaN(n)) settings.refresh_interval_minutes = n;
-    } else if (r.key === 'last_refresh_at' || r.key === 'last_sync_at') {
+    } else if (r.key === 'last_refresh_at' || r.key === 'last_login_at' || r.key === 'last_sync_at') {
       const n = parseInt(r.value);
       if (!isNaN(n)) settings[r.key] = n;
     } else {

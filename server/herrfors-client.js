@@ -1,6 +1,10 @@
+require('dotenv').config();
+const fs = require('fs');
+const puppeteer = require('puppeteer-core');
 const db = require('./db');
 
 const HERRFORS_BASE_URL = 'https://portal.herrfors.fi';
+const HERRFORS_IDENTITY_URL = 'https://identity.herrfors.fi/';
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
 
 class HerrforsClient {
@@ -8,9 +12,35 @@ class HerrforsClient {
     this.sessionTimer = null;
     this.syncTimer = null;
     this.isRefreshing = false;
+    this.isLoggingIn = false;
     this.isSyncing = false;
     this.lastError = null;
     this.sessionInfo = null;
+  }
+
+  /**
+   * Find available Chrome or Chromium binary across macOS, Linux & Alpine Docker
+   */
+  findChromeBinary() {
+    if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+      return process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+    if (process.env.CHROME_BIN && fs.existsSync(process.env.CHROME_BIN)) {
+      return process.env.CHROME_BIN;
+    }
+    const candidates = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
   }
 
   /**
@@ -52,14 +82,146 @@ class HerrforsClient {
   }
 
   /**
+   * Perform automated headless authentication against Herrfors Identity
+   */
+  async authenticate() {
+    const settings = this.getSettings();
+    const username = settings.username || process.env.HERRFORS_USERNAME;
+    const password = settings.password || process.env.HERRFORS_PASSWORD;
+
+    if (!username || !password) {
+      const err = 'Herrfors käyttäjätunnus tai salasana puuttuu (HERRFORS_USERNAME / HERRFORS_PASSWORD)';
+      this.lastError = err;
+      return { ok: false, error: err };
+    }
+
+    const chromePath = this.findChromeBinary();
+    if (!chromePath) {
+      const err = 'Chromium/Chrome -selainta ei löytynyt automaattista kirjautumista varten';
+      this.lastError = err;
+      return { ok: false, error: err };
+    }
+
+    if (this.isLoggingIn) {
+      console.log('[HERRFORS] Kirjautuminen jo käynnissä...');
+      return { ok: false, error: 'Login already in progress' };
+    }
+
+    this.isLoggingIn = true;
+    console.log(`[HERRFORS] Suoritetaan automaattinen kirjautuminen (käyttäjä: ${username})...`);
+
+    let browser = null;
+    try {
+      browser = await puppeteer.launch({
+        executablePath: chromePath,
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+
+      const page = await browser.newPage();
+
+      let extractedToken = null;
+
+      // Intercept response cookies
+      page.on('response', res => {
+        try {
+          const setCookie = res.headers()['set-cookie'];
+          if (setCookie && setCookie.includes('__Secure-next-auth.session-token')) {
+            const match = setCookie.match(/__Secure-next-auth\.session-token=([^;]+)/);
+            if (match && match[1]) {
+              extractedToken = match[1];
+            }
+          }
+        } catch {
+          // ignore
+        }
+      });
+
+      console.log('[HERRFORS] Avataan identity-sivu...');
+      await page.goto(HERRFORS_IDENTITY_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+
+      // Form 0 is the primary login form
+      await page.waitForSelector('form', { timeout: 10000 });
+      const forms = await page.$$('form');
+      if (!forms || forms.length === 0) {
+        throw new Error('Kirjautumislomaketta ei löytynyt sivulta');
+      }
+
+      const loginForm = forms[0];
+      const emailInput = await loginForm.$('input[name="username"]');
+      const passwordInput = await loginForm.$('input[name="password"]');
+
+      if (!emailInput || !passwordInput) {
+        throw new Error('Kirjautumiskenttiä ei löytynyt lomakkeelta');
+      }
+
+      console.log('[HERRFORS] Syötetään kirjautumistiedot...');
+      await emailInput.click();
+      await emailInput.type(username, { delay: 15 });
+      await passwordInput.click();
+      await passwordInput.type(password, { delay: 15 });
+
+      console.log('[HERRFORS] Lähetetään lomake (requestSubmit)...');
+      await page.evaluate(() => {
+        const f = document.querySelectorAll('form')[0];
+        if (f) f.requestSubmit();
+      });
+
+      // Wait for token from response header or portal cookie storage
+      const deadline = Date.now() + 20000;
+      while (Date.now() < deadline) {
+        if (extractedToken) break;
+
+        try {
+          const portalCookies = await page.cookies('https://portal.herrfors.fi');
+          const found = portalCookies.find(c => c.name === '__Secure-next-auth.session-token');
+          if (found && found.value) {
+            extractedToken = found.value;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      if (!extractedToken) {
+        throw new Error('Kirjautumistokenia (__Secure-next-auth.session-token) ei saatu poimittua kirjautumisen jälkeen');
+      }
+
+      console.log('[HERRFORS] Automaattinen kirjautuminen onnistui! Uusi token tallennettu.');
+      db.updateHerrforsSetting('session_token', extractedToken);
+      db.updateHerrforsSetting('last_login_at', Date.now());
+      this.lastError = null;
+
+      return { ok: true, token: extractedToken };
+    } catch (err) {
+      console.error('[HERRFORS] Automaattinen kirjautuminen epäonnistui:', err.message);
+      this.lastError = `Kirjautumisvirhe: ${err.message}`;
+      return { ok: false, error: err.message };
+    } finally {
+      if (browser) {
+        try { await browser.close(); } catch { /* ignore */ }
+      }
+      this.isLoggingIn = false;
+    }
+  }
+
+  /**
    * Refresh session token by querying /api/auth/session
-   * This extends the token validity by 24 hours.
+   * This extends the token validity by 24 hours. If it fails or returns empty session, falls back to automated login.
    */
   async refreshSession() {
-    const token = this.getToken();
+    let token = this.getToken();
     if (!token) {
-      this.lastError = 'Herrfors session token puuttuu';
-      return { ok: false, error: this.lastError };
+      console.log('[HERRFORS] Token puuttuu, suoritetaan ensikirjautuminen...');
+      const authRes = await this.authenticate();
+      if (!authRes.ok) {
+        this.lastError = authRes.error;
+        return { ok: false, error: authRes.error };
+      }
+      token = authRes.token;
     }
 
     if (this.isRefreshing) {
@@ -75,6 +237,11 @@ class HerrforsClient {
       });
 
       if (!res.ok) {
+        console.warn(`[HERRFORS] auth/session palautti ${res.status}. Kokeillaan automaattista uudelleenkirjautumista...`);
+        const authRes = await this.authenticate();
+        if (authRes.ok) {
+          return { ok: true, refreshedAt: Date.now() };
+        }
         throw new Error(`Herrfors auth/session palautti tilakoodin ${res.status} ${res.statusText}`);
       }
 
@@ -85,16 +252,26 @@ class HerrforsClient {
         if (match && match[1] && match[1] !== token) {
           console.log('[HERRFORS] Uusi session token vastaanotettu ja päivitetty.');
           db.updateHerrforsSetting('session_token', match[1]);
+          token = match[1];
         }
       }
 
       const data = await res.json();
+
+      // If session is empty or missing expires, token has expired on server side
+      if (!data || Object.keys(data).length === 0 || !data.expires) {
+        console.warn('[HERRFORS] auth/session palautti tyhjän istunnon. Suoritetaan automaattinen kirjautuminen...');
+        const authRes = await this.authenticate();
+        if (authRes.ok) {
+          return { ok: true, refreshedAt: Date.now() };
+        }
+        throw new Error('Istunto vanhentunut ja automaattinen kirjautuminen epäonnistui');
+      }
+
       this.sessionInfo = data;
       this.lastError = null;
 
-      if (data?.expires) {
-        db.updateHerrforsSetting('token_expires', data.expires);
-      }
+      db.updateHerrforsSetting('token_expires', data.expires);
       db.updateHerrforsSetting('last_refresh_at', Date.now());
 
       console.log(`[HERRFORS] Session token virkistetty onnistuneesti (Voimassa: ${data?.expires || '24h'})`);
@@ -115,11 +292,17 @@ class HerrforsClient {
   /**
    * Fetch 15-minute readings for a specific date range [fromIso, toIso]
    */
-  async fetchReadingsChunk(fromIso, toIso) {
-    const token = this.getToken();
+  async fetchReadingsChunk(fromIso, toIso, retryOnAuth = true) {
+    let token = this.getToken();
     const coId = this.getCoId();
-    if (!token || !coId) {
-      throw new Error('Herrfors token tai coId puuttuu');
+    if (!token) {
+      const authRes = await this.authenticate();
+      if (!authRes.ok) throw new Error(`Herrfors token puuttuu ja kirjautuminen epäonnistui: ${authRes.error}`);
+      token = authRes.token;
+    }
+
+    if (!coId) {
+      throw new Error('Herrfors coId puuttuu');
     }
 
     const url = `${HERRFORS_BASE_URL}/api/charts/readings?coId=${encodeURIComponent(coId)}&consumption=true&price=true&temp=true&timeStep=15&from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
@@ -130,6 +313,13 @@ class HerrforsClient {
     });
 
     if (!res.ok) {
+      if ((res.status === 401 || res.status === 403) && retryOnAuth) {
+        console.warn(`[HERRFORS] charts/readings palautti ${res.status}. Suoritetaan automaattinen uudelleenkirjautuminen ja yritetään uudelleen...`);
+        const authRes = await this.authenticate();
+        if (authRes.ok) {
+          return this.fetchReadingsChunk(fromIso, toIso, false);
+        }
+      }
       throw new Error(`Herrfors charts/readings palautti tilakoodin ${res.status} ${res.statusText}`);
     }
 
@@ -503,15 +693,18 @@ class HerrforsClient {
 
     return {
       enabled: settings.enabled,
-      configured: Boolean(settings.session_token && settings.co_id),
+      configured: Boolean((settings.session_token || (settings.username && settings.password)) && settings.co_id),
+      auto_login_configured: Boolean(settings.username && settings.password),
       session_active: Boolean(settings.token_expires && !this.lastError),
       co_id: settings.co_id,
       token_expires: settings.token_expires,
       last_refresh_at: settings.last_refresh_at,
+      last_login_at: settings.last_login_at,
       next_refresh_at: nextRefresh,
       last_sync_at: settings.last_sync_at,
       last_sync_status: settings.last_sync_status,
       last_error: this.lastError,
+      is_logging_in: this.isLoggingIn,
       is_refreshing: this.isRefreshing,
       is_syncing: this.isSyncing,
       stats,
