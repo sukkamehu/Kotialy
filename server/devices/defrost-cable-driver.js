@@ -47,9 +47,6 @@ class DefrostCableDriver {
         await this.mqttClient.publish('sulanapito/cmnd/POWER', val);
         await this.mqttClient.publish('panasonic_heat_pump/sulanapito/cmnd/POWER', val);
 
-        // Update local DB state immediately for reactive UI
-        db.updateState('sulanapito/stat/POWER', val);
-        db.updateState('stat/sulanapito/POWER', val);
         this.lastState = val;
         return true;
       }
@@ -133,6 +130,11 @@ class DefrostCableDriver {
       else if (outdoorTemp != null && outdoorTemp > tempThreshold) {
         targetState = 'OFF';
         reason = `Ulkolämpötila plussalla (${outdoorTemp.toFixed(1)}°C > +${tempThreshold}°C, kaapeli lepotilassa)`;
+      }
+      // Condition C2: Unknown Outdoor Temperature -> Safe OFF default
+      else if (outdoorTemp == null) {
+        targetState = 'OFF';
+        reason = 'Ulkolämpötila ei saatavilla (kaapeli lepotilassa)';
       }
       // Condition D: Deep Freeze (<= -10.0°C, e.g. -20°C) -> Always 100% Continuous ON
       else if (outdoorTemp != null && outdoorTemp <= -10.0) {
