@@ -81,10 +81,11 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    entrypoint: []
-    command: ["/bin/sh", "-c", "if [ -z \"$$TUNNEL_TOKEN\" ]; then echo 'CLOUDFLARE_TUNNEL_TOKEN is not set. Tunnel is idle.'; sleep infinity; else exec cloudflared tunnel --no-autoupdate run --token \"$$TUNNEL_TOKEN\"; fi"]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    profiles:
+      - tunnel
   openvpn:
     build: ./openvpn
     container_name: kotialy-openvpn
