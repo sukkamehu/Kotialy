@@ -75,9 +75,8 @@ class PanasonicDriver {
         if (boostDhwOnCheap || isDhwSlot) {
           targetDhw = dhwBoostTarget;
         }
-        if (isDhwSlot) {
-          forceDhw = 1;
-        }
+        // Keep Force DHW OFF (0) to ensure heating is done via heat pump compressor, NOT electric immersion heater
+        forceDhw = 0;
         break;
 
       case 'SETBACK':
@@ -95,7 +94,8 @@ class PanasonicDriver {
       case 'DHW_CYCLE':
         targetShift = baseShift;
         targetDhw = dhwBoostTarget;
-        forceDhw = 1;
+        // Keep Force DHW OFF (0) to ensure heating is done via heat pump compressor, NOT electric immersion heater
+        forceDhw = 0;
         break;
 
       case 'NORMAL':
@@ -116,10 +116,10 @@ class PanasonicDriver {
       }
     }
 
-    // Safeguard: If DHW temp is dangerously low (< dhw_min_c), always ensure DHW heat
+    // Safeguard: If DHW temp is low (< dhw_min_c), ensure target temp is at least normal target
     if (dhwTemp != null && dhwTemp < dhwMinTarget) {
       targetDhw = Math.max(targetDhw, dhwNormalTarget);
-      forceDhw = 1;
+      forceDhw = 0;
     }
 
     const results = [];
