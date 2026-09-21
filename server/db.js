@@ -891,8 +891,8 @@ const stmtUpsertTapoDevice = db.prepare(`
     if (!existing || existing.length === 0) {
       const defaults = [
         {
-          id: 'pikkuvarasto',
-          name: 'Pikkuvarasto (Lämpöpatteri)',
+          id: 'isovarasto',
+          name: 'Isovarasto (Lämpöpatteri)',
           ip: '192.168.68.61',
           type: 'storage_heating',
           auto_mode: 'auto',
@@ -901,8 +901,8 @@ const stmtUpsertTapoDevice = db.prepare(`
           max_temp_c: 22.0,
         },
         {
-          id: 'isovarasto',
-          name: 'Isovarasto (Lämpöpatteri)',
+          id: 'pikkuvarasto',
+          name: 'Pikkuvarasto (Lämpöpatteri)',
           ip: '192.168.68.66',
           type: 'storage_heating',
           auto_mode: 'auto',
