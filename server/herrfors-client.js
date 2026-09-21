@@ -512,13 +512,54 @@ class HerrforsClient {
 
     let peakHousePowerKw = 0;
     let peakHousePowerTime = null;
+    let lastSettledReadingTime = null;
+    let settledReadingsCount = 0;
+    let pendingReadingsCount = 0;
 
     for (const h of herrforsRows) {
       const slotStart = h.start_time;
       const slotEnd = h.end_time;
       const durationHours = 0.25; // 15 min
 
-      const houseKwh = h.consumption_kwh != null ? h.consumption_kwh : 0;
+      const isPending = h.consumption_kwh == null;
+
+      // Price: use Herrfors priceWithVat if available, else spot
+      const priceWithVatCents = h.price_with_vat != null
+        ? h.price_with_vat
+        : (h.price != null ? h.price * vatMultiplier : 5.0);
+
+      const transferCents = getTransferCents(slotStart);
+      const fullPriceCentsKwh = priceWithVatCents + marginCents + transferCents;
+
+      if (isPending) {
+        pendingReadingsCount++;
+        series.push({
+          time: slotStart,
+          date_str: h.date_str,
+          is_pending: true,
+          house_kwh: null,
+          heatpump_kwh: null,
+          heating_kwh: null,
+          dhw_kwh: null,
+          tapo_kwh: null,
+          other_kwh: null,
+          price_cents: Number(priceWithVatCents.toFixed(2)),
+          full_price_cents: Number(fullPriceCentsKwh.toFixed(2)),
+          house_power_kw: null,
+          heatpump_power_kw: null,
+          tapo_power_kw: null,
+          other_power_kw: null,
+          temperature: h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null,
+        });
+        continue;
+      }
+
+      settledReadingsCount++;
+      if (!lastSettledReadingTime || slotEnd > lastSettledReadingTime) {
+        lastSettledReadingTime = slotEnd;
+      }
+
+      const houseKwh = h.consumption_kwh;
       const houseKw = houseKwh * 4; // instantaneous kW average
 
       if (houseKw > peakHousePowerKw) {
@@ -563,14 +604,6 @@ class HerrforsClient {
       const tapoKwh = Math.min(otherBeforeTapo, rawTapoKwh);
       const otherKwh = Math.max(0, otherBeforeTapo - tapoKwh);
 
-      // Price: use Herrfors priceWithVat if available, else spot
-      const priceWithVatCents = h.price_with_vat != null
-        ? h.price_with_vat
-        : (h.price != null ? h.price * vatMultiplier : 5.0);
-
-      const transferCents = getTransferCents(slotStart);
-      const fullPriceCentsKwh = priceWithVatCents + marginCents + transferCents;
-
       const houseCostEur = houseKwh * (fullPriceCentsKwh / 100);
       const hpCostEur = hpTotalKwh * (fullPriceCentsKwh / 100);
       const tapoCostEur = tapoKwh * (fullPriceCentsKwh / 100);
@@ -596,6 +629,7 @@ class HerrforsClient {
       series.push({
         time: slotStart,
         date_str: h.date_str,
+        is_pending: false,
         house_kwh: Number(houseKwh.toFixed(3)),
         heatpump_kwh: Number(hpTotalKwh.toFixed(3)),
         heating_kwh: Number(heatKwh.toFixed(3)),
@@ -646,22 +680,27 @@ class HerrforsClient {
           heatpump_cost_eur: 0,
           tapo_cost_eur: 0,
           other_cost_eur: 0,
-          slot_count: 0,
+          settled_slots: 0,
+          pending_slots: 0,
           temps: [],
         };
       }
       const d = dailyMap[pt.date_str];
-      d.house_kwh += pt.house_kwh;
-      d.heatpump_kwh += pt.heatpump_kwh;
-      d.heating_kwh += pt.heating_kwh;
-      d.dhw_kwh += pt.dhw_kwh;
-      d.tapo_kwh += pt.tapo_kwh || 0;
-      d.other_kwh += pt.other_kwh;
-      d.house_cost_eur += pt.house_kwh * (pt.full_price_cents / 100);
-      d.heatpump_cost_eur += pt.heatpump_kwh * (pt.full_price_cents / 100);
-      d.tapo_cost_eur += (pt.tapo_kwh || 0) * (pt.full_price_cents / 100);
-      d.other_cost_eur += pt.other_kwh * (pt.full_price_cents / 100);
-      d.slot_count++;
+      if (pt.house_kwh != null) {
+        d.house_kwh += pt.house_kwh;
+        d.heatpump_kwh += pt.heatpump_kwh;
+        d.heating_kwh += pt.heating_kwh;
+        d.dhw_kwh += pt.dhw_kwh;
+        d.tapo_kwh += pt.tapo_kwh || 0;
+        d.other_kwh += pt.other_kwh;
+        d.house_cost_eur += pt.house_kwh * (pt.full_price_cents / 100);
+        d.heatpump_cost_eur += pt.heatpump_kwh * (pt.full_price_cents / 100);
+        d.tapo_cost_eur += (pt.tapo_kwh || 0) * (pt.full_price_cents / 100);
+        d.other_cost_eur += pt.other_kwh * (pt.full_price_cents / 100);
+        d.settled_slots++;
+      } else {
+        d.pending_slots++;
+      }
       if (pt.temperature != null && !isNaN(pt.temperature)) {
         d.temps.push(pt.temperature);
       }
@@ -690,7 +729,10 @@ class HerrforsClient {
         heating_share_percent: dHeatingShare,
         tapo_share_percent: dTapoShare,
         other_share_percent: dOtherShare,
-        slot_count: d.slot_count,
+        slot_count: d.settled_slots + d.pending_slots,
+        settled_slots: d.settled_slots,
+        pending_slots: d.pending_slots,
+        is_pending: d.settled_slots === 0,
         avg_temp: avgTemp,
         min_temp: minTemp,
         max_temp: maxTemp,
@@ -717,13 +759,15 @@ class HerrforsClient {
         total_heatpump_cost_eur: Number(totalHeatPumpCostEur.toFixed(2)),
         total_tapo_cost_eur: Number(totalTapoCostEur.toFixed(2)),
         total_other_cost_eur: Number(totalHouseholdOtherCostEur.toFixed(2)),
-        total_other_cost_eur: Number(totalHouseholdOtherCostEur.toFixed(2)),
         avg_realized_price_cents: avgRealizedPriceCents,
         cop: overallCop,
         savings_eur: estimatedSavingsEur,
         peak_power_kw: Number(peakHousePowerKw.toFixed(2)),
         peak_power_time: peakHousePowerTime,
+        last_settled_reading_time: lastSettledReadingTime,
         readings_count: herrforsRows.length,
+        settled_readings_count: settledReadingsCount,
+        pending_readings_count: pendingReadingsCount,
         avg_temp: overallAvgTemp,
         min_temp: overallMinTemp,
         max_temp: overallMaxTemp,

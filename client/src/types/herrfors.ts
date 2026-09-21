@@ -27,18 +27,19 @@ export interface HerrforsStatus {
 export interface HerrforsDataPoint {
   time: number;
   date_str: string;
-  house_kwh: number;
-  heatpump_kwh: number;
-  heating_kwh: number;
-  dhw_kwh: number;
-  tapo_kwh?: number;
-  other_kwh: number;
+  is_pending?: boolean;
+  house_kwh: number | null;
+  heatpump_kwh: number | null;
+  heating_kwh: number | null;
+  dhw_kwh: number | null;
+  tapo_kwh?: number | null;
+  other_kwh: number | null;
   price_cents: number;
   full_price_cents: number;
-  house_power_kw: number;
-  heatpump_power_kw: number;
-  tapo_power_kw?: number;
-  other_power_kw: number;
+  house_power_kw: number | null;
+  heatpump_power_kw: number | null;
+  tapo_power_kw?: number | null;
+  other_power_kw: number | null;
   temperature?: number | null;
 }
 
@@ -59,6 +60,9 @@ export interface HerrforsDailyItem {
   tapo_share_percent?: number;
   other_share_percent?: number;
   slot_count: number;
+  settled_slots?: number;
+  pending_slots?: number;
+  is_pending?: boolean;
   avg_temp?: number | null;
   min_temp?: number | null;
   max_temp?: number | null;
@@ -83,7 +87,10 @@ export interface HerrforsSummary {
   savings_eur: number;
   peak_power_kw: number;
   peak_power_time: number | null;
+  last_settled_reading_time?: number | null;
   readings_count: number;
+  settled_readings_count?: number;
+  pending_readings_count?: number;
   avg_temp?: number | null;
   min_temp?: number | null;
   max_temp?: number | null;
@@ -96,3 +103,4 @@ export interface HerrforsAnalyticsResponse {
   from: number;
   to: number;
 }
+

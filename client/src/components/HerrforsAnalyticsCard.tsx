@@ -180,6 +180,8 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
       minute: '2-digit',
     });
 
+    const isPending = pt.is_pending || pt.house_kwh == null;
+
     return (
       <div style={{
         background: 'rgba(15, 23, 42, 0.95)',
@@ -188,41 +190,63 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
         padding: '10px 14px',
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
         fontSize: 12,
-        minWidth: 200,
+        minWidth: 210,
       }}>
         <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 4 }}>
           {timeStr}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a855f7', marginBottom: 2 }}>
-          <span>🏢 Talon kokonais:</span>
-          <strong>{pt.house_kwh != null ? `${pt.house_kwh.toFixed(3)} kWh (${pt.house_power_kw} kW)` : '-'}</strong>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444', marginBottom: 2 }}>
-          <span>♨️ Lämpöpumppu:</span>
-          <strong>{pt.heatpump_kwh != null ? `${pt.heatpump_kwh.toFixed(3)} kWh (${pt.heatpump_power_kw} kW)` : '-'}</strong>
-        </div>
-        {pt.heating_kwh > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f87171', paddingLeft: 10, fontSize: 11 }}>
-            <span>↳ Lämmitys:</span>
-            <span>{pt.heating_kwh.toFixed(3)} kWh</span>
+
+        {isPending ? (
+          <div style={{
+            margin: '6px 0 8px',
+            padding: '6px 8px',
+            borderRadius: 6,
+            background: 'rgba(234, 179, 8, 0.12)',
+            border: '1px solid rgba(234, 179, 8, 0.25)',
+            color: '#fbbf24',
+            fontSize: 11,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span>⏳</span>
+            <span>Odottaa verkkoyhtiön mittaustietoja</span>
           </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a855f7', marginBottom: 2 }}>
+              <span>🏢 Talon kokonais:</span>
+              <strong>{pt.house_kwh != null ? `${pt.house_kwh.toFixed(3)} kWh (${pt.house_power_kw} kW)` : '-'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444', marginBottom: 2 }}>
+              <span>♨️ Lämpöpumppu:</span>
+              <strong>{pt.heatpump_kwh != null ? `${pt.heatpump_kwh.toFixed(3)} kWh (${pt.heatpump_power_kw} kW)` : '-'}</strong>
+            </div>
+            {pt.heating_kwh > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f87171', paddingLeft: 10, fontSize: 11 }}>
+                <span>↳ Lämmitys:</span>
+                <span>{pt.heating_kwh.toFixed(3)} kWh</span>
+              </div>
+            )}
+            {pt.dhw_kwh > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fb923c', paddingLeft: 10, fontSize: 11 }}>
+                <span>↳ Käyttövesi:</span>
+                <span>{pt.dhw_kwh.toFixed(3)} kWh</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#818cf8', marginTop: 2 }}>
+              <span>🔌 Pistorasiat (Tapo):</span>
+              <strong>{pt.tapo_kwh != null ? `${pt.tapo_kwh.toFixed(3)} kWh (${pt.tapo_power_kw} kW)` : '-'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8', marginTop: 2 }}>
+              <span>💡 Taloussähkö:</span>
+              <strong>{pt.other_kwh != null ? `${pt.other_kwh.toFixed(3)} kWh (${pt.other_power_kw} kW)` : '-'}</strong>
+            </div>
+          </>
         )}
-        {pt.dhw_kwh > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fb923c', paddingLeft: 10, fontSize: 11 }}>
-            <span>↳ Käyttövesi:</span>
-            <span>{pt.dhw_kwh.toFixed(3)} kWh</span>
-          </div>
-        )}
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#818cf8', marginTop: 2 }}>
-          <span>🔌 Pistorasiat (Tapo):</span>
-          <strong>{pt.tapo_kwh != null ? `${pt.tapo_kwh.toFixed(3)} kWh (${pt.tapo_power_kw} kW)` : '-'}</strong>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8', marginTop: 2 }}>
-          <span>💡 Taloussähkö:</span>
-          <strong>{pt.other_kwh != null ? `${pt.other_kwh.toFixed(3)} kWh (${pt.other_power_kw} kW)` : '-'}</strong>
-        </div>
+
         {pt.temperature != null && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34d399', marginTop: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34d399', marginTop: 4 }}>
             <span>🌡️ Ulkolämpötila:</span>
             <strong>{pt.temperature > 0 ? `+${pt.temperature}` : pt.temperature} °C</strong>
           </div>
@@ -620,6 +644,32 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
           </div>
         )}
 
+        {/* Settlement Info Notice */}
+        {summary?.last_settled_reading_time && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            marginBottom: 16,
+          }}>
+            <span style={{ fontSize: 18 }}>ℹ️</span>
+            <div style={{ lineHeight: 1.45 }}>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Mittausdatan toimitusviive: </span>
+              <span>Sähköverkkoyhtiö (Herrfors / Fingrid Datahub) julkaisee viralliset mittaustiedot viiveellä (yleensä seuraavana aamuna / edellisen vuorokauden osalta). Viimeisin vahvistettu mittaus: </span>
+              <strong style={{ color: '#60a5fa' }}>
+                {new Date(summary.last_settled_reading_time).toLocaleString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </strong>
+              <span>. Kuluvan hetken reaaliaikaisen kulutuksen ja laitteet näet <em>Historia & Trendit</em> -välilehdeltä.</span>
+            </div>
+          </div>
+        )}
+
         {/* View mode & Range toolbar */}
         <div style={{
           display: 'flex',
@@ -901,7 +951,19 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               <tbody>
                 {data.daily.map((d: HerrforsDailyItem) => (
                   <tr key={d.date} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>{d.date}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>
+                      {d.date}
+                      {d.is_pending && (
+                        <span style={{ marginLeft: 6, fontSize: 10, padding: '2px 5px', borderRadius: 4, background: 'rgba(234, 179, 8, 0.15)', color: '#fbbf24' }}>
+                          Odottaa mittausta
+                        </span>
+                      )}
+                      {!d.is_pending && d.pending_slots && d.pending_slots > 0 ? (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-muted)' }}>
+                          ({d.settled_slots}/{d.slot_count} jaks.)
+                        </span>
+                      ) : null}
+                    </td>
                     <td style={{ padding: '8px 10px', color: '#34d399' }}>
                       {d.avg_temp != null ? (
                         <span>
@@ -916,32 +978,46 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                         '-'
                       )}
                     </td>
-                    <td style={{ padding: '8px 10px', color: '#c084fc' }}>{d.house_kwh.toFixed(1)} kWh</td>
-                    <td style={{ padding: '8px 10px', color: '#f87171' }}>{d.heatpump_kwh.toFixed(1)} kWh</td>
+                    <td style={{ padding: '8px 10px', color: '#c084fc' }}>
+                      {d.is_pending ? '-' : `${d.house_kwh.toFixed(1)} kWh`}
+                    </td>
+                    <td style={{ padding: '8px 10px', color: '#f87171' }}>
+                      {d.is_pending ? '-' : `${d.heatpump_kwh.toFixed(1)} kWh`}
+                    </td>
                     <td style={{ padding: '8px 10px' }}>
-                      <span style={{
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        background: 'rgba(239, 68, 68, 0.15)',
-                        color: '#f87171',
-                      }}>
-                        {d.heating_share_percent.toFixed(1)} %
-                      </span>
+                      {d.is_pending ? '-' : (
+                        <span style={{
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: '#f87171',
+                        }}>
+                          {d.heating_share_percent.toFixed(1)} %
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '8px 10px', color: '#818cf8' }}>
-                      {d.tapo_kwh ? `${d.tapo_kwh.toFixed(1)} kWh` : '-'}
-                      {d.tapo_share_percent ? (
+                      {d.is_pending ? '-' : (d.tapo_kwh ? `${d.tapo_kwh.toFixed(1)} kWh` : '-')}
+                      {!d.is_pending && d.tapo_share_percent ? (
                         <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>
                           ({d.tapo_share_percent.toFixed(1)}%)
                         </span>
                       ) : null}
                     </td>
-                    <td style={{ padding: '8px 10px', color: '#38bdf8' }}>{d.other_kwh.toFixed(1)} kWh</td>
-                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>{d.house_cost_eur.toFixed(2)} €</td>
-                    <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{d.heatpump_cost_eur.toFixed(2)} €</td>
-                    <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{d.tapo_cost_eur ? `${d.tapo_cost_eur.toFixed(2)} €` : '0.00 €'}</td>
+                    <td style={{ padding: '8px 10px', color: '#38bdf8' }}>
+                      {d.is_pending ? '-' : `${d.other_kwh.toFixed(1)} kWh`}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>
+                      {d.is_pending ? '-' : `${d.house_cost_eur.toFixed(2)} €`}
+                    </td>
+                    <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
+                      {d.is_pending ? '-' : `${d.heatpump_cost_eur.toFixed(2)} €`}
+                    </td>
+                    <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
+                      {d.is_pending ? '-' : (d.tapo_cost_eur ? `${d.tapo_cost_eur.toFixed(2)} €` : '0.00 €')}
+                    </td>
                   </tr>
                 ))}
               </tbody>
