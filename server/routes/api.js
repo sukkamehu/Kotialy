@@ -915,7 +915,7 @@ const tapoDriver = require('../devices/tapo-driver');
  * GET /api/tapo/devices
  * Returns all Tapo smart plugs with live power and status.
  */
-router.get('/tapo/devices', (req, res) => {
+router.get('/tapo/devices', requireAuthOrLan, (req, res) => {
   try {
     const devices = tapoService.getAllStatuses();
     res.json({ devices });
@@ -927,7 +927,7 @@ router.get('/tapo/devices', (req, res) => {
 /**
  * GET /api/tapo/:id
  */
-router.get('/tapo/:id', (req, res) => {
+router.get('/tapo/:id', requireAuthOrLan, (req, res) => {
   try {
     const { getTapoDevice } = require('../db');
     const dev = getTapoDevice(req.params.id);

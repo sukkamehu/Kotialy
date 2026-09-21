@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { TapoDevice } from '../types/tapo';
-
-const API_BASE = '/api';
+import { apiFetch } from '../lib/api';
 
 export function useTapo() {
   const [devices, setDevices] = useState<TapoDevice[]>([]);
@@ -10,7 +9,7 @@ export function useTapo() {
 
   const fetchDevices = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/tapo/devices`);
+      const res = await apiFetch('/api/tapo/devices');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.devices) {
@@ -56,13 +55,9 @@ export function useTapo() {
   const togglePower = useCallback(
     async (id: string, state?: 'ON' | 'OFF') => {
       try {
-        const token = localStorage.getItem('kotialy_auth_token');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`${API_BASE}/tapo/${id}/toggle`, {
+        const res = await apiFetch(`/api/tapo/${id}/toggle`, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ state }),
         });
         if (!res.ok) throw new Error('Kytkentä epäonnistui');
@@ -78,13 +73,9 @@ export function useTapo() {
   const setOverride = useCallback(
     async (id: string, state: 'ON' | 'OFF' | null, durationHours: number = 2) => {
       try {
-        const token = localStorage.getItem('kotialy_auth_token');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`${API_BASE}/tapo/${id}/override`, {
+        const res = await apiFetch(`/api/tapo/${id}/override`, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ state, duration_hours: durationHours }),
         });
         if (!res.ok) throw new Error('Ohituksen asetus epäonnistui');
@@ -100,13 +91,9 @@ export function useTapo() {
   const updateSettings = useCallback(
     async (id: string, newSettings: Partial<TapoDevice>) => {
       try {
-        const token = localStorage.getItem('kotialy_auth_token');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`${API_BASE}/tapo/${id}/settings`, {
+        const res = await apiFetch(`/api/tapo/${id}/settings`, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newSettings),
         });
         if (!res.ok) throw new Error('Asetusten tallennus epäonnistui');
@@ -121,11 +108,7 @@ export function useTapo() {
 
   const pollNow = useCallback(async () => {
     try {
-      const token = localStorage.getItem('kotialy_auth_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      await fetch(`${API_BASE}/tapo/poll`, { method: 'POST', headers });
+      await apiFetch('/api/tapo/poll', { method: 'POST' });
       await fetchDevices();
     } catch (err) {
       console.error('pollNow error:', err);
