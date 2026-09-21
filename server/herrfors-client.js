@@ -475,8 +475,14 @@ class HerrforsClient {
       if (pts.length > 0) {
         return pts.reduce((s, p) => s + (p.value || 0), 0) / pts.length;
       }
+      // Only carry forward if reading was taken within the last 5 minutes before the slot start
       const prior = history.filter(p => p.recorded_at < start);
-      if (prior.length > 0) return prior[prior.length - 1].value || 0;
+      if (prior.length > 0) {
+        const latest = prior[prior.length - 1];
+        if (start - latest.recorded_at <= 5 * 60 * 1000) {
+          return latest.value || 0;
+        }
+      }
       return 0;
     };
 
@@ -519,17 +525,23 @@ class HerrforsClient {
       const heatProdW = helperAvgPower(heatProdHistory, slotStart, slotEnd);
       const dhwProdW = helperAvgPower(dhwProdHistory, slotStart, slotEnd);
 
-      const heatKwh = (heatPowerW * durationHours) / 1000;
-      const dhwKwh = (dhwPowerW * durationHours) / 1000;
-      const coolKwh = (coolPowerW * durationHours) / 1000;
-      const hpTotalKwh = heatKwh + dhwKwh + coolKwh;
+      const rawHeatKwh = (heatPowerW * durationHours) / 1000;
+      const rawDhwKwh = (dhwPowerW * durationHours) / 1000;
+      const rawCoolKwh = (coolPowerW * durationHours) / 1000;
+      const rawHpKwh = rawHeatKwh + rawDhwKwh + rawCoolKwh;
+
+      // The heat pump is a sub-circuit inside the main house meter;
+      // its consumption in any given 15-min interval cannot exceed the house meter's total consumption.
+      const hpTotalKwh = Math.min(houseKwh, rawHpKwh);
+      const scale = rawHpKwh > houseKwh && rawHpKwh > 0 ? houseKwh / rawHpKwh : 1;
+      const heatKwh = rawHeatKwh * scale;
+      const dhwKwh = rawDhwKwh * scale;
 
       const heatProdSlotKwh = (heatProdW * durationHours) / 1000;
       const dhwProdSlotKwh = (dhwProdW * durationHours) / 1000;
       const totalProdSlotKwh = heatProdSlotKwh + dhwProdSlotKwh;
 
       // Household other electricity = House Total - HeatPump Total
-      // (Clamp to 0 in case of minor meter timing variances)
       const otherKwh = Math.max(0, houseKwh - hpTotalKwh);
 
       // Price: use Herrfors priceWithVat if available, else spot
@@ -580,7 +592,7 @@ class HerrforsClient {
       ? Number(((totalHeatPumpKwh / totalHouseKwh) * 100).toFixed(1))
       : 0;
     const otherSharePercent = totalHouseKwh > 0
-      ? Number(((totalHouseholdOtherKwh / totalHouseKwh) * 100).toFixed(1))
+      ? Number(Math.max(0, 100 - heatingSharePercent).toFixed(1))
       : 0;
 
     const totalProdKwh = totalHeatProdKwh + totalDhwProdKwh;
@@ -628,6 +640,8 @@ class HerrforsClient {
       const avgTemp = d.temps.length > 0 ? Number((d.temps.reduce((a, b) => a + b, 0) / d.temps.length).toFixed(1)) : null;
       const minTemp = d.temps.length > 0 ? Number(Math.min(...d.temps).toFixed(1)) : null;
       const maxTemp = d.temps.length > 0 ? Number(Math.max(...d.temps).toFixed(1)) : null;
+      const dHeatingShare = d.house_kwh > 0 ? Number(((d.heatpump_kwh / d.house_kwh) * 100).toFixed(1)) : 0;
+      const dOtherShare = d.house_kwh > 0 ? Number(Math.max(0, 100 - dHeatingShare).toFixed(1)) : 0;
       return {
         date: d.date,
         timestamp: d.timestamp,
@@ -639,7 +653,8 @@ class HerrforsClient {
         house_cost_eur: Number(d.house_cost_eur.toFixed(2)),
         heatpump_cost_eur: Number(d.heatpump_cost_eur.toFixed(2)),
         other_cost_eur: Number(d.other_cost_eur.toFixed(2)),
-        heating_share_percent: d.house_kwh > 0 ? Number(((d.heatpump_kwh / d.house_kwh) * 100).toFixed(1)) : 0,
+        heating_share_percent: dHeatingShare,
+        other_share_percent: dOtherShare,
         slot_count: d.slot_count,
         avg_temp: avgTemp,
         min_temp: minTemp,
