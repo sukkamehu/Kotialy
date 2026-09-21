@@ -23,10 +23,15 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'main/Buffer_Temp', label: 'Puskuri', color: '#a78bfa', unit: '°C', yAxisId: 'left' },
   { key: 'herrfors_power', label: '🔌 Talon sähköteho (Herrfors)', color: '#ec4899', unit: 'kW', yAxisId: 'right' },
   { key: 'tapo/total_power', label: '🔌 Tapo Yhteisteho', color: '#818cf8', unit: 'W', yAxisId: 'right' },
+  { key: 'tapo/total_today_energy', label: '⚡ Tapo Yhteiskulutus tänään', color: '#6366f1', unit: 'kWh', yAxisId: 'right' },
   { key: 'tapo/isovarasto/power', label: '🔥 Isovarasto teho', color: '#fb923c', unit: 'W', yAxisId: 'right' },
+  { key: 'tapo/isovarasto/energy', label: '⚡ Isovarasto kulutus', color: '#ea580c', unit: 'kWh', yAxisId: 'right' },
   { key: 'tapo/pikkuvarasto/power', label: '🔥 Pikkuvarasto teho', color: '#f97316', unit: 'W', yAxisId: 'right' },
+  { key: 'tapo/pikkuvarasto/energy', label: '⚡ Pikkuvarasto kulutus', color: '#d97706', unit: 'kWh', yAxisId: 'right' },
   { key: 'tapo/pesukone/power', label: '🧺 Pesukone teho', color: '#0ea5e9', unit: 'W', yAxisId: 'right' },
+  { key: 'tapo/pesukone/energy', label: '⚡ Pesukone kulutus', color: '#0284c7', unit: 'kWh', yAxisId: 'right' },
   { key: 'tapo/kuivausrumpu/power', label: '💨 Kuivausrumpu teho', color: '#c084fc', unit: 'W', yAxisId: 'right' },
+  { key: 'tapo/kuivausrumpu/energy', label: '⚡ Kuivausrumpu kulutus', color: '#9333ea', unit: 'kWh', yAxisId: 'right' },
   { key: 'main/Compressor_Freq', label: 'Komp. Hz', color: '#fb923c', unit: 'Hz', yAxisId: 'right' },
   { key: 'main/Heat_Power_Consumption', label: 'VILP Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right' },
   { key: 'main/Heat_Power_Production', label: 'Lämmitysteho', color: '#f97316', unit: 'W', yAxisId: 'right' },
@@ -97,6 +102,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           valStr = `${typeof p.value === 'number' && p.value > 0 ? '+' : ''}${typeof p.value === 'number' ? p.value.toFixed(1) : p.value} °C`;
         } else if (unit === 'W' && typeof p.value === 'number' && p.value >= 1000) {
           valStr = `${(p.value / 1000).toFixed(2)} kW`;
+        } else if (unit === 'kWh' && typeof p.value === 'number') {
+          valStr = `${p.value.toFixed(2)} kWh`;
         } else if (unit !== '') {
           valStr = `${valStr} ${unit}`;
         }

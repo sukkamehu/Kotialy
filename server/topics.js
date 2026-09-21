@@ -718,10 +718,15 @@ const CHART_TOPICS = [
   'extra/DHW_Power_Consumption',
   'extra/DHW_Power_Production',
   'tapo/total_power',
+  'tapo/total_today_energy',
   'tapo/isovarasto/power',
+  'tapo/isovarasto/energy',
   'tapo/pikkuvarasto/power',
+  'tapo/pikkuvarasto/energy',
   'tapo/pesukone/power',
+  'tapo/pesukone/energy',
   'tapo/kuivausrumpu/power',
+  'tapo/kuivausrumpu/energy',
 ];
 
 /**

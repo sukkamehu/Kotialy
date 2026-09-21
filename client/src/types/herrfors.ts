@@ -31,11 +31,13 @@ export interface HerrforsDataPoint {
   heatpump_kwh: number;
   heating_kwh: number;
   dhw_kwh: number;
+  tapo_kwh?: number;
   other_kwh: number;
   price_cents: number;
   full_price_cents: number;
   house_power_kw: number;
   heatpump_power_kw: number;
+  tapo_power_kw?: number;
   other_power_kw: number;
   temperature?: number | null;
 }
@@ -47,11 +49,15 @@ export interface HerrforsDailyItem {
   heatpump_kwh: number;
   heating_kwh: number;
   dhw_kwh: number;
+  tapo_kwh?: number;
   other_kwh: number;
   house_cost_eur: number;
   heatpump_cost_eur: number;
+  tapo_cost_eur?: number;
   other_cost_eur: number;
   heating_share_percent: number;
+  tapo_share_percent?: number;
+  other_share_percent?: number;
   slot_count: number;
   avg_temp?: number | null;
   min_temp?: number | null;
@@ -63,11 +69,14 @@ export interface HerrforsSummary {
   total_heatpump_kwh: number;
   total_heating_kwh: number;
   total_dhw_kwh: number;
+  total_tapo_kwh?: number;
   total_other_kwh: number;
   heating_share_percent: number;
+  tapo_share_percent?: number;
   other_share_percent: number;
   total_house_cost_eur: number;
   total_heatpump_cost_eur: number;
+  total_tapo_cost_eur?: number;
   total_other_cost_eur: number;
   avg_realized_price_cents: number;
   cop: number | null;

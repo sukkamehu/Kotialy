@@ -454,6 +454,12 @@ class HerrforsClient {
     const heatProdHistory = db.getTopicHistory('main/Heat_Power_Production', effectiveFrom - 3600000, effectiveTo);
     const dhwProdHistory = db.getTopicHistory('main/DHW_Power_Production', effectiveFrom - 3600000, effectiveTo);
 
+    const tapoTotalHistory = db.getTopicHistory('tapo/total_power', effectiveFrom - 3600000, effectiveTo);
+    const tapoIsovarastoHistory = db.getTopicHistory('tapo/isovarasto/power', effectiveFrom - 3600000, effectiveTo);
+    const tapoPikkuvarastoHistory = db.getTopicHistory('tapo/pikkuvarasto/power', effectiveFrom - 3600000, effectiveTo);
+    const tapoPesukoneHistory = db.getTopicHistory('tapo/pesukone/power', effectiveFrom - 3600000, effectiveTo);
+    const tapoKuivausrumpuHistory = db.getTopicHistory('tapo/kuivausrumpu/power', effectiveFrom - 3600000, effectiveTo);
+
     const costSettings = db.getCostSettings();
     const vatMultiplier = 1 + (costSettings.vat_percent || 25.5) / 100;
     const marginCents = costSettings.margin_cents_kwh || 0.286;
@@ -492,6 +498,7 @@ class HerrforsClient {
     let totalHeatPumpKwh = 0;
     let totalHeatingKwh = 0;
     let totalDhwKwh = 0;
+    let totalTapoKwh = 0;
     let totalHouseholdOtherKwh = 0;
 
     let totalHeatProdKwh = 0;
@@ -499,6 +506,7 @@ class HerrforsClient {
 
     let totalHouseCostEur = 0;
     let totalHeatPumpCostEur = 0;
+    let totalTapoCostEur = 0;
     let totalHouseholdOtherCostEur = 0;
     let totalDirectElectricCostEur = 0;
 
@@ -525,6 +533,14 @@ class HerrforsClient {
       const heatProdW = helperAvgPower(heatProdHistory, slotStart, slotEnd);
       const dhwProdW = helperAvgPower(dhwProdHistory, slotStart, slotEnd);
 
+      let tapoPowerW = helperAvgPower(tapoTotalHistory, slotStart, slotEnd);
+      if (tapoPowerW === 0) {
+        tapoPowerW = helperAvgPower(tapoIsovarastoHistory, slotStart, slotEnd) +
+                     helperAvgPower(tapoPikkuvarastoHistory, slotStart, slotEnd) +
+                     helperAvgPower(tapoPesukoneHistory, slotStart, slotEnd) +
+                     helperAvgPower(tapoKuivausrumpuHistory, slotStart, slotEnd);
+      }
+
       const rawHeatKwh = (heatPowerW * durationHours) / 1000;
       const rawDhwKwh = (dhwPowerW * durationHours) / 1000;
       const rawCoolKwh = (coolPowerW * durationHours) / 1000;
@@ -541,8 +557,11 @@ class HerrforsClient {
       const dhwProdSlotKwh = (dhwProdW * durationHours) / 1000;
       const totalProdSlotKwh = heatProdSlotKwh + dhwProdSlotKwh;
 
-      // Household other electricity = House Total - HeatPump Total
-      const otherKwh = Math.max(0, houseKwh - hpTotalKwh);
+      // Remaining house electricity after heat pump
+      const otherBeforeTapo = Math.max(0, houseKwh - hpTotalKwh);
+      const rawTapoKwh = (tapoPowerW * durationHours) / 1000;
+      const tapoKwh = Math.min(otherBeforeTapo, rawTapoKwh);
+      const otherKwh = Math.max(0, otherBeforeTapo - tapoKwh);
 
       // Price: use Herrfors priceWithVat if available, else spot
       const priceWithVatCents = h.price_with_vat != null
@@ -554,6 +573,7 @@ class HerrforsClient {
 
       const houseCostEur = houseKwh * (fullPriceCentsKwh / 100);
       const hpCostEur = hpTotalKwh * (fullPriceCentsKwh / 100);
+      const tapoCostEur = tapoKwh * (fullPriceCentsKwh / 100);
       const otherCostEur = otherKwh * (fullPriceCentsKwh / 100);
       const directElecCostEur = totalProdSlotKwh * (fullPriceCentsKwh / 100);
 
@@ -561,6 +581,7 @@ class HerrforsClient {
       totalHeatPumpKwh += hpTotalKwh;
       totalHeatingKwh += heatKwh;
       totalDhwKwh += dhwKwh;
+      totalTapoKwh += tapoKwh;
       totalHouseholdOtherKwh += otherKwh;
 
       totalHeatProdKwh += heatProdSlotKwh;
@@ -568,6 +589,7 @@ class HerrforsClient {
 
       totalHouseCostEur += houseCostEur;
       totalHeatPumpCostEur += hpCostEur;
+      totalTapoCostEur += tapoCostEur;
       totalHouseholdOtherCostEur += otherCostEur;
       totalDirectElectricCostEur += directElecCostEur;
 
@@ -578,11 +600,13 @@ class HerrforsClient {
         heatpump_kwh: Number(hpTotalKwh.toFixed(3)),
         heating_kwh: Number(heatKwh.toFixed(3)),
         dhw_kwh: Number(dhwKwh.toFixed(3)),
+        tapo_kwh: Number(tapoKwh.toFixed(3)),
         other_kwh: Number(otherKwh.toFixed(3)),
         price_cents: Number(priceWithVatCents.toFixed(2)),
         full_price_cents: Number(fullPriceCentsKwh.toFixed(2)),
         house_power_kw: Number(houseKw.toFixed(2)),
         heatpump_power_kw: Number(((hpTotalKwh * 4)).toFixed(2)),
+        tapo_power_kw: Number(((tapoKwh * 4)).toFixed(2)),
         other_power_kw: Number(((otherKwh * 4)).toFixed(2)),
         temperature: h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null,
       });
@@ -591,8 +615,11 @@ class HerrforsClient {
     const heatingSharePercent = totalHouseKwh > 0
       ? Number(((totalHeatPumpKwh / totalHouseKwh) * 100).toFixed(1))
       : 0;
+    const tapoSharePercent = totalHouseKwh > 0
+      ? Number(((totalTapoKwh / totalHouseKwh) * 100).toFixed(1))
+      : 0;
     const otherSharePercent = totalHouseKwh > 0
-      ? Number(Math.max(0, 100 - heatingSharePercent).toFixed(1))
+      ? Number(Math.max(0, 100 - heatingSharePercent - tapoSharePercent).toFixed(1))
       : 0;
 
     const totalProdKwh = totalHeatProdKwh + totalDhwProdKwh;
@@ -613,9 +640,11 @@ class HerrforsClient {
           heatpump_kwh: 0,
           heating_kwh: 0,
           dhw_kwh: 0,
+          tapo_kwh: 0,
           other_kwh: 0,
           house_cost_eur: 0,
           heatpump_cost_eur: 0,
+          tapo_cost_eur: 0,
           other_cost_eur: 0,
           slot_count: 0,
           temps: [],
@@ -626,9 +655,11 @@ class HerrforsClient {
       d.heatpump_kwh += pt.heatpump_kwh;
       d.heating_kwh += pt.heating_kwh;
       d.dhw_kwh += pt.dhw_kwh;
+      d.tapo_kwh += pt.tapo_kwh || 0;
       d.other_kwh += pt.other_kwh;
       d.house_cost_eur += pt.house_kwh * (pt.full_price_cents / 100);
       d.heatpump_cost_eur += pt.heatpump_kwh * (pt.full_price_cents / 100);
+      d.tapo_cost_eur += (pt.tapo_kwh || 0) * (pt.full_price_cents / 100);
       d.other_cost_eur += pt.other_kwh * (pt.full_price_cents / 100);
       d.slot_count++;
       if (pt.temperature != null && !isNaN(pt.temperature)) {
@@ -641,7 +672,8 @@ class HerrforsClient {
       const minTemp = d.temps.length > 0 ? Number(Math.min(...d.temps).toFixed(1)) : null;
       const maxTemp = d.temps.length > 0 ? Number(Math.max(...d.temps).toFixed(1)) : null;
       const dHeatingShare = d.house_kwh > 0 ? Number(((d.heatpump_kwh / d.house_kwh) * 100).toFixed(1)) : 0;
-      const dOtherShare = d.house_kwh > 0 ? Number(Math.max(0, 100 - dHeatingShare).toFixed(1)) : 0;
+      const dTapoShare = d.house_kwh > 0 ? Number(((d.tapo_kwh / d.house_kwh) * 100).toFixed(1)) : 0;
+      const dOtherShare = d.house_kwh > 0 ? Number(Math.max(0, 100 - dHeatingShare - dTapoShare).toFixed(1)) : 0;
       return {
         date: d.date,
         timestamp: d.timestamp,
@@ -649,11 +681,14 @@ class HerrforsClient {
         heatpump_kwh: Number(d.heatpump_kwh.toFixed(2)),
         heating_kwh: Number(d.heating_kwh.toFixed(2)),
         dhw_kwh: Number(d.dhw_kwh.toFixed(2)),
+        tapo_kwh: Number(d.tapo_kwh.toFixed(2)),
         other_kwh: Number(d.other_kwh.toFixed(2)),
         house_cost_eur: Number(d.house_cost_eur.toFixed(2)),
         heatpump_cost_eur: Number(d.heatpump_cost_eur.toFixed(2)),
+        tapo_cost_eur: Number(d.tapo_cost_eur.toFixed(2)),
         other_cost_eur: Number(d.other_cost_eur.toFixed(2)),
         heating_share_percent: dHeatingShare,
+        tapo_share_percent: dTapoShare,
         other_share_percent: dOtherShare,
         slot_count: d.slot_count,
         avg_temp: avgTemp,
@@ -673,11 +708,15 @@ class HerrforsClient {
         total_heatpump_kwh: Number(totalHeatPumpKwh.toFixed(2)),
         total_heating_kwh: Number(totalHeatingKwh.toFixed(2)),
         total_dhw_kwh: Number(totalDhwKwh.toFixed(2)),
+        total_tapo_kwh: Number(totalTapoKwh.toFixed(2)),
         total_other_kwh: Number(totalHouseholdOtherKwh.toFixed(2)),
         heating_share_percent: heatingSharePercent,
+        tapo_share_percent: tapoSharePercent,
         other_share_percent: otherSharePercent,
         total_house_cost_eur: Number(totalHouseCostEur.toFixed(2)),
         total_heatpump_cost_eur: Number(totalHeatPumpCostEur.toFixed(2)),
+        total_tapo_cost_eur: Number(totalTapoCostEur.toFixed(2)),
+        total_other_cost_eur: Number(totalHouseholdOtherCostEur.toFixed(2)),
         total_other_cost_eur: Number(totalHouseholdOtherCostEur.toFixed(2)),
         avg_realized_price_cents: avgRealizedPriceCents,
         cop: overallCop,

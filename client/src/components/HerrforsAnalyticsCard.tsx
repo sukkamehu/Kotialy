@@ -213,6 +213,10 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
             <span>{pt.dhw_kwh.toFixed(3)} kWh</span>
           </div>
         )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#818cf8', marginTop: 2 }}>
+          <span>🔌 Pistorasiat (Tapo):</span>
+          <strong>{pt.tapo_kwh != null ? `${pt.tapo_kwh.toFixed(3)} kWh (${pt.tapo_power_kw} kW)` : '-'}</strong>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8', marginTop: 2 }}>
           <span>💡 Taloussähkö:</span>
           <strong>{pt.other_kwh != null ? `${pt.other_kwh.toFixed(3)} kWh (${pt.other_power_kw} kW)` : '-'}</strong>
@@ -525,6 +529,29 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               </div>
             </div>
 
+            {/* Tapo Smart Plugs Electricity */}
+            <div style={{
+              background: 'rgba(129, 140, 248, 0.08)',
+              border: '1px solid rgba(129, 140, 248, 0.25)',
+              borderRadius: 12,
+              padding: 14,
+            }}>
+              <div style={{ fontSize: 12, color: '#818cf8', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🔌</span> Älypistorasiat (Tapo)
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {(summary.total_tapo_kwh ?? 0).toFixed(1)} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>kWh</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Osuus talosta:</span>
+                <strong style={{ color: '#818cf8' }}>{(summary.tapo_share_percent ?? 0).toFixed(1)} %</strong>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Kustannus:</span>
+                <span>{(summary.total_tapo_cost_eur ?? 0).toFixed(2)} €</span>
+              </div>
+            </div>
+
             {/* Household Other Electricity */}
             <div style={{
               background: 'rgba(56, 189, 248, 0.08)',
@@ -674,6 +701,10 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                     <stop offset="5%" stopColor="#ef4444" stopOpacity={0.7}/>
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1}/>
                   </linearGradient>
+                  <linearGradient id="colorTapo" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#818cf8" stopOpacity={0.7}/>
+                    <stop offset="95%" stopColor="#818cf8" stopOpacity={0.1}/>
+                  </linearGradient>
                   <linearGradient id="colorOther" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.7}/>
                     <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.1}/>
@@ -732,6 +763,16 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                     <Area
                       yAxisId="left"
                       type="monotone"
+                      dataKey="tapo_kwh"
+                      name="Älypistorasiat (kWh)"
+                      stackId="1"
+                      stroke="#818cf8"
+                      fill="url(#colorTapo)"
+                      hide={hiddenSeries['tapo_kwh']}
+                    />
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
                       dataKey="other_kwh"
                       name="Taloussähkö (kWh)"
                       stackId="1"
@@ -760,6 +801,14 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       radius={[3, 3, 0, 0]}
                       hide={hiddenSeries['heatpump_kwh']}
                     />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="tapo_kwh"
+                      name="Älypistorasiat (kWh)"
+                      fill="#818cf8"
+                      radius={[3, 3, 0, 0]}
+                      hide={hiddenSeries['tapo_kwh']}
+                    />
                   </>
                 )}
 
@@ -783,6 +832,16 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       strokeWidth={2}
                       dot={false}
                       hide={hiddenSeries['heatpump_power_kw']}
+                    />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="tapo_power_kw"
+                      name="Pistorasioiden teho (kW)"
+                      stroke="#818cf8"
+                      strokeWidth={2}
+                      dot={false}
+                      hide={hiddenSeries['tapo_power_kw']}
                     />
                   </>
                 )}
@@ -832,9 +891,11 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   <th style={{ padding: '8px 10px' }}>Talon kokonais</th>
                   <th style={{ padding: '8px 10px' }}>Lämpöpumppu</th>
                   <th style={{ padding: '8px 10px' }}>Lämmityksen osuus</th>
+                  <th style={{ padding: '8px 10px' }}>Älypistorasiat</th>
                   <th style={{ padding: '8px 10px' }}>Taloussähkö</th>
                   <th style={{ padding: '8px 10px' }}>Kokonaiskulu (€)</th>
                   <th style={{ padding: '8px 10px' }}>Lämpöpumpun kulu (€)</th>
+                  <th style={{ padding: '8px 10px' }}>Pistorasioiden kulu (€)</th>
                 </tr>
               </thead>
               <tbody>
@@ -869,9 +930,18 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                         {d.heating_share_percent.toFixed(1)} %
                       </span>
                     </td>
+                    <td style={{ padding: '8px 10px', color: '#818cf8' }}>
+                      {d.tapo_kwh ? `${d.tapo_kwh.toFixed(1)} kWh` : '-'}
+                      {d.tapo_share_percent ? (
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>
+                          ({d.tapo_share_percent.toFixed(1)}%)
+                        </span>
+                      ) : null}
+                    </td>
                     <td style={{ padding: '8px 10px', color: '#38bdf8' }}>{d.other_kwh.toFixed(1)} kWh</td>
                     <td style={{ padding: '8px 10px', fontWeight: 600 }}>{d.house_cost_eur.toFixed(2)} €</td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{d.heatpump_cost_eur.toFixed(2)} €</td>
+                    <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{d.tapo_cost_eur ? `${d.tapo_cost_eur.toFixed(2)} €` : '0.00 €'}</td>
                   </tr>
                 ))}
               </tbody>

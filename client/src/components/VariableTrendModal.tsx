@@ -191,6 +191,8 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
     let formattedVal = typeof val === 'number' ? val.toFixed(1) : String(val);
     if (unit === 'W' && typeof val === 'number' && Math.abs(val) >= 1000) {
       formattedVal = `${(val / 1000).toFixed(2)} kW`;
+    } else if (unit === 'kWh' && typeof val === 'number') {
+      formattedVal = `${val.toFixed(2)} kWh`;
     } else if (unit) {
       formattedVal = `${formattedVal} ${unit}`;
     }
@@ -524,7 +526,7 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id={`grad-${target.topic}`} x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={`grad-${target.topic.replace(/[^a-zA-Z0-9_-]/g, '-')}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={color} stopOpacity={0.4} />
                       <stop offset="95%" stopColor={color} stopOpacity={0.0} />
                     </linearGradient>
@@ -547,7 +549,8 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
                     axisLine={false}
                     domain={['auto', 'auto']}
                     tickFormatter={(val) => {
-                      if (unit === 'W' && Math.abs(val) >= 1000) return `${(val / 1000).toFixed(0)}k`;
+                      if (unit === 'W' && Math.abs(val) >= 1000) return `${(val / 1000).toFixed(1)}k`;
+                      if (unit === 'kWh') return String(Math.round(val * 100) / 100);
                       return String(Math.round(val * 10) / 10);
                     }}
                   />
@@ -571,7 +574,7 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
                     stroke={color}
                     strokeWidth={2}
                     fillOpacity={1}
-                    fill={`url(#grad-${target.topic})`}
+                    fill={`url(#grad-${target.topic.replace(/[^a-zA-Z0-9_-]/g, '-')})`}
                     isAnimationActive={false}
                   />
                 </AreaChart>
