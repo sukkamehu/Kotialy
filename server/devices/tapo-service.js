@@ -70,14 +70,21 @@ class TapoService {
       return cached.client;
     }
 
-    try {
-      const client = await loginDeviceByIp(email, password, ip);
-      this.deviceSessions.set(id, { client, lastSuccessAt: Date.now() });
-      return client;
-    } catch (err) {
-      this.deviceSessions.delete(id);
-      throw err;
+    const candidates = [email, 'admin', 'juuso'].filter(Boolean);
+    let lastErr = null;
+
+    for (const user of candidates) {
+      try {
+        const client = await loginDeviceByIp(user, password, ip);
+        this.deviceSessions.set(id, { client, username: user, lastSuccessAt: Date.now() });
+        return client;
+      } catch (err) {
+        lastErr = err;
+      }
     }
+
+    this.deviceSessions.delete(id);
+    throw lastErr || new Error('Connection failed');
   }
 
   /**
