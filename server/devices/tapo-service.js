@@ -188,6 +188,16 @@ class TapoService {
         last_seen: now,
       });
 
+      // Notify driver for active running cycle protection
+      try {
+        const tapoDriver = require('./tapo-driver');
+        if (tapoDriver && typeof tapoDriver.recordPower === 'function') {
+          tapoDriver.recordPower(device.id, powerW);
+        }
+      } catch {
+        // ignore circular require if any
+      }
+
       // Update in sensor_state & sensor_history for system-wide trend plotting
       db.updateState(`tapo/${device.id}/state`, state);
       db.updateState(`tapo/${device.id}/power`, powerW);
