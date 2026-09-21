@@ -6,6 +6,7 @@
 const panasonicDriver = require('./panasonic-driver');
 const floorPumpDriver = require('./floor-pump-driver');
 const defrostCableDriver = require('./defrost-cable-driver');
+const tapoDriver = require('./tapo-driver');
 const { unit1, unit2 } = require('./mitsubishi-driver');
 
 class DeviceManager {
@@ -14,6 +15,7 @@ class DeviceManager {
       panasonicDriver,
       floorPumpDriver,
       defrostCableDriver,
+      tapoDriver,
       unit1,
       unit2,
     ];
@@ -23,6 +25,7 @@ class DeviceManager {
     panasonicDriver.setMqttClient(client);
     floorPumpDriver.setMqttClient(client);
     defrostCableDriver.setMqttClient(client);
+    tapoDriver.setMqttClient(client);
   }
 
   async dispatchDirective(directive, context) {

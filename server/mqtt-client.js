@@ -29,6 +29,10 @@ const SUBSCRIBE_PATTERNS = [
   `cmnd/sulanapito/#`,
   `stat/#`,
   `tele/#`,
+  `tapo/#`,
+  `cmnd/tapo/#`,
+  `stat/tapo/#`,
+  `tele/tapo/#`,
   `${BASE_TOPIC}/LWT`,
   `${BASE_TOPIC}/stats`,
   `${BASE_TOPIC}/log`,
@@ -216,6 +220,12 @@ function init(wsBroadcast, onConnect) {
         ts: Date.now(),
       });
       return;
+    }
+
+    // Handle Tapo Smart Plugs MQTT messages
+    if (topic.includes('tapo') || fullTopic.includes('tapo')) {
+      const tapoService = require('./devices/tapo-service');
+      tapoService.handleMqttMessage(topic, rawValue);
     }
 
     // Handle LWT (Last Will and Testament)

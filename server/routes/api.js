@@ -906,7 +906,117 @@ router.post('/herrfors/settings', requireAdmin, express.json(), async (req, res)
   }
 });
 
+// ─── Tapo P115 Smart Plugs Routes ───────────────────────────────────────────
+
+const tapoService = require('../devices/tapo-service');
+const tapoDriver = require('../devices/tapo-driver');
+
+/**
+ * GET /api/tapo/devices
+ * Returns all Tapo smart plugs with live power and status.
+ */
+router.get('/tapo/devices', (req, res) => {
+  try {
+    const devices = tapoService.getAllStatuses();
+    res.json({ devices });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/tapo/:id
+ */
+router.get('/tapo/:id', (req, res) => {
+  try {
+    const { getTapoDevice } = require('../db');
+    const dev = getTapoDevice(req.params.id);
+    if (!dev) return res.status(404).json({ error: 'Device not found' });
+    res.json(dev);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tapo/:id/toggle
+ * Toggle or set device power state (ON / OFF).
+ * Body: { state: 'ON' | 'OFF' }
+ */
+router.post('/tapo/:id/toggle', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { getTapoDevice } = require('../db');
+    const dev = getTapoDevice(id);
+    if (!dev) return res.status(404).json({ error: 'Device not found' });
+
+    let targetState = req.body.state;
+    if (!targetState) {
+      targetState = dev.state === 'ON' ? 'OFF' : 'ON';
+    }
+
+    const result = await tapoService.setDeviceState(id, targetState, 'Käyttäjän manuaalikytkentä');
+    res.json({ ok: true, deviceId: id, state: result.state, success: result.success });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tapo/:id/override
+ * Set or clear temporary manual override.
+ * Body: { state: 'ON' | 'OFF' | null, duration_hours: 2 }
+ */
+router.post('/tapo/:id/override', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { state, duration_hours = 0 } = req.body || {};
+    const updated = await tapoDriver.setManualOverride(id, state, parseFloat(duration_hours) || 0);
+    res.json({ ok: true, device: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tapo/:id/settings
+ * Update device settings (name, IP, auto mode, price/temp thresholds).
+ */
+router.post('/tapo/:id/settings', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, ip, auto_mode, max_price_cents, min_temp_c, max_temp_c, temp_sensor_topic } = req.body || {};
+    const payload = {};
+    if (name !== undefined) payload.name = String(name).trim();
+    if (ip !== undefined) payload.ip = String(ip).trim();
+    if (auto_mode !== undefined) payload.auto_mode = auto_mode;
+    if (max_price_cents !== undefined) payload.max_price_cents = max_price_cents === null || max_price_cents === '' ? null : parseFloat(max_price_cents);
+    if (min_temp_c !== undefined) payload.min_temp_c = min_temp_c === null || min_temp_c === '' ? null : parseFloat(min_temp_c);
+    if (max_temp_c !== undefined) payload.max_temp_c = max_temp_c === null || max_temp_c === '' ? null : parseFloat(max_temp_c);
+    if (temp_sensor_topic !== undefined) payload.temp_sensor_topic = temp_sensor_topic;
+
+    const updated = await tapoDriver.updateSettings(id, payload);
+    res.json({ ok: true, device: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tapo/poll
+ * Trigger an immediate poll of all Tapo plugs.
+ */
+router.post('/tapo/poll', requireAdmin, async (req, res) => {
+  try {
+    await tapoService.pollAll();
+    res.json({ ok: true, devices: tapoService.getAllStatuses() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+
 
 
 

@@ -15,6 +15,7 @@ const apcService = require('./apc-service');
 const cameraService = require('./camera-service');
 const s3Service = require('./s3-service');
 const herrforsClient = require('./herrfors-client');
+const tapoService = require('./devices/tapo-service');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -94,6 +95,7 @@ wss.on('connection', (ws, req) => {
           username: ws.user || userName,
         },
         apc: apcService.getStatus(),
+        tapo: tapoService.getAllStatuses(),
         ts: Date.now(),
       })
     );
@@ -169,6 +171,11 @@ costCalculator.startScheduler();
 cameraService.startScheduler();
 s3Service.startScheduler();
 herrforsClient.startScheduler();
+
+// ─── Tapo Smart Plugs Service ───────────────────────────────────────────────
+tapoService.setWsBroadcast(wsBroadcast);
+tapoService.setMqttClient(mqttClient);
+tapoService.start();
 
 // Daily database maintenance (prune records older than 30 days & truncate WAL)
 const { pruneOldHistory, vacuumDatabase } = require('./db');

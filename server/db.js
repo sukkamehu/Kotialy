@@ -136,6 +136,28 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS tapo_devices (
+    id                 TEXT PRIMARY KEY,
+    name               TEXT NOT NULL,
+    ip                 TEXT NOT NULL,
+    type               TEXT NOT NULL,
+    state              TEXT NOT NULL DEFAULT 'OFF',
+    power_w            REAL NOT NULL DEFAULT 0,
+    today_energy_kwh   REAL NOT NULL DEFAULT 0,
+    total_energy_kwh   REAL NOT NULL DEFAULT 0,
+    voltage_v          REAL,
+    current_a          REAL,
+    auto_mode          TEXT NOT NULL DEFAULT 'auto',
+    max_price_cents    REAL,
+    min_temp_c         REAL,
+    max_temp_c         REAL,
+    temp_sensor_topic  TEXT,
+    override_until     INTEGER DEFAULT 0,
+    override_state     TEXT,
+    last_seen          INTEGER,
+    last_action_reason TEXT
+  );
 `);
 
 // Safe migrations
@@ -841,6 +863,179 @@ function vacuumDatabase() {
   }
 }
 
+// ─── Tapo P115 Smart Plugs ───────────────────────────────────────────────────
+
+const stmtGetTapoDevices = db.prepare(`SELECT * FROM tapo_devices ORDER BY id ASC`);
+const stmtGetTapoDevice = db.prepare(`SELECT * FROM tapo_devices WHERE id = ?`);
+const stmtUpsertTapoDevice = db.prepare(`
+  INSERT INTO tapo_devices (
+    id, name, ip, type, state, power_w, today_energy_kwh, total_energy_kwh,
+    voltage_v, current_a, auto_mode, max_price_cents, min_temp_c, max_temp_c,
+    temp_sensor_topic, override_until, override_state, last_seen, last_action_reason
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    name = excluded.name,
+    ip = excluded.ip,
+    type = excluded.type,
+    auto_mode = excluded.auto_mode,
+    max_price_cents = excluded.max_price_cents,
+    min_temp_c = excluded.min_temp_c,
+    max_temp_c = excluded.max_temp_c,
+    temp_sensor_topic = excluded.temp_sensor_topic
+`);
+
+// Seed default Tapo devices if table is empty
+(function seedDefaultTapoDevices() {
+  try {
+    const existing = stmtGetTapoDevices.all();
+    if (!existing || existing.length === 0) {
+      const defaults = [
+        {
+          id: 'pikkuvarasto',
+          name: 'Pikkuvarasto (Lämpöpatteri)',
+          ip: '192.168.68.61',
+          type: 'storage_heating',
+          auto_mode: 'auto',
+          max_price_cents: null,
+          min_temp_c: 10.0,
+          max_temp_c: 22.0,
+        },
+        {
+          id: 'isovarasto',
+          name: 'Isovarasto (Lämpöpatteri)',
+          ip: '192.168.68.66',
+          type: 'storage_heating',
+          auto_mode: 'auto',
+          max_price_cents: null,
+          min_temp_c: 10.0,
+          max_temp_c: 22.0,
+        },
+        {
+          id: 'pesukone',
+          name: 'Pyykinpesukone',
+          ip: '192.168.68.67',
+          type: 'appliance_washing_machine',
+          auto_mode: 'auto',
+          max_price_cents: 15.0,
+          min_temp_c: null,
+          max_temp_c: null,
+        },
+        {
+          id: 'kuivausrumpu',
+          name: 'Kuivausrumpu',
+          ip: '192.168.68.68',
+          type: 'appliance_dryer',
+          auto_mode: 'auto',
+          max_price_cents: 12.0,
+          min_temp_c: null,
+          max_temp_c: null,
+        },
+      ];
+
+      for (const d of defaults) {
+        stmtUpsertTapoDevice.run(
+          d.id,
+          d.name,
+          d.ip,
+          d.type,
+          'OFF',
+          0,
+          0,
+          0,
+          null,
+          null,
+          d.auto_mode,
+          d.max_price_cents,
+          d.min_temp_c,
+          d.max_temp_c,
+          null,
+          0,
+          null,
+          null,
+          'Alustettu'
+        );
+      }
+      console.log('[DB] Seeded 4 default Tapo P115 smart plugs');
+    }
+  } catch (err) {
+    console.error('[DB] Failed to seed default Tapo devices:', err.message);
+  }
+})();
+
+function getTapoDevices() {
+  return stmtGetTapoDevices.all().map((r) => ({
+    id: r.id,
+    name: r.name,
+    ip: r.ip,
+    type: r.type,
+    state: r.state || 'OFF',
+    power_w: r.power_w != null ? Number(r.power_w) : 0,
+    today_energy_kwh: r.today_energy_kwh != null ? Number(r.today_energy_kwh) : 0,
+    total_energy_kwh: r.total_energy_kwh != null ? Number(r.total_energy_kwh) : 0,
+    voltage_v: r.voltage_v != null ? Number(r.voltage_v) : null,
+    current_a: r.current_a != null ? Number(r.current_a) : null,
+    auto_mode: r.auto_mode || 'auto',
+    max_price_cents: r.max_price_cents != null ? Number(r.max_price_cents) : null,
+    min_temp_c: r.min_temp_c != null ? Number(r.min_temp_c) : null,
+    max_temp_c: r.max_temp_c != null ? Number(r.max_temp_c) : null,
+    temp_sensor_topic: r.temp_sensor_topic || null,
+    override_until: r.override_until != null ? Number(r.override_until) : 0,
+    override_state: r.override_state || null,
+    last_seen: r.last_seen != null ? Number(r.last_seen) : null,
+    last_action_reason: r.last_action_reason || null,
+  }));
+}
+
+function getTapoDevice(id) {
+  const r = stmtGetTapoDevice.get(id);
+  if (!r) return null;
+  return {
+    id: r.id,
+    name: r.name,
+    ip: r.ip,
+    type: r.type,
+    state: r.state || 'OFF',
+    power_w: r.power_w != null ? Number(r.power_w) : 0,
+    today_energy_kwh: r.today_energy_kwh != null ? Number(r.today_energy_kwh) : 0,
+    total_energy_kwh: r.total_energy_kwh != null ? Number(r.total_energy_kwh) : 0,
+    voltage_v: r.voltage_v != null ? Number(r.voltage_v) : null,
+    current_a: r.current_a != null ? Number(r.current_a) : null,
+    auto_mode: r.auto_mode || 'auto',
+    max_price_cents: r.max_price_cents != null ? Number(r.max_price_cents) : null,
+    min_temp_c: r.min_temp_c != null ? Number(r.min_temp_c) : null,
+    max_temp_c: r.max_temp_c != null ? Number(r.max_temp_c) : null,
+    temp_sensor_topic: r.temp_sensor_topic || null,
+    override_until: r.override_until != null ? Number(r.override_until) : 0,
+    override_state: r.override_state || null,
+    last_seen: r.last_seen != null ? Number(r.last_seen) : null,
+    last_action_reason: r.last_action_reason || null,
+  };
+}
+
+function updateTapoDeviceTelemetry(id, telemetry) {
+  const fields = [];
+  const vals = [];
+  for (const [k, v] of Object.entries(telemetry)) {
+    fields.push(`${k} = ?`);
+    vals.push(v);
+  }
+  if (fields.length === 0) return;
+  vals.push(id);
+  db.prepare(`UPDATE tapo_devices SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+}
+
+function updateTapoDevice(id, data) {
+  const fields = [];
+  const vals = [];
+  for (const [k, v] of Object.entries(data)) {
+    fields.push(`${k} = ?`);
+    vals.push(v);
+  }
+  if (fields.length === 0) return;
+  vals.push(id);
+  db.prepare(`UPDATE tapo_devices SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+}
+
 module.exports = {
   db,
   updateState,
@@ -866,4 +1061,9 @@ module.exports = {
   getHerrforsStats,
   pruneOldHistory,
   vacuumDatabase,
+  getTapoDevices,
+  getTapoDevice,
+  updateTapoDeviceTelemetry,
+  updateTapoDevice,
 };
+

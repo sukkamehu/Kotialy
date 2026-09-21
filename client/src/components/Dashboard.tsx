@@ -18,6 +18,7 @@ import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal'
 import { OutdoorWeatherModal } from './OutdoorWeatherModal';
 import { PanasonicSettingsCard } from './PanasonicSettingsCard';
 import { ApcStrategyPage } from './ApcStrategyPage';
+import { TapoPlugsCard } from './TapoPlugsCard';
 import { HydraulicDiagramPage } from './HydraulicDiagramPage';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -333,6 +334,13 @@ export function Dashboard({
                     </ErrorBoundary>
                     <ErrorBoundary>
                       <CameraCard />
+                    </ErrorBoundary>
+                  </div>
+
+                  {/* Row 3: Tapo P115 Smart Plugs & Power Monitoring */}
+                  <div style={{ marginBottom: 24 }}>
+                    <ErrorBoundary>
+                      <TapoPlugsCard readOnly={readOnly} />
                     </ErrorBoundary>
                   </div>
 
