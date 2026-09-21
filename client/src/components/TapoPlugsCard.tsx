@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTapo } from '../hooks/useTapo';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
 import type { TapoDevice } from '../types/tapo';
+import type { TrendTopicTarget } from './VariableTrendModal';
 
 interface TapoPlugsCardProps {
+  onOpenTrend?: (target: TrendTopicTarget) => void;
   readOnly?: boolean;
 }
 
-export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }) => {
+export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readOnly = false }) => {
   const {
     devices,
     loading,
@@ -33,10 +36,22 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
   const [formMaxTemp, setFormMaxTemp] = useState<string>('');
   const [formAutoMode, setFormAutoMode] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
 
+  // Listen to Escape key to close modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveSettingsDevice(null);
+        setOverrideModalDevice(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const openSettings = (dev: TapoDevice) => {
     setActiveSettingsDevice(dev);
-    setFormName(dev.name);
-    setFormIp(dev.ip);
+    setFormName(dev.name || '');
+    setFormIp(dev.ip || '');
     setFormMaxPrice(dev.max_price_cents != null ? String(dev.max_price_cents) : '');
     setFormMinTemp(dev.min_temp_c != null ? String(dev.min_temp_c) : '');
     setFormMaxTemp(dev.max_temp_c != null ? String(dev.max_temp_c) : '');
@@ -49,8 +64,8 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
     setSavingId(activeSettingsDevice.id);
     try {
       await updateSettings(activeSettingsDevice.id, {
-        name: formName,
-        ip: formIp,
+        name: formName.trim() || activeSettingsDevice.name,
+        ip: formIp.trim(),
         auto_mode: formAutoMode,
         max_price_cents: formMaxPrice !== '' ? parseFloat(formMaxPrice) : null,
         min_temp_c: formMinTemp !== '' ? parseFloat(formMinTemp) : null,
@@ -58,7 +73,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
       });
       setActiveSettingsDevice(null);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to update Tapo settings:', err);
     } finally {
       setSavingId(null);
     }
@@ -71,7 +86,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
       const nextState = dev.state === 'ON' ? 'OFF' : 'ON';
       await togglePower(dev.id, nextState);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to toggle Tapo power:', err);
     } finally {
       setSavingId(null);
     }
@@ -84,7 +99,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
       await setOverride(dev.id, state, hours);
       setOverrideModalDevice(null);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to set Tapo override:', err);
     } finally {
       setSavingId(null);
     }
@@ -176,18 +191,46 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
               padding: '6px 14px',
             }}
           >
-            <div>
+            <div
+              style={{ cursor: onOpenTrend ? 'pointer' : 'default' }}
+              onClick={() => {
+                if (onOpenTrend) {
+                  onOpenTrend({
+                    topic: 'tapo/total_power',
+                    label: 'Tapo Yhteisteho',
+                    unit: 'W',
+                    color: '#818cf8',
+                    currentValue: totalPowerW,
+                  });
+                }
+              }}
+              title={onOpenTrend ? 'Avaa yhteistehon trendikaavio' : undefined}
+            >
               <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Yhteisteho
+                Yhteisteho 📈
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: totalPowerW > 10 ? '#38bdf8' : 'var(--text-primary)' }}>
                 {totalPowerW.toFixed(0)} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>W</span>
               </div>
             </div>
             <div style={{ width: '1px', height: '24px', background: 'rgba(255, 255, 255, 0.1)' }} />
-            <div>
+            <div
+              style={{ cursor: onOpenTrend ? 'pointer' : 'default' }}
+              onClick={() => {
+                if (onOpenTrend) {
+                  onOpenTrend({
+                    topic: 'tapo/total_today_energy',
+                    label: 'Tapo Yhteiskulutus tänään',
+                    unit: 'kWh',
+                    color: '#a78bfa',
+                    currentValue: totalTodayEnergyKwh,
+                  });
+                }
+              }}
+              title={onOpenTrend ? 'Avaa yhteiskulutuksen trendikaavio' : undefined}
+            >
               <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Tänään
+                Tänään 📈
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: '#a78bfa' }}>
                 {totalTodayEnergyKwh.toFixed(2)} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>kWh</span>
@@ -361,7 +404,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
                     </div>
                   </div>
 
-                  {/* Power Readout Block */}
+                  {/* Power Readout Block (Clickable for Trend) */}
                   <div
                     style={{
                       background: 'rgba(0, 0, 0, 0.25)',
@@ -372,18 +415,59 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
-                      <div>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          Teho
+                      <div
+                        style={{
+                          cursor: onOpenTrend ? 'pointer' : 'default',
+                          padding: '2px 4px',
+                          margin: '-2px -4px',
+                          borderRadius: '6px',
+                          transition: 'background 0.15s',
+                        }}
+                        onClick={() => {
+                          if (onOpenTrend) {
+                            onOpenTrend({
+                              topic: `tapo/${dev.id}/power`,
+                              label: `${dev.name} Teho`,
+                              unit: 'W',
+                              color: isStorage ? '#fb923c' : isWashing ? '#0ea5e9' : '#c084fc',
+                              currentValue: power,
+                            });
+                          }
+                        }}
+                        title={onOpenTrend ? 'Klikkaa avataksesi tehon trendikaavio' : undefined}
+                      >
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          Teho {onOpenTrend && '📈'}
                         </span>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: power > 5 ? '#38bdf8' : 'var(--text-primary)', lineHeight: 1.1 }}>
                           {power.toFixed(0)} <span style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-muted)' }}>W</span>
                         </div>
                       </div>
 
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          Kulutus tänään
+                      <div
+                        style={{
+                          textAlign: 'right',
+                          cursor: onOpenTrend ? 'pointer' : 'default',
+                          padding: '2px 4px',
+                          margin: '-2px -4px',
+                          borderRadius: '6px',
+                          transition: 'background 0.15s',
+                        }}
+                        onClick={() => {
+                          if (onOpenTrend) {
+                            onOpenTrend({
+                              topic: `tapo/${dev.id}/energy`,
+                              label: `${dev.name} Kulutus tänään`,
+                              unit: 'kWh',
+                              color: '#a78bfa',
+                              currentValue: energyToday,
+                            });
+                          }
+                        }}
+                        title={onOpenTrend ? 'Klikkaa avataksesi kulutuksen trendikaavio' : undefined}
+                      >
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3px' }}>
+                          Kulutus tänään {onOpenTrend && '📈'}
                         </span>
                         <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#a78bfa', lineHeight: 1.1 }}>
                           {energyToday.toFixed(2)} <span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-muted)' }}>kWh</span>
@@ -530,258 +614,260 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ readOnly = false }
         </div>
       )}
 
-      {/* Override Modal */}
-      {overrideModalDevice && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '16px',
-          }}
-          onClick={() => setOverrideModalDevice(null)}
-        >
-          <div
-            style={{
-              background: '#131a29',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '16px',
-              padding: '22px',
-              maxWidth: '420px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>
-                ⏱️ Ohitus: {overrideModalDevice.name}
-              </h3>
-              <button
-                onClick={() => setOverrideModalDevice(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', margin: '0 0 18px' }}>
-              Pakota pistorasian tila määräajaksi. Automaatio palaa automaattisesti voimaan ajan päätyttyä.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
-              <button
-                className="btn btn-primary"
-                onClick={() => handleSetOverride(overrideModalDevice, 'ON', 2)}
-                disabled={savingId === overrideModalDevice.id}
-                style={{ padding: '10px', borderRadius: '10px', fontWeight: 600 }}
-              >
-                ⚡ Pakota PÄÄLLE (2 tuntia)
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => handleSetOverride(overrideModalDevice, 'ON', 4)}
-                disabled={savingId === overrideModalDevice.id}
-                style={{ padding: '10px', borderRadius: '10px', fontWeight: 600 }}
-              >
-                ⚡ Pakota PÄÄLLE (4 tuntia)
-              </button>
-              <button
-                className="btn btn-danger"
-                onClick={() => handleSetOverride(overrideModalDevice, 'OFF', 4)}
-                disabled={savingId === overrideModalDevice.id}
-                style={{ padding: '10px', borderRadius: '10px', fontWeight: 600 }}
-              >
-                🛑 Pakota POIS PÄÄLTÄ (4 tuntia)
-              </button>
-              {overrideModalDevice.isOverrideActive && (
+      {/* Override Modal Portal */}
+      {overrideModalDevice &&
+        createPortal(
+          <div className="modal-overlay" onClick={() => setOverrideModalDevice(null)}>
+            <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+              <div className="modal-header">
+                <h3 className="modal-title">
+                  <span>⏱️</span> Ohitus: {overrideModalDevice.name}
+                </h3>
                 <button
-                  className="btn btn-secondary"
-                  onClick={() => handleSetOverride(overrideModalDevice, null, 0)}
-                  disabled={savingId === overrideModalDevice.id}
-                  style={{ padding: '10px', borderRadius: '10px', border: '1px solid #38bdf8', color: '#38bdf8', fontWeight: 600 }}
+                  type="button"
+                  className="modal-close-btn"
+                  onClick={() => setOverrideModalDevice(null)}
+                  title="Sulje"
                 >
-                  🔄 Poista ohitus & Palauta automaatio
+                  ✕
                 </button>
-              )}
-            </div>
+              </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setOverrideModalDevice(null)} style={{ borderRadius: '8px' }}>
-                Sulje
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="modal-body">
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', margin: '0 0 16px', lineHeight: 1.45 }}>
+                  Pakota pistorasian tila määräajaksi. Automaatio ja hintavahti palaavat automaattisesti voimaan ajan päätyttyä.
+                </p>
 
-      {/* Settings Modal */}
-      {activeSettingsDevice && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '16px',
-          }}
-          onClick={() => setActiveSettingsDevice(null)}
-        >
-          <div
-            style={{
-              background: '#131a29',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '16px',
-              padding: '22px',
-              maxWidth: '480px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>
-                ⚙️ Asetukset: {activeSettingsDevice.name}
-              </h3>
-              <button
-                onClick={() => setActiveSettingsDevice(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveSettings}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '4px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                    Laitteen nimi
-                  </label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    required
-                    style={{ width: '100%', borderRadius: '8px' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '4px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                    IP-osoite (lähiverkko)
-                  </label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={formIp}
-                    onChange={(e) => setFormIp(e.target.value)}
-                    required
-                    style={{ width: '100%', borderRadius: '8px' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '4px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                    Ohjaustila
-                  </label>
-                  <select
-                    className="input"
-                    value={formAutoMode}
-                    onChange={(e) => setFormAutoMode(e.target.value as any)}
-                    style={{ width: '100%', borderRadius: '8px' }}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => handleSetOverride(overrideModalDevice, 'ON', 2)}
+                    disabled={savingId === overrideModalDevice.id}
+                    style={{ padding: '12px', borderRadius: '10px', fontWeight: 600, justifyContent: 'center' }}
                   >
-                    <option value="auto">Älykäs automaatio (suositus)</option>
-                    <option value="constant_on">Aina päällä (ohita automaatio)</option>
-                    <option value="constant_off">Aina pois päältä</option>
-                  </select>
+                    ⚡ Pakota PÄÄLLE (2 tuntia)
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => handleSetOverride(overrideModalDevice, 'ON', 4)}
+                    disabled={savingId === overrideModalDevice.id}
+                    style={{ padding: '12px', borderRadius: '10px', fontWeight: 600, justifyContent: 'center' }}
+                  >
+                    ⚡ Pakota PÄÄLLE (4 tuntia)
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => handleSetOverride(overrideModalDevice, 'OFF', 4)}
+                    disabled={savingId === overrideModalDevice.id}
+                    style={{ padding: '12px', borderRadius: '10px', fontWeight: 600, justifyContent: 'center' }}
+                  >
+                    🛑 Pakota POIS PÄÄLTÄ (4 tuntia)
+                  </button>
+                  {overrideModalDevice.isOverrideActive && (
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => handleSetOverride(overrideModalDevice, null, 0)}
+                      disabled={savingId === overrideModalDevice.id}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(56, 189, 248, 0.4)',
+                        color: '#38bdf8',
+                        fontWeight: 600,
+                        justifyContent: 'center',
+                      }}
+                    >
+                      🔄 Poista ohitus & Palauta automaatio
+                    </button>
+                  )}
                 </div>
+              </div>
 
-                {(activeSettingsDevice.id === 'pesukone' ||
-                  activeSettingsDevice.id === 'kuivausrumpu' ||
-                  activeSettingsDevice.max_price_cents != null) && (
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setOverrideModalDevice(null)}
+                  style={{ borderRadius: '8px' }}
+                >
+                  Sulje
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Settings Modal Portal */}
+      {activeSettingsDevice &&
+        createPortal(
+          <div className="modal-overlay" onClick={() => setActiveSettingsDevice(null)}>
+            <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div className="modal-header">
+                <h3 className="modal-title">
+                  <span>⚙️</span> Asetukset: {activeSettingsDevice.name}
+                </h3>
+                <button
+                  type="button"
+                  className="modal-close-btn"
+                  onClick={() => setActiveSettingsDevice(null)}
+                  title="Sulje"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSettings}>
+                <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Basic Info */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '4px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                      Maksimi pörssisähkön hinta (snt/kWh)
-                    </label>
+                    <label className="form-label">Laitteen nimi</label>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       className="input"
-                      value={formMaxPrice}
-                      onChange={(e) => setFormMaxPrice(e.target.value)}
-                      placeholder="esim. 15.0"
-                      style={{ width: '100%', borderRadius: '8px' }}
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="esim. Pyykinpesukone"
+                      required
                     />
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                      Pistorasia katkaistaan automaattisesti jos hinta ylittää tämän rajan.
+                  </div>
+
+                  <div>
+                    <label className="form-label">IP-osoite (lähiverkko)</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={formIp}
+                      onChange={(e) => setFormIp(e.target.value)}
+                      placeholder="192.168.68.xx"
+                      required
+                    />
+                    <span className="form-hint">Kiinteä tai DHCP-varattu paikallinen IP-osoite</span>
+                  </div>
+
+                  {/* Operating Mode */}
+                  <div>
+                    <label className="form-label">Ohjaustila</label>
+                    <select
+                      className="input"
+                      value={formAutoMode}
+                      onChange={(e) => setFormAutoMode(e.target.value as any)}
+                    >
+                      <option value="auto">Älykäs automaatio (suositus)</option>
+                      <option value="constant_on">Aina päällä (ohita automaatio)</option>
+                      <option value="constant_off">Aina pois päältä</option>
+                    </select>
+                    <span className="form-hint">
+                      {formAutoMode === 'auto'
+                        ? 'Ohjataan pörssisähkön hinnan ja turvarajojen mukaan.'
+                        : formAutoMode === 'constant_on'
+                        ? 'Virransyöttö pidetään aina päällä pörssisähkön hinnasta riippumatta.'
+                        : 'Virransyöttö katkaistu kokonaan.'}
                     </span>
                   </div>
-                )}
 
-                {(activeSettingsDevice.type === 'storage_heating' ||
-                  activeSettingsDevice.id === 'pikkuvarasto' ||
-                  activeSettingsDevice.id === 'isovarasto') && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '4px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                        Minimilämpö (°C)
+                  {/* Electricity Price Threshold for Appliances */}
+                  {(activeSettingsDevice.id === 'pesukone' ||
+                    activeSettingsDevice.id === 'kuivausrumpu' ||
+                    activeSettingsDevice.type.includes('appliance') ||
+                    activeSettingsDevice.max_price_cents != null) && (
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                      }}
+                    >
+                      <label className="form-label" style={{ color: '#facc15' }}>
+                        ⚡ Maksimi pörssisähkön hinta (snt/kWh)
                       </label>
                       <input
                         type="number"
-                        step="0.5"
+                        step="0.1"
                         className="input"
-                        value={formMinTemp}
-                        onChange={(e) => setFormMinTemp(e.target.value)}
-                        placeholder="10.0"
-                        style={{ width: '100%', borderRadius: '8px' }}
+                        value={formMaxPrice}
+                        onChange={(e) => setFormMaxPrice(e.target.value)}
+                        placeholder="esim. 15.0"
                       />
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Pakkassuojaus (ei alle)</span>
+                      <span className="form-hint">
+                        Pistorasia katkaistaan automaattisesti aina kun pörssisähkö ylittää tämän rajan.
+                      </span>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '4px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                        Varauslämpö (°C)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        className="input"
-                        value={formMaxTemp}
-                        onChange={(e) => setFormMaxTemp(e.target.value)}
-                        placeholder="22.0"
-                        style={{ width: '100%', borderRadius: '8px' }}
-                      />
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Halvalla sähköllä</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setActiveSettingsDevice(null)} style={{ borderRadius: '8px' }}>
-                  Peruuta
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={savingId === activeSettingsDevice.id}
-                  style={{ borderRadius: '8px', fontWeight: 600 }}
-                >
-                  {savingId === activeSettingsDevice.id ? 'Tallennetaan...' : 'Tallenna asetukset'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                  {/* Temperature Boundaries for Storage Heating */}
+                  {(activeSettingsDevice.type === 'storage_heating' ||
+                    activeSettingsDevice.id === 'pikkuvarasto' ||
+                    activeSettingsDevice.id === 'isovarasto') && (
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                      }}
+                    >
+                      <div className="form-label" style={{ color: '#fb923c', marginBottom: '8px' }}>
+                        🌡️ Varaston lämpötilarajat (°C)
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px' }}>
+                            Pakkassuojaus (minimi)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            className="input"
+                            value={formMinTemp}
+                            onChange={(e) => setFormMinTemp(e.target.value)}
+                            placeholder="10.0"
+                          />
+                          <span className="form-hint">Ei päästetä alle</span>
+                        </div>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px' }}>
+                            Lämpövaraus (maksimi)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            className="input"
+                            value={formMaxTemp}
+                            onChange={(e) => setFormMaxTemp(e.target.value)}
+                            placeholder="22.0"
+                          />
+                          <span className="form-hint">Halvan sähkön tavoite</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => setActiveSettingsDevice(null)}
+                    style={{ borderRadius: '8px' }}
+                  >
+                    Peruuta
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={savingId === activeSettingsDevice.id}
+                    style={{ borderRadius: '8px', fontWeight: 600, padding: '8px 18px' }}
+                  >
+                    {savingId === activeSettingsDevice.id ? 'Tallennetaan...' : 'Tallenna asetukset'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

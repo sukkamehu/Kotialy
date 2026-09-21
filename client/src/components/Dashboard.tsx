@@ -340,7 +340,7 @@ export function Dashboard({
                   {/* Row 3: Tapo P115 Smart Plugs & Power Monitoring */}
                   <div style={{ marginBottom: 24 }}>
                     <ErrorBoundary>
-                      <TapoPlugsCard readOnly={readOnly} />
+                      <TapoPlugsCard onOpenTrend={setTrendTarget} readOnly={readOnly} />
                     </ErrorBoundary>
                   </div>
 

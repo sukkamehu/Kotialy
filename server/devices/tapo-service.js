@@ -96,9 +96,35 @@ class TapoService {
 
     try {
       const devices = db.getTapoDevices();
+      let totalPowerW = 0;
+      let totalTodayKwh = 0;
+
       for (const dev of devices) {
         if (!dev.ip) continue;
-        await this.pollDevice(dev);
+        const polled = await this.pollDevice(dev);
+        if (polled) {
+          totalPowerW += polled.powerW || 0;
+          totalTodayKwh += polled.todayKwh || 0;
+        } else {
+          totalPowerW += dev.power_w || 0;
+          totalTodayKwh += dev.today_energy_kwh || 0;
+        }
+      }
+
+      // Record aggregated telemetry into sensor_state and sensor_history
+      db.updateState('tapo/total_power', Math.round(totalPowerW * 10) / 10);
+      db.updateState('tapo/total_today_energy', Math.round(totalTodayKwh * 100) / 100);
+      db.maybeAppendHistory('tapo/total_power', Math.round(totalPowerW * 10) / 10, 60000);
+      db.maybeAppendHistory('tapo/total_today_energy', Math.round(totalTodayKwh * 100) / 100, 60000);
+
+      // Also broadcast total if wsBroadcast available
+      if (this.wsBroadcast) {
+        this.wsBroadcast({
+          type: 'tapo_totals',
+          totalPowerW: Math.round(totalPowerW * 10) / 10,
+          totalTodayKwh: Math.round(totalTodayKwh * 100) / 100,
+          ts: Date.now(),
+        });
       }
     } catch (err) {
       warn('Error in pollAll:', err.message);
@@ -115,12 +141,12 @@ class TapoService {
     const now = Date.now();
 
     if (!password) {
-      return;
+      return null;
     }
 
     try {
       const client = await this.getDeviceClient(device.id, device.ip);
-      if (!client) return;
+      if (!client) return null;
 
       let info = null;
       let energy = null;
@@ -151,7 +177,7 @@ class TapoService {
       const todayKwh = energy?.today_energy != null ? Math.round((energy.today_energy / 1000) * 100) / 100 : (device.today_energy_kwh || 0);
       const monthKwh = energy?.month_energy != null ? Math.round((energy.month_energy / 1000) * 100) / 100 : 0;
 
-      // Update in DB
+      // Update in DB table tapo_devices
       db.updateTapoDeviceTelemetry(device.id, {
         state,
         power_w: powerW,
@@ -162,8 +188,12 @@ class TapoService {
         last_seen: now,
       });
 
-      // Also record history for wattage
+      // Update in sensor_state & sensor_history for system-wide trend plotting
+      db.updateState(`tapo/${device.id}/state`, state);
+      db.updateState(`tapo/${device.id}/power`, powerW);
+      db.updateState(`tapo/${device.id}/energy`, todayKwh);
       db.maybeAppendHistory(`tapo/${device.id}/power`, powerW, 60000);
+      db.maybeAppendHistory(`tapo/${device.id}/energy`, todayKwh, 60000);
 
       // Broadcast update
       if (this.wsBroadcast) {
@@ -176,8 +206,11 @@ class TapoService {
           ts: now,
         });
       }
+
+      return { state, powerW, todayKwh };
     } catch (err) {
       // Log connection failure quietly
+      return null;
     }
   }
 

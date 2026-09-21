@@ -634,6 +634,68 @@ const TOPICS = {
     max: 1,
     step: 1,
   },
+
+  // ─── Tapo Smart Plugs ──────────────────────────────────────────────────
+  'tapo/total_power': {
+    label: 'Tapo Yhteisteho',
+    unit: 'W',
+    category: 'power',
+    type: 'number',
+  },
+  'tapo/total_today_energy': {
+    label: 'Tapo Yhteiskulutus tänään',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'tapo/isovarasto/power': {
+    label: 'Isovarasto Teho',
+    unit: 'W',
+    category: 'power',
+    type: 'number',
+  },
+  'tapo/isovarasto/energy': {
+    label: 'Isovarasto Kulutus tänään',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'tapo/pikkuvarasto/power': {
+    label: 'Pikkuvarasto Teho',
+    unit: 'W',
+    category: 'power',
+    type: 'number',
+  },
+  'tapo/pikkuvarasto/energy': {
+    label: 'Pikkuvarasto Kulutus tänään',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'tapo/pesukone/power': {
+    label: 'Pyykinpesukone Teho',
+    unit: 'W',
+    category: 'power',
+    type: 'number',
+  },
+  'tapo/pesukone/energy': {
+    label: 'Pyykinpesukone Kulutus tänään',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
+  'tapo/kuivausrumpu/power': {
+    label: 'Kuivausrumpu Teho',
+    unit: 'W',
+    category: 'power',
+    type: 'number',
+  },
+  'tapo/kuivausrumpu/energy': {
+    label: 'Kuivausrumpu Kulutus tänään',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
 };
 
 // Topics that are chartable (numeric, interesting to plot over time)
@@ -655,6 +717,11 @@ const CHART_TOPICS = [
   'extra/Heat_Power_Production',
   'extra/DHW_Power_Consumption',
   'extra/DHW_Power_Production',
+  'tapo/total_power',
+  'tapo/isovarasto/power',
+  'tapo/pikkuvarasto/power',
+  'tapo/pesukone/power',
+  'tapo/kuivausrumpu/power',
 ];
 
 /**
