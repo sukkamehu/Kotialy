@@ -10,6 +10,541 @@ interface TapoPlugsCardProps {
   readOnly?: boolean;
 }
 
+// ─── Standalone Settings Modal (Stable, No-Flicker) ───────────────────────────
+interface TapoSettingsModalProps {
+  device: TapoDevice;
+  onClose: () => void;
+  onSave: (id: string, settings: Partial<TapoDevice>) => Promise<void>;
+  saving: boolean;
+}
+
+const TapoSettingsModal: React.FC<TapoSettingsModalProps> = ({
+  device,
+  onClose,
+  onSave,
+  saving,
+}) => {
+  const [formName, setFormName] = useState(device.name || '');
+  const [formIp, setFormIp] = useState(device.ip || '');
+  const [formMaxPrice, setFormMaxPrice] = useState<string>(
+    device.max_price_cents != null ? String(device.max_price_cents) : ''
+  );
+  const [formMinTemp, setFormMinTemp] = useState<string>(
+    device.min_temp_c != null ? String(device.min_temp_c) : ''
+  );
+  const [formMaxTemp, setFormMaxTemp] = useState<string>(
+    device.max_temp_c != null ? String(device.max_temp_c) : ''
+  );
+  const [formAutoMode, setFormAutoMode] = useState<'auto' | 'constant_on' | 'constant_off'>(
+    device.auto_mode || 'auto'
+  );
+
+  const isStorage =
+    device.id === 'isovarasto' ||
+    device.id === 'pikkuvarasto' ||
+    device.type === 'storage_heating';
+
+  const isAppliance =
+    device.id === 'pesukone' ||
+    device.id === 'kuivausrumpu' ||
+    device.type.includes('appliance') ||
+    device.max_price_cents != null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onSave(device.id, {
+      name: formName.trim() || device.name,
+      ip: formIp.trim(),
+      auto_mode: formAutoMode,
+      max_price_cents: formMaxPrice !== '' ? parseFloat(formMaxPrice) : null,
+      min_temp_c: formMinTemp !== '' ? parseFloat(formMinTemp) : null,
+      max_temp_c: formMaxTemp !== '' ? parseFloat(formMaxTemp) : null,
+    });
+  };
+
+  const inputStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    background: 'rgba(10, 15, 29, 0.95)',
+    border: '1px solid rgba(255, 255, 255, 0.16)',
+    color: '#f8fafc',
+    fontSize: '13.5px',
+    fontFamily: 'inherit',
+    outline: 'none',
+    boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.4)',
+    boxSizing: 'border-box',
+  };
+
+  return createPortal(
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 999999,
+        padding: '16px',
+      }}
+    >
+      <div
+        className="modal-dialog"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(165deg, #131d33 0%, #0a0f1d 100%)',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          borderRadius: '16px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 40px rgba(56, 189, 248, 0.1)',
+          maxWidth: '480px',
+          width: '100%',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>⚙️</span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>
+                Asetukset: {device.name}
+              </h3>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{device.ip}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: 'var(--text-secondary)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: '16px',
+            }}
+            title="Sulje"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '72vh', overflowY: 'auto' }}>
+            {/* Device Name */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Laitteen nimi
+              </label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="esim. Kuivausrumpu"
+                required
+              />
+            </div>
+
+            {/* IP Address */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                IP-osoite (lähiverkko)
+              </label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={formIp}
+                onChange={(e) => setFormIp(e.target.value)}
+                placeholder="192.168.68.xx"
+                required
+              />
+              <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Kiinteä tai DHCP-varattu paikallinen IP-osoite
+              </span>
+            </div>
+
+            {/* Operating Mode */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Ohjaustila
+              </label>
+              <select
+                style={inputStyle}
+                value={formAutoMode}
+                onChange={(e) => setFormAutoMode(e.target.value as any)}
+              >
+                <option value="auto">Älykäs automaatio (suositus)</option>
+                <option value="constant_on">Aina päällä (ohita automaatio)</option>
+                <option value="constant_off">Aina pois päältä</option>
+              </select>
+              <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {formAutoMode === 'auto'
+                  ? 'Ohjataan pörssisähkön hinnan ja turvarajojen mukaan.'
+                  : formAutoMode === 'constant_on'
+                  ? 'Virransyöttö pidetään aina päällä pörssisähkön hinnasta riippumatta.'
+                  : 'Virransyöttö katkaistu kokonaan.'}
+              </span>
+            </div>
+
+            {/* Price Limit for Appliances */}
+            {isAppliance && (
+              <div
+                style={{
+                  padding: '14px',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                }}
+              >
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#facc15', marginBottom: '6px' }}>
+                  ⚡ Maksimi pörssisähkön hinta (snt/kWh)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  style={inputStyle}
+                  value={formMaxPrice}
+                  onChange={(e) => setFormMaxPrice(e.target.value)}
+                  placeholder="esim. 12.0"
+                />
+                <span style={{ display: 'block', fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.65)', marginTop: '4px', lineHeight: 1.4 }}>
+                  Pistorasia katkaistaan automaattisesti jos sähkön hinta ylittää tämän rajan (käynnissä olevaa ohjelmaa ei katkaista kesken).
+                </span>
+              </div>
+            )}
+
+            {/* Temperature Boundaries for Storage Heating */}
+            {isStorage && (
+              <div
+                style={{
+                  padding: '14px',
+                  background: 'rgba(251, 146, 60, 0.08)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(251, 146, 60, 0.25)',
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#fb923c', marginBottom: '8px' }}>
+                  🌡️ Varaston lämpötilarajat (°C)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Pakkassuojaus (minimi)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      style={inputStyle}
+                      value={formMinTemp}
+                      onChange={(e) => setFormMinTemp(e.target.value)}
+                      placeholder="10.0"
+                    />
+                    <span style={{ display: 'block', fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Ei päästetä alle
+                    </span>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Lämpövaraus (maksimi)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      style={inputStyle}
+                      value={formMaxTemp}
+                      onChange={(e) => setFormMaxTemp(e.target.value)}
+                      placeholder="22.0"
+                    />
+                    <span style={{ display: 'block', fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Halvan sähkön tavoite
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: '#f8fafc',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Peruuta
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: '9px 20px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #3b82f6, #0284c7)',
+                border: 'none',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: 700,
+                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)',
+                cursor: saving ? 'wait' : 'pointer',
+              }}
+            >
+              {saving ? 'Tallennetaan...' : 'Tallenna asetukset'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+// ─── Standalone Override Modal (Stable, No-Flicker) ───────────────────────────
+interface TapoOverrideModalProps {
+  device: TapoDevice;
+  onClose: () => void;
+  onSetOverride: (dev: TapoDevice, state: 'ON' | 'OFF' | null, hours: number) => Promise<void>;
+  saving: boolean;
+}
+
+const TapoOverrideModal: React.FC<TapoOverrideModalProps> = ({
+  device,
+  onClose,
+  onSetOverride,
+  saving,
+}) => {
+  return createPortal(
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 999999,
+        padding: '16px',
+      }}
+    >
+      <div
+        className="modal-dialog"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(165deg, #131d33 0%, #0a0f1d 100%)',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          borderRadius: '16px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 40px rgba(56, 189, 248, 0.1)',
+          maxWidth: '440px',
+          width: '100%',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>⏱️</span>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>
+              Ohitus: {device.name}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: 'var(--text-secondary)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: '16px',
+            }}
+            title="Sulje"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ padding: '20px' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', margin: '0 0 16px', lineHeight: 1.45 }}>
+            Pakota pistorasian tila määräajaksi. Automaatio ja hintavahti palaavat automaattisesti voimaan ajan päätyttyä.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => onSetOverride(device, 'ON', 2)}
+              disabled={saving}
+              style={{
+                padding: '12px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #3b82f6, #0284c7)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: saving ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              ⚡ Pakota PÄÄLLE (2 tuntia)
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetOverride(device, 'ON', 4)}
+              disabled={saving}
+              style={{
+                padding: '12px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #3b82f6, #0284c7)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: saving ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              ⚡ Pakota PÄÄLLE (4 tuntia)
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetOverride(device, 'OFF', 4)}
+              disabled={saving}
+              style={{
+                padding: '12px',
+                borderRadius: '10px',
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: '#f87171',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: saving ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              🛑 Pakota POIS PÄÄLTÄ (4 tuntia)
+            </button>
+            {device.isOverrideActive && (
+              <button
+                type="button"
+                onClick={() => onSetOverride(device, null, 0)}
+                disabled={saving}
+                style={{
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  color: '#38bdf8',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  cursor: saving ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                🔄 Poista ohitus & Palauta automaatio
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: '14px 20px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'rgba(0, 0, 0, 0.25)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#f8fafc',
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+          >
+            Sulje
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+// ─── Main TapoPlugsCard Component ─────────────────────────────────────────────
 export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readOnly = false }) => {
   const {
     devices,
@@ -24,54 +559,30 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
   } = useTapo();
   const { priceCentsKWh } = useElectricityPrice();
 
-  const [activeSettingsDevice, setActiveSettingsDevice] = useState<TapoDevice | null>(null);
-  const [overrideModalDevice, setOverrideModalDevice] = useState<TapoDevice | null>(null);
+  const [settingsDeviceId, setSettingsDeviceId] = useState<string | null>(null);
+  const [overrideDeviceId, setOverrideDeviceId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Form states for settings modal
-  const [formName, setFormName] = useState('');
-  const [formIp, setFormIp] = useState('');
-  const [formMaxPrice, setFormMaxPrice] = useState<string>('');
-  const [formMinTemp, setFormMinTemp] = useState<string>('');
-  const [formMaxTemp, setFormMaxTemp] = useState<string>('');
-  const [formAutoMode, setFormAutoMode] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
-
-  // Listen to Escape key to close modals
+  // Close modals on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setActiveSettingsDevice(null);
-        setOverrideModalDevice(null);
+        setSettingsDeviceId(null);
+        setOverrideDeviceId(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const openSettings = (dev: TapoDevice) => {
-    setActiveSettingsDevice(dev);
-    setFormName(dev.name || '');
-    setFormIp(dev.ip || '');
-    setFormMaxPrice(dev.max_price_cents != null ? String(dev.max_price_cents) : '');
-    setFormMinTemp(dev.min_temp_c != null ? String(dev.min_temp_c) : '');
-    setFormMaxTemp(dev.max_temp_c != null ? String(dev.max_temp_c) : '');
-    setFormAutoMode(dev.auto_mode || 'auto');
-  };
+  const settingsDevice = devices.find((d) => d.id === settingsDeviceId) || null;
+  const overrideDevice = devices.find((d) => d.id === overrideDeviceId) || null;
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeSettingsDevice) return;
-    setSavingId(activeSettingsDevice.id);
+  const handleSaveSettings = async (id: string, newSettings: Partial<TapoDevice>) => {
+    setSavingId(id);
     try {
-      await updateSettings(activeSettingsDevice.id, {
-        name: formName.trim() || activeSettingsDevice.name,
-        ip: formIp.trim(),
-        auto_mode: formAutoMode,
-        max_price_cents: formMaxPrice !== '' ? parseFloat(formMaxPrice) : null,
-        min_temp_c: formMinTemp !== '' ? parseFloat(formMinTemp) : null,
-        max_temp_c: formMaxTemp !== '' ? parseFloat(formMaxTemp) : null,
-      });
-      setActiveSettingsDevice(null);
+      await updateSettings(id, newSettings);
+      setSettingsDeviceId(null);
     } catch (err) {
       console.error('Failed to update Tapo settings:', err);
     } finally {
@@ -97,7 +608,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     setSavingId(dev.id);
     try {
       await setOverride(dev.id, state, hours);
-      setOverrideModalDevice(null);
+      setOverrideDeviceId(null);
     } catch (err) {
       console.error('Failed to set Tapo override:', err);
     } finally {
@@ -581,7 +1092,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
 
                     <button
                       className="btn btn-secondary btn-sm"
-                      onClick={() => setOverrideModalDevice(dev)}
+                      onClick={() => setOverrideDeviceId(dev.id)}
                       title="Aseta määräaikainen manuaaliohitus"
                       style={{
                         borderRadius: '8px',
@@ -595,7 +1106,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
 
                     <button
                       className="btn btn-secondary btn-sm"
-                      onClick={() => openSettings(dev)}
+                      onClick={() => setSettingsDeviceId(dev.id)}
                       title="Muokkaa asetuksia ja hintarajoja"
                       style={{
                         borderRadius: '8px',
@@ -615,259 +1126,24 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
       )}
 
       {/* Override Modal Portal */}
-      {overrideModalDevice &&
-        createPortal(
-          <div className="modal-overlay" onClick={() => setOverrideModalDevice(null)}>
-            <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-              <div className="modal-header">
-                <h3 className="modal-title">
-                  <span>⏱️</span> Ohitus: {overrideModalDevice.name}
-                </h3>
-                <button
-                  type="button"
-                  className="modal-close-btn"
-                  onClick={() => setOverrideModalDevice(null)}
-                  title="Sulje"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="modal-body">
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', margin: '0 0 16px', lineHeight: 1.45 }}>
-                  Pakota pistorasian tila määräajaksi. Automaatio ja hintavahti palaavat automaattisesti voimaan ajan päätyttyä.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => handleSetOverride(overrideModalDevice, 'ON', 2)}
-                    disabled={savingId === overrideModalDevice.id}
-                    style={{ padding: '12px', borderRadius: '10px', fontWeight: 600, justifyContent: 'center' }}
-                  >
-                    ⚡ Pakota PÄÄLLE (2 tuntia)
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => handleSetOverride(overrideModalDevice, 'ON', 4)}
-                    disabled={savingId === overrideModalDevice.id}
-                    style={{ padding: '12px', borderRadius: '10px', fontWeight: 600, justifyContent: 'center' }}
-                  >
-                    ⚡ Pakota PÄÄLLE (4 tuntia)
-                  </button>
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => handleSetOverride(overrideModalDevice, 'OFF', 4)}
-                    disabled={savingId === overrideModalDevice.id}
-                    style={{ padding: '12px', borderRadius: '10px', fontWeight: 600, justifyContent: 'center' }}
-                  >
-                    🛑 Pakota POIS PÄÄLTÄ (4 tuntia)
-                  </button>
-                  {overrideModalDevice.isOverrideActive && (
-                    <button
-                      className="btn btn-ghost"
-                      onClick={() => handleSetOverride(overrideModalDevice, null, 0)}
-                      disabled={savingId === overrideModalDevice.id}
-                      style={{
-                        padding: '12px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(56, 189, 248, 0.4)',
-                        color: '#38bdf8',
-                        fontWeight: 600,
-                        justifyContent: 'center',
-                      }}
-                    >
-                      🔄 Poista ohitus & Palauta automaatio
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setOverrideModalDevice(null)}
-                  style={{ borderRadius: '8px' }}
-                >
-                  Sulje
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+      {overrideDevice && (
+        <TapoOverrideModal
+          device={overrideDevice}
+          onClose={() => setOverrideDeviceId(null)}
+          onSetOverride={handleSetOverride}
+          saving={savingId === overrideDevice.id}
+        />
+      )}
 
       {/* Settings Modal Portal */}
-      {activeSettingsDevice &&
-        createPortal(
-          <div className="modal-overlay" onClick={() => setActiveSettingsDevice(null)}>
-            <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-              <div className="modal-header">
-                <h3 className="modal-title">
-                  <span>⚙️</span> Asetukset: {activeSettingsDevice.name}
-                </h3>
-                <button
-                  type="button"
-                  className="modal-close-btn"
-                  onClick={() => setActiveSettingsDevice(null)}
-                  title="Sulje"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveSettings}>
-                <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {/* Basic Info */}
-                  <div>
-                    <label className="form-label">Laitteen nimi</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      placeholder="esim. Pyykinpesukone"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="form-label">IP-osoite (lähiverkko)</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={formIp}
-                      onChange={(e) => setFormIp(e.target.value)}
-                      placeholder="192.168.68.xx"
-                      required
-                    />
-                    <span className="form-hint">Kiinteä tai DHCP-varattu paikallinen IP-osoite</span>
-                  </div>
-
-                  {/* Operating Mode */}
-                  <div>
-                    <label className="form-label">Ohjaustila</label>
-                    <select
-                      className="input"
-                      value={formAutoMode}
-                      onChange={(e) => setFormAutoMode(e.target.value as any)}
-                    >
-                      <option value="auto">Älykäs automaatio (suositus)</option>
-                      <option value="constant_on">Aina päällä (ohita automaatio)</option>
-                      <option value="constant_off">Aina pois päältä</option>
-                    </select>
-                    <span className="form-hint">
-                      {formAutoMode === 'auto'
-                        ? 'Ohjataan pörssisähkön hinnan ja turvarajojen mukaan.'
-                        : formAutoMode === 'constant_on'
-                        ? 'Virransyöttö pidetään aina päällä pörssisähkön hinnasta riippumatta.'
-                        : 'Virransyöttö katkaistu kokonaan.'}
-                    </span>
-                  </div>
-
-                  {/* Electricity Price Threshold for Appliances */}
-                  {(activeSettingsDevice.id === 'pesukone' ||
-                    activeSettingsDevice.id === 'kuivausrumpu' ||
-                    activeSettingsDevice.type.includes('appliance') ||
-                    activeSettingsDevice.max_price_cents != null) && (
-                    <div
-                      style={{
-                        padding: '12px 14px',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                      }}
-                    >
-                      <label className="form-label" style={{ color: '#facc15' }}>
-                        ⚡ Maksimi pörssisähkön hinta (snt/kWh)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        className="input"
-                        value={formMaxPrice}
-                        onChange={(e) => setFormMaxPrice(e.target.value)}
-                        placeholder="esim. 15.0"
-                      />
-                      <span className="form-hint">
-                        Pistorasia katkaistaan automaattisesti aina kun pörssisähkö ylittää tämän rajan.
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Temperature Boundaries for Storage Heating */}
-                  {(activeSettingsDevice.type === 'storage_heating' ||
-                    activeSettingsDevice.id === 'pikkuvarasto' ||
-                    activeSettingsDevice.id === 'isovarasto') && (
-                    <div
-                      style={{
-                        padding: '12px 14px',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                      }}
-                    >
-                      <div className="form-label" style={{ color: '#fb923c', marginBottom: '8px' }}>
-                        🌡️ Varaston lämpötilarajat (°C)
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div>
-                          <label className="form-label" style={{ fontSize: '11px' }}>
-                            Pakkassuojaus (minimi)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.5"
-                            className="input"
-                            value={formMinTemp}
-                            onChange={(e) => setFormMinTemp(e.target.value)}
-                            placeholder="10.0"
-                          />
-                          <span className="form-hint">Ei päästetä alle</span>
-                        </div>
-                        <div>
-                          <label className="form-label" style={{ fontSize: '11px' }}>
-                            Lämpövaraus (maksimi)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.5"
-                            className="input"
-                            value={formMaxTemp}
-                            onChange={(e) => setFormMaxTemp(e.target.value)}
-                            placeholder="22.0"
-                          />
-                          <span className="form-hint">Halvan sähkön tavoite</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => setActiveSettingsDevice(null)}
-                    style={{ borderRadius: '8px' }}
-                  >
-                    Peruuta
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={savingId === activeSettingsDevice.id}
-                    style={{ borderRadius: '8px', fontWeight: 600, padding: '8px 18px' }}
-                  >
-                    {savingId === activeSettingsDevice.id ? 'Tallennetaan...' : 'Tallenna asetukset'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>,
-          document.body
-        )}
+      {settingsDevice && (
+        <TapoSettingsModal
+          device={settingsDevice}
+          onClose={() => setSettingsDeviceId(null)}
+          onSave={handleSaveSettings}
+          saving={savingId === settingsDevice.id}
+        />
+      )}
     </div>
   );
 };
