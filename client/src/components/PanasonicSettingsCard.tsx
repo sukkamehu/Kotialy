@@ -18,81 +18,81 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
   {
     id: 'curve_low',
     category: 'curve',
-    name: 'Käyrä: Menovesi kovalla pakkasella (-15 °C)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → Ved. lämp. (Kompensaatiokäyrä)',
-    recommendedValue: '35 °C',
+    name: 'Käyrä: Menovesi kovalla pakkasella (-20 °C)',
+    menuPath: 'Toiminnan määritys → Lämm.ON: Ved. lämp. (Vasen ylä)',
+    recommendedValue: '38 °C',
     allowedRange: '20 °C – 65 °C',
-    previousValue: '57 °C @ -5 °C',
-    reason: 'Lattialämmitykselle turvallinen ja energiatehokas yläraja kovillakin talvipakkasilla.',
-    kotiAlyImpact: 'Kotiälyn Boost (+3 °C) nostaa menoveden n. 38 °C:een, mikä pysyy vielä turvallisissa rajoissa lattiamateriaaleille.',
+    previousValue: '35 °C @ -15 °C',
+    reason: 'Lattialämmityksen peruskäyrän pakkaspäätepiste, joka takaa riittävän lämmön kovillakin talvipakkasilla.',
+    kotiAlyImpact: 'Kotiäly voi nostaa (+3 °C) tai laskea (-2 °C) menovettä dynaamisesti pörssihinnan mukaan.',
   },
   {
     id: 'curve_high',
     category: 'curve',
     name: 'Käyrä: Menovesi leudolla säällä (+15 °C)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → Ved. lämp. (Kompensaatiokäyrä)',
+    menuPath: 'Toiminnan määritys → Lämm.ON: Ved. lämp. (Vasen ala)',
     recommendedValue: '26 °C',
     allowedRange: '20 °C – 65 °C',
     previousValue: '37 °C @ +15 °C',
     reason: 'Estää ylilämpenemisen ja pätkäkäynnin syksyllä ja keväällä. Pitää lattian miellyttävän haaleana.',
-    kotiAlyImpact: 'Luo tasaisen pohjan, josta Kotiäly voi pudottaa (-2 °C) kalliilla tunneilla ilman että laatta kylmenee.',
+    kotiAlyImpact: 'Luo tasaisen matalan pohjan, josta Kotiäly voi optimoida tehoa.',
   },
   {
     id: 'curve_ambient_low',
     category: 'curve',
     name: 'Käyrän pakkaspäätepiste (ulkolämpötila)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → Ved. lämp. (Kompensaatiokäyrä vasen ala)',
-    recommendedValue: '-15 °C (tai -20 °C)',
+    menuPath: 'Toiminnan määritys → Lämm.ON: Ved. lämp. (Oikea ala)',
+    recommendedValue: '-20 °C',
     allowedRange: '-20 °C – 15 °C',
-    previousValue: '-5 °C',
-    reason: 'Loiventaa käyrän jyrkkyyttä, jotta pumppu ei nosta menovettä liian kuumaksi jo pikkupakkasilla.',
+    previousValue: '-15 °C',
+    reason: 'Laajentaa käyrän pakkasalueen -20 °C asti, mikä loiventaa nousukulmaa ja tasaa tehoa.',
     kotiAlyImpact: 'Tasaa pumpun ottotehoa laajalla ulkolämpötila-alueella.',
   },
   {
     id: 'curve_ambient_high',
     category: 'curve',
     name: 'Käyrän leutopäätepiste (ulkolämpötila)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → Ved. lämp. (Kompensaatiokäyrä oikea ala)',
+    menuPath: 'Toiminnan määritys → Lämm.ON: Ved. lämp. (Oikea ala)',
     recommendedValue: '15 °C',
     allowedRange: '-15 °C – 15 °C',
     previousValue: '15 °C',
-    reason: 'Standardi leudon kelin vertailupiste.',
+    reason: 'Standardi leudon kelin vertailupiste lämmityskauden käynnistymiseen.',
     kotiAlyImpact: 'Määrittää lämmityskauden aloituskäyrän perustason.',
   },
 
-  // ─── 2. Lämmityksen ohjaus & Hystereesi ───
+  // ─── 2. Lämmityksen ohjaus & Hystereesi & Työsäiliö ───
+  {
+    id: 'buffer_tank',
+    category: 'heating',
+    name: 'Työsäiliö / Puskurivaraaja (Buffer Tank)',
+    menuPath: 'Toiminnan määritys → Järjestelmäasetukset → Puskurisäiliö',
+    recommendedValue: 'Päällä (Kyllä), ΔT 5 °C',
+    allowedRange: 'Kyllä / Ei',
+    previousValue: 'Pois päältä',
+    reason: 'Aktivoi puskurisäiliön anturiohjauksen (Buffer_Temp), jolloin kompressorin käyntiä ohjataan tasaisen varaajalämmön eikä pienen putkitilavuuden mukaan.',
+    kotiAlyImpact: 'Poistaa leutojen kelien pätkäkäynnin, pitkittää käyntijaksoja ja vakauttaa hyötysuhteen (COP).',
+  },
   {
     id: 'heating_on_dt',
     category: 'heating',
-    name: 'ΔT lämmityksen käynnistämiseen (Lämm. ON: ΔT)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → Lämm. ON: ΔT',
-    recommendedValue: '+4 °C (tai +3 °C)',
-    allowedRange: '+1 °C – +15 °C',
-    previousValue: '+1 °C / +2 °C',
-    reason: 'Lopettaa pätkäkäynnin ja antaa pumpun käydä pitkiä taloudellisia jaksoja.',
-    kotiAlyImpact: 'Erittäin kriittinen: Sallii menoveden laskea kalliilla pörssitunneilla (SETBACK) ilman että kompressori herää turhaan kalliilla sähköllä.',
+    name: 'Veden lämpötilaero (Lämm.ON: ΔT)',
+    menuPath: 'Toiminnan määritys → Lämm.ON: ΔT',
+    recommendedValue: '8 °C',
+    allowedRange: '1 °C – 15 °C',
+    previousValue: '5 °C',
+    reason: 'Antaa pumpun säätää virtausta laajasti ja hyödyntää työsäiliön koko tilavuutta ennen sammutusta.',
+    kotiAlyImpact: 'Pidentää käyntijaksoja ja mahdollistaa työsäiliön täyden hyödyntämisen.',
   },
   {
     id: 'heating_off_ambient',
     category: 'heating',
     name: 'Lämmitys OFF: ulkolämpötila (Kesäsulku)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → Lämmitys OFF: ulkolämpötila',
+    menuPath: 'Toiminnan määritys → Lämmitys → Lämmitys OFF: ulkolämpötila',
     recommendedValue: '17 °C',
     allowedRange: '5 °C – 35 °C',
     previousValue: 'Ei tiedossa',
     reason: 'Sammuttaa lattialämmityksen automaattisesti kesäksi ja jättää vain käyttöveden päälle.',
     kotiAlyImpact: 'Estää turhan lämmityksen kesähelteillä säästäen sähköä.',
-  },
-  {
-    id: 'target_dt',
-    category: 'heating',
-    name: 'Lämmityksen menon ja paluun tavoite-ΔT',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → ΔT for heating',
-    recommendedValue: '5 °C (tai 4 °C)',
-    allowedRange: '1 °C – 15 °C',
-    previousValue: '5 °C',
-    reason: 'Ohjaa kiertovesipumppua pitämään virtausnopeuden ja lämmönluovutuksen ihanteellisena lattialle.',
-    kotiAlyImpact: 'Maksimoi lämpöpumpun hyötysuhteen (korkea COP 4–5).',
   },
 
   // ─── 3. Käyttövesi (LKV) ───
@@ -100,18 +100,18 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     id: 'dhw_reheat_dt',
     category: 'dhw',
     name: 'Uudelleenlämmityksen lämpötilaero (Uud. lämm. lämpötila)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Säiliö → Uud. lämm. lämpötila',
+    menuPath: 'Toiminnan määritys → Säiliö → Uud. lämm. lämpötila',
     recommendedValue: '-8 °C (tai -7 °C)',
     allowedRange: '-12 °C – -2 °C',
     previousValue: '-2 °C / -3 °C',
     reason: 'Korjasi aiemman 15 krt/vrk katkokäynnin. Käynnistää LKV-jakson vasta kun vesi laskee n. 40–42 °C:een.',
-    kotiAlyImpact: 'Vapauttaa pumpun lämmittämään lattioita 90 % ajasta sen sijaan että pumppu poukkoilisi jatkuvasti käyttöveteen.',
+    kotiAlyImpact: 'Vapauttaa pumpun lämmittämään lattioita ja työsäiliötä 90 % ajasta sen sijaan että pumppu poukkoilisi jatkuvasti käyttöveteen.',
   },
   {
     id: 'dhw_tank_heat_max',
     category: 'dhw',
     name: 'Säiliön lämmitysaika enintään (Säiliön lämm. aika enint.)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Säiliö → Säiliön lämm. aika (enint.)',
+    menuPath: 'Toiminnan määritys → Säiliö → Säiliön lämm. aika enint.',
     recommendedValue: '01:00 (60 min)',
     allowedRange: '0:05 – 4:00',
     previousValue: 'Ei tiedossa',
@@ -122,12 +122,12 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     id: 'dhw_floor_heat_max',
     category: 'dhw',
     name: 'Lämmityksen toiminta-aika enintään (Toiminta-aika enint.)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Säiliö → Toiminta-aika (enint.)',
+    menuPath: 'Toiminnan määritys → Säiliö → Toiminta-aika enint.',
     recommendedValue: '03:00 – 04:00 (3–4 h)',
     allowedRange: '0:30 – 10:00',
     previousValue: 'Ei tiedossa',
-    reason: 'Varmistaa, että laatta saa vähintään 3–4 tuntia yhtäjaksoista lämmitystä ennen seuraavaa mahdollista käyttövesisykliä.',
-    kotiAlyImpact: 'Lattialaatta ehtii varata suuren määrän halpaa yölämpöä.',
+    reason: 'Varmistaa, että laatta ja työsäiliö saavat vähintään 3–4 tuntia yhtäjaksoista lämmitystä ennen seuraavaa mahdollista käyttövesisykliä.',
+    kotiAlyImpact: 'Lattialaatta ja työsäiliö ehtivät varata suuren määrän halpaa yölämpöä.',
   },
   {
     id: 'dhw_target_temp',
@@ -146,7 +146,7 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     id: 'heater_on_ambient',
     category: 'heater',
     name: 'Lämmitin ON: ulkolämpötila (Lisävastuksen sallintaraja)',
-    menuPath: 'Asennusasetukset → Toiminta-asetukset → Lämmitys → Lämmitin ON: ulkolämpötila',
+    menuPath: 'Toiminnan määritys → Lämmitys → Lämmitin ON: ulkolämpötila',
     recommendedValue: '-10 °C (tai -12 °C)',
     allowedRange: '-15 °C – 20 °C',
     previousValue: '0 °C / +5 °C',
@@ -155,13 +155,13 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
   },
 ];
 
-const NOTES_KEY = 'kotialy_heatpump_commissioning_notes_v1';
+const NOTES_KEY = 'kotialy_heatpump_commissioning_notes_v2';
 
 export function PanasonicSettingsCard() {
   const [filter, setFilter] = useState<'all' | 'curve' | 'heating' | 'dhw' | 'heater'>('all');
   const [notes, setNotes] = useState<string>(() => {
     try {
-      return localStorage.getItem(NOTES_KEY) || 'Kaikki arvot konfiguroitu Panasonicin seinäohjaimelle 16.9.2026. Lattialämmityksen katkokäynti poistettu ja Kotiäly APC -yhteensopivuus varmistettu.';
+      return localStorage.getItem(NOTES_KEY) || '22.9.2026: Työsäiliö aktivoitu käyttöön (Buffer_Installed = 1, ΔT 5 °C). Lämm.ON ΔT nostettu 8 °C:een. Lämpökäyrä asetettu: 38 °C @ -20 °C ... 26 °C @ +15 °C. Pätkäkäynti eliminoitu ja laitteiston toiminta optimoitu.';
     } catch {
       return '';
     }
@@ -195,15 +195,15 @@ export function PanasonicSettingsCard() {
             </h2>
           </div>
           <p style={{ margin: '6px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-            Kotiälyn ja lattialämmityksen kanssa optimoidut viralliset laiteasetukset (Asennettu 16.9.2026).
+            Kotiälyn ja lattialämmityksen kanssa optimoidut viralliset laiteasetukset (Päivitetty 22.9.2026).
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
-            { id: 'all', label: 'Kaikki (11)' },
+            { id: 'all', label: 'Kaikki (12)' },
             { id: 'curve', label: '📈 Lämpökäyrä' },
-            { id: 'heating', label: '🔥 Lämmitys & ΔT' },
+            { id: 'heating', label: '🔥 Lämmitys & Työsäiliö' },
             { id: 'dhw', label: '🚿 Käyttövesi' },
             { id: 'heater', label: '⚡ Lisävastus' },
           ].map((tab) => (
@@ -245,10 +245,10 @@ export function PanasonicSettingsCard() {
             Lattian Peruskäyrä
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
-            35 °C / 26 °C
+            38 °C / 26 °C
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-            -15 °C pakkasella / +15 °C leudolla
+            -20 °C pakkasella / +15 °C leudolla
           </div>
         </div>
 
@@ -259,13 +259,30 @@ export function PanasonicSettingsCard() {
           border: '1px solid rgba(16, 185, 129, 0.2)',
         }}>
           <div style={{ fontSize: 11, color: '#6ee7b7', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
-            Käynnistys-ΔT (Hystereesi)
+            Veden ΔT (Lämm.ON)
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981', marginTop: 4 }}>
-            +4 °C
+            8 °C
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-            Sallii Kotiäly-säästön kalliilla tunneilla
+            Hyödyntää työsäiliön täyden tehon
+          </div>
+        </div>
+
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: 'rgba(168, 85, 247, 0.08)',
+          border: '1px solid rgba(168, 85, 247, 0.2)',
+        }}>
+          <div style={{ fontSize: 11, color: '#d8b4fe', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
+            Työsäiliö / Puskuri
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#c084fc', marginTop: 4 }}>
+            Käytössä (Buffer ON)
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            Puskurianturiohjaus aktivoitu
           </div>
         </div>
 
@@ -289,13 +306,13 @@ export function PanasonicSettingsCard() {
         <div style={{
           padding: '12px 16px',
           borderRadius: 10,
-          background: 'rgba(168, 85, 247, 0.08)',
-          border: '1px solid rgba(168, 85, 247, 0.2)',
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
         }}>
-          <div style={{ fontSize: 11, color: '#d8b4fe', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: 11, color: '#fca5a5', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
             Lisävastuksen esto
           </div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#a855f7', marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#ef4444', marginTop: 4 }}>
             -10 °C
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
