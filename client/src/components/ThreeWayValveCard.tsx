@@ -23,34 +23,35 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
   const { send, pending, error, success } = useCommand();
 
   const currentModeRaw = state['main/Operating_Mode_State']?.value;
+  const isHeatingOnlyMode = currentModeRaw === '0';
   const isDhwOnlyMode = currentModeRaw === '3';
+  const isAutoMode = currentModeRaw === '4' && !forceDHW;
+  const isDhwForced = forceDHW || isDhwOnlyMode;
 
-  function setValveTarget(target: 'auto' | 'heating' | 'dhw') {
+  async function setValveTarget(target: 'auto' | 'heating' | 'dhw') {
     if (readOnly || pending) return;
     if (target === 'dhw') {
-      send(
+      if (isHeatingOnlyMode) {
+        await send('commands/SetOperationMode', 4);
+      }
+      await send(
         'commands/SetForceDHW',
         1,
         '3-tieventtiili pakotettu käyttövesivaraajalle (Force DHW)'
       );
     } else if (target === 'heating') {
-      send(
-        'commands/SetForceDHW',
+      await send('commands/SetForceDHW', 0);
+      await send(
+        'commands/SetOperationMode',
         0,
-        '3-tieventtiili asetettu lämmitykselle'
+        'Toimintatila asetettu tilaan Vain lämmitys (3-tieventtiili lukittu puskuriin)'
       );
-      if (isDhwOnlyMode) {
-        send(
-          'commands/SetOperationMode',
-          4,
-          'Toimintatila vaihdettu tilaan Lämmitys + KV'
-        );
-      }
     } else {
-      send(
-        'commands/SetForceDHW',
-        0,
-        '3-tieventtiilin ohjaus palautettu automaatille'
+      await send('commands/SetForceDHW', 0);
+      await send(
+        'commands/SetOperationMode',
+        4,
+        '3-tieventtiilin ohjaus palautettu automaatille (Lämmitys + KV)'
       );
     }
   }
@@ -251,17 +252,17 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             <button
-              className={`btn btn-sm ${!forceDHW ? 'btn-primary' : 'btn-ghost'}`}
+              className={`btn btn-sm ${isAutoMode ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setValveTarget('auto')}
               disabled={pending || readOnly}
               id="btn-valve-auto"
-              title="Lämpöpumppu säätää venttiiliä automaattisesti"
+              title="Lämpöpumppu säätää venttiiliä automaattisesti (Lämmitys + KV)"
               style={{ fontSize: 12, padding: '8px 6px', textAlign: 'center' }}
             >
               🔄 Auto
             </button>
             <button
-              className={`btn btn-sm ${forceDHW ? 'btn-success' : 'btn-ghost'}`}
+              className={`btn btn-sm ${isDhwForced ? 'btn-success' : 'btn-ghost'}`}
               onClick={() => setValveTarget('dhw')}
               disabled={pending || readOnly}
               id="btn-valve-force-dhw"
@@ -270,20 +271,27 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
                 fontSize: 12,
                 padding: '8px 6px',
                 textAlign: 'center',
-                background: forceDHW ? 'var(--dhw-primary)' : undefined,
-                borderColor: forceDHW ? 'var(--dhw-primary)' : undefined,
-                color: forceDHW ? '#fff' : undefined,
+                background: isDhwForced ? 'var(--dhw-primary)' : undefined,
+                borderColor: isDhwForced ? 'var(--dhw-primary)' : undefined,
+                color: isDhwForced ? '#fff' : undefined,
               }}
             >
               💧 Pakota KV
             </button>
             <button
-              className="btn btn-sm btn-ghost"
+              className={`btn btn-sm ${isHeatingOnlyMode ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setValveTarget('heating')}
               disabled={pending || readOnly}
               id="btn-valve-force-heating"
-              title="Palauta venttiili puskuriin/lämmitykseen ja kytke Lämmitys+KV -tila"
-              style={{ fontSize: 12, padding: '8px 6px', textAlign: 'center' }}
+              title="Lukitse venttiili puskuriin/lämmitykseen (Vain lämmitys -tila)"
+              style={{
+                fontSize: 12,
+                padding: '8px 6px',
+                textAlign: 'center',
+                background: isHeatingOnlyMode ? 'var(--buffer-primary)' : undefined,
+                borderColor: isHeatingOnlyMode ? 'var(--buffer-primary)' : undefined,
+                color: isHeatingOnlyMode ? '#fff' : undefined,
+              }}
             >
               🏠 Lämmitys
             </button>

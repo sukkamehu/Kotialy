@@ -144,8 +144,8 @@ class PanasonicDriver {
       }
     }
 
-    // 3. Apply Force DHW state only if changed
-    if (this.currentForceDhw !== forceDhw) {
+    // 3. Apply Force DHW state only if explicitly configured in settings
+    if (settings.manage_force_dhw && this.currentForceDhw !== forceDhw) {
       log(`Setting Force DHW: ${forceDhw}`);
       const fOk = await this.sendCommand('commands/SetForceDHW', forceDhw);
       if (fOk) {
