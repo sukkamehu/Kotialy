@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from '../lib/api';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
 interface ChartTopicConfig {
@@ -14,6 +14,8 @@ interface ChartTopicConfig {
   dash?: string;
 }
 
+const BASELINE_POWER_KW = 0.55;
+
 const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'main/Outside_Temp', label: 'VILP Ulkolämpö', color: '#22d3ee', unit: '°C', yAxisId: 'left' },
   { key: 'weather_temp', label: '🌤️ Sääennuste', color: '#06b6d4', unit: '°C', yAxisId: 'left', dash: '3 3' },
@@ -22,6 +24,7 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'main/DHW_Temp', label: 'Käyttövesi', color: '#10b981', unit: '°C', yAxisId: 'left' },
   { key: 'main/Buffer_Temp', label: 'Puskuri', color: '#a78bfa', unit: '°C', yAxisId: 'left' },
   { key: 'herrfors_power', label: '🔌 Talon sähköteho (Herrfors)', color: '#ec4899', unit: 'kW', yAxisId: 'right' },
+  { key: 'baseline_power', label: '🎯 Baseline (0.55 kW)', color: '#10b981', unit: 'kW', yAxisId: 'right', dash: '3 3' },
   { key: 'tapo/total_power', label: '🔌 Tapo Yhteisteho', color: '#818cf8', unit: 'W', yAxisId: 'right' },
   { key: 'tapo/total_today_energy', label: '⚡ Tapo Yhteiskulutus tänään', color: '#6366f1', unit: 'kWh', yAxisId: 'right' },
   { key: 'tapo/isovarasto/power', label: '🔥 Isovarasto teho', color: '#fb923c', unit: 'W', yAxisId: 'right' },
@@ -69,6 +72,9 @@ function parseDateInput(str: string, endOfDay = false): number {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
+  const herrforsPt = payload.find((p: any) => p.dataKey === 'herrfors_power');
+  const herrforsVal = typeof herrforsPt?.value === 'number' ? herrforsPt.value : null;
+
   return (
     <div style={{
       background: 'rgba(15,20,32,0.95)',
@@ -77,7 +83,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       padding: '10px 14px',
       backdropFilter: 'blur(12px)',
       boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-      minWidth: 190,
+      minWidth: 200,
     }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
         {new Date(label).toLocaleString('fi-FI', {
@@ -94,7 +100,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         let valStr = typeof p.value === 'number' ? p.value.toFixed(1) : String(p.value);
         if (p.dataKey === 'main/Defrosting_State') {
           valStr = p.value === 1 ? 'Käynnissä' : 'Pois';
-        } else if (p.dataKey === 'herrfors_power') {
+        } else if (p.dataKey === 'herrfors_power' || p.dataKey === 'baseline_power') {
           valStr = `${typeof p.value === 'number' ? p.value.toFixed(2) : p.value} kW`;
         } else if (p.dataKey === 'electricity_price') {
           valStr = `${typeof p.value === 'number' ? p.value.toFixed(2) : p.value} snt/kWh`;
@@ -117,6 +123,30 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           </div>
         );
       })}
+
+      {/* Baseline excess / deviation summary if whole house power is in chart */}
+      {herrforsVal !== null && (
+        <div style={{
+          marginTop: 6,
+          paddingTop: 6,
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: 11,
+        }}>
+          <span style={{ color: 'var(--text-muted)' }}>🎯 Baseline ({BASELINE_POWER_KW} kW):</span>
+          {herrforsVal > BASELINE_POWER_KW + 0.05 ? (
+            <span style={{ color: '#fb923c', fontWeight: 600 }}>
+              +{((herrforsVal - BASELINE_POWER_KW) * 1000).toFixed(0)} W ({((herrforsVal - BASELINE_POWER_KW)).toFixed(2)} kW)
+            </span>
+          ) : (
+            <span style={{ color: '#34d399', fontWeight: 600 }}>
+              🟢 Pohjakulutustaso
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -209,7 +239,12 @@ function interpolateTimeline(
   for (const t of sampledTimes) {
     const pt: ChartDataPoint = { time: t };
 
+    if (selectedTopics.includes('baseline_power')) {
+      pt['baseline_power'] = BASELINE_POWER_KW;
+    }
+
     for (const topic of selectedTopics) {
+      if (topic === 'baseline_power') continue;
       const series = seriesMap.get(topic);
       if (!series || series.length === 0) continue;
 
@@ -353,7 +388,7 @@ export function HistoryChart() {
     setLoading(true);
     setError(null);
 
-    const sensorTopics = selectedTopics.filter((t) => t !== 'electricity_price' && t !== 'herrfors_power' && t !== 'weather_temp');
+    const sensorTopics = selectedTopics.filter((t) => t !== 'electricity_price' && t !== 'herrfors_power' && t !== 'weather_temp' && t !== 'baseline_power');
     const includePrice = selectedTopics.includes('electricity_price');
     const includeHerrfors = selectedTopics.includes('herrfors_power');
     const includeWeather = selectedTopics.includes('weather_temp');
@@ -749,6 +784,21 @@ export function HistoryChart() {
                   />
                 )}
                 <Tooltip content={<CustomTooltip />} />
+                {(selectedTopics.includes('herrfors_power') || selectedTopics.includes('baseline_power')) && (
+                  <ReferenceLine
+                    yAxisId="right"
+                    y={BASELINE_POWER_KW}
+                    stroke="#10b981"
+                    strokeDasharray="3 3"
+                    strokeWidth={1.5}
+                    label={{
+                      value: `🎯 Baseline (${BASELINE_POWER_KW} kW)`,
+                      fill: '#10b981',
+                      fontSize: 10,
+                      position: 'insideTopLeft',
+                    }}
+                  />
+                )}
                 {CHART_TOPICS.filter((t) => selectedTopics.includes(t.key)).map(({ key, label, color, yAxisId, dash }) => (
                   <Line
                     key={key}

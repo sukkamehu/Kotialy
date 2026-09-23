@@ -22,6 +22,7 @@ const apcService = require('../apc-service');
 const cameraService = require('../camera-service');
 const s3Service = require('../s3-service');
 const herrforsClient = require('../herrfors-client');
+const tuyaService = require('../devices/tuya-service');
 
 
 const {
@@ -1010,6 +1011,85 @@ router.post('/tapo/poll', requireAdmin, async (req, res) => {
   try {
     await tapoService.pollAll();
     res.json({ ok: true, devices: tapoService.getAllStatuses() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Tuya & SmartLife Endpoints ─────────────────────────────────────────────
+
+/**
+ * GET /api/tuya/devices
+ * Get list of all discovered Tuya/SmartLife devices and sensors.
+ */
+router.get('/tuya/devices', (req, res) => {
+  res.json({
+    ok: true,
+    configured: tuyaService.isConfigured(),
+    devices: tuyaService.devices,
+    sauna: tuyaService.getSaunaStatus(),
+    ts: Date.now(),
+  });
+});
+
+/**
+ * GET /api/tuya/sauna
+ * Get Sauna status, remaining timer, and temperature.
+ */
+router.get('/tuya/sauna', (req, res) => {
+  res.json({
+    ok: true,
+    configured: tuyaService.isConfigured(),
+    sauna: tuyaService.getSaunaStatus(),
+  });
+});
+
+/**
+ * POST /api/tuya/sauna
+ * Control Sauna relay ON / OFF with safety timeout (max 180 min).
+ * Body: { state: boolean | 'ON' | 'OFF', duration_minutes: number }
+ */
+router.post('/tuya/sauna', requireAdmin, async (req, res) => {
+  try {
+    const { state, duration_minutes = 180 } = req.body || {};
+    const turnOn = state === true || state === '1' || state === 'ON' || state === 'on';
+    const sauna = await tuyaService.setSaunaPower(turnOn, duration_minutes);
+    res.json({ ok: true, sauna });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tuya/refresh
+ * Force immediate device discovery and poll.
+ */
+router.post('/tuya/refresh', requireAdmin, async (req, res) => {
+  try {
+    const devices = await tuyaService.fetchDevices();
+    res.json({
+      ok: true,
+      devices,
+      sauna: tuyaService.getSaunaStatus(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tuya/command
+ * Send generic Tuya command.
+ * Body: { device_id, commands }
+ */
+router.post('/tuya/command', requireAdmin, async (req, res) => {
+  try {
+    const { device_id, commands } = req.body || {};
+    if (!device_id || !commands) {
+      return res.status(400).json({ error: 'device_id and commands required' });
+    }
+    const result = await tuyaService.sendCommand(device_id, commands);
+    res.json({ ok: true, result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

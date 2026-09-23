@@ -20,6 +20,8 @@ import { PanasonicSettingsCard } from './PanasonicSettingsCard';
 import { ApcStrategyPage } from './ApcStrategyPage';
 import { TapoPlugsCard } from './TapoPlugsCard';
 import { HydraulicDiagramPage } from './HydraulicDiagramPage';
+import { SaunaCard } from './SaunaCard';
+import { SmartLifePanel } from './SmartLifePanel';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -55,7 +57,7 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'herrfors' | 'apc_strategy' | 'history' | 'hydraulics' | 'heatpump_guide'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'herrfors' | 'apc_strategy' | 'history' | 'smartlife' | 'hydraulics' | 'heatpump_guide'>('dashboard');
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
   const readOnly = role === 'viewer';
@@ -109,6 +111,27 @@ export function Dashboard({
                 }}
               >
                 <span>📊</span> Kojelauta
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('smartlife')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  border: activeTab === 'smartlife' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeTab === 'smartlife' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeTab === 'smartlife' ? '#fbbf24' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>🧖‍♂️</span> Sauna & SmartLife
               </button>
 
               <button
@@ -254,7 +277,19 @@ export function Dashboard({
             </div>
           )}
 
-          {/* TAB 4: Hydraulikaavio */}
+          {/* TAB 4: Smart Life & Sauna */}
+          {activeTab === 'smartlife' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
+              <ErrorBoundary>
+                <SaunaCard readOnly={readOnly} />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <SmartLifePanel />
+              </ErrorBoundary>
+            </div>
+          )}
+
+          {/* TAB 5: Hydraulikaavio */}
           {activeTab === 'hydraulics' && (
             <div style={{ marginBottom: 32 }}>
               <ErrorBoundary>
@@ -263,7 +298,7 @@ export function Dashboard({
             </div>
           )}
 
-          {/* TAB 5: Lämpöpumpun asetusmuistio */}
+          {/* TAB 6: Lämpöpumpun asetusmuistio */}
           {activeTab === 'heatpump_guide' && (
             <div style={{ marginBottom: 32 }}>
               <ErrorBoundary>
@@ -337,7 +372,14 @@ export function Dashboard({
                     </ErrorBoundary>
                   </div>
 
-                  {/* Row 3: Tapo P115 Smart Plugs & Power Monitoring */}
+                  {/* Row 3: Sauna WiFi Control & Safety Timer */}
+                  <div style={{ marginBottom: 24 }}>
+                    <ErrorBoundary>
+                      <SaunaCard readOnly={readOnly} />
+                    </ErrorBoundary>
+                  </div>
+
+                  {/* Row 4: Tapo P115 Smart Plugs & Power Monitoring */}
                   <div style={{ marginBottom: 24 }}>
                     <ErrorBoundary>
                       <TapoPlugsCard onOpenTrend={setTrendTarget} readOnly={readOnly} />

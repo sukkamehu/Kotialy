@@ -16,6 +16,7 @@ const cameraService = require('./camera-service');
 const s3Service = require('./s3-service');
 const herrforsClient = require('./herrfors-client');
 const tapoService = require('./devices/tapo-service');
+const tuyaService = require('./devices/tuya-service');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -96,6 +97,10 @@ wss.on('connection', (ws, req) => {
         },
         apc: apcService.getStatus(),
         tapo: tapoService.getAllStatuses(),
+        tuya: {
+          devices: tuyaService.devices,
+          sauna: tuyaService.getSaunaStatus(),
+        },
         ts: Date.now(),
       })
     );
@@ -176,6 +181,9 @@ herrforsClient.startScheduler();
 tapoService.setWsBroadcast(wsBroadcast);
 tapoService.setMqttClient(mqttClient);
 tapoService.start();
+
+// ─── Tuya & SmartLife Service ───────────────────────────────────────────────
+tuyaService.init(wsBroadcast);
 
 // Daily database maintenance (prune records older than 30 days & truncate WAL)
 const { pruneOldHistory, vacuumDatabase } = require('./db');

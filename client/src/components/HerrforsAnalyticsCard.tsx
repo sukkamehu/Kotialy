@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
 import { apiFetch } from '../lib/api';
 import type {
@@ -17,6 +18,9 @@ import type {
   HerrforsAnalyticsResponse,
   HerrforsDailyItem,
 } from '../types/herrfors';
+
+const BASELINE_KW = 0.55;
+const BASELINE_15MIN_KWH = 0.138;
 
 interface HerrforsAnalyticsCardProps {
   readOnly?: boolean;
@@ -241,6 +245,28 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8', marginTop: 2 }}>
               <span>💡 Taloussähkö:</span>
               <strong>{pt.other_kwh != null ? `${pt.other_kwh.toFixed(3)} kWh (${pt.other_power_kw} kW)` : '-'}</strong>
+            </div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              color: '#10b981',
+              marginTop: 4,
+              paddingTop: 4,
+              borderTop: '1px dashed rgba(255,255,255,0.1)',
+              fontSize: 11,
+            }}>
+              <span>🎯 Baseline ({BASELINE_KW} kW):</span>
+              {pt.house_power_kw != null ? (
+                pt.house_power_kw > BASELINE_KW + 0.05 ? (
+                  <strong style={{ color: '#fb923c' }}>
+                    +{((pt.house_power_kw - BASELINE_KW) * 1000).toFixed(0)} W ylikulutus
+                  </strong>
+                ) : (
+                  <strong style={{ color: '#34d399' }}>🟢 Pohjakulutustasolla</strong>
+                )
+              ) : (
+                <span>{BASELINE_KW} kW</span>
+              )}
             </div>
           </>
         )}
@@ -620,6 +646,34 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               </div>
             )}
 
+            {/* Baseline Power & Share */}
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: 12,
+              padding: 14,
+            }}>
+              <div style={{ fontSize: 12, color: '#34d399', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🎯</span> Pohjakulutus (Baseline)
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {BASELINE_KW} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>kW</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 6, fontWeight: 500 }}>(~13.2 kWh/vrk)</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Jakson pohjaosuus:</span>
+                <strong style={{ color: '#34d399' }}>
+                  {summary.total_house_kwh > 0 ? `${Math.min(100, Math.round((rangeDays * 24 * BASELINE_KW / summary.total_house_kwh) * 100))}%` : '-'}
+                </strong>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Aktiivinen lisäkuorma:</span>
+                <span style={{ color: '#fb923c' }}>
+                  {summary.total_house_kwh > 0 ? `${Math.max(0, Math.round(100 - (rangeDays * 24 * BASELINE_KW / summary.total_house_kwh) * 100))}%` : '-'}
+                </span>
+              </div>
+            </div>
+
             {/* Peak Power */}
             <div style={{
               background: 'rgba(245, 158, 11, 0.08)',
@@ -895,6 +949,21 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                     />
                   </>
                 )}
+
+                {/* Baseline reference level */}
+                <ReferenceLine
+                  yAxisId="left"
+                  y={viewMode === 'power' ? BASELINE_KW : BASELINE_15MIN_KWH}
+                  stroke="#10b981"
+                  strokeDasharray="4 4"
+                  strokeWidth={1.5}
+                  label={{
+                    value: viewMode === 'power' ? `🎯 Baseline (${BASELINE_KW} kW)` : `🎯 Baseline (${BASELINE_15MIN_KWH} kWh)`,
+                    fill: '#10b981',
+                    fontSize: 10,
+                    position: 'insideTopLeft',
+                  }}
+                />
 
                 {/* Outdoor Temperature */}
                 <Line
