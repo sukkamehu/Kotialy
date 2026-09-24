@@ -61,7 +61,7 @@ export function useTuya() {
     };
   }, [fetchStatus]);
 
-  const setSaunaPower = async (state: boolean, durationMinutes = 180) => {
+  const setSaunaPower = async (state: boolean, durationMinutes = 90) => {
     setActionLoading(true);
     setError(null);
     try {
@@ -81,6 +81,56 @@ export function useTuya() {
       return data.sauna;
     } catch (err: any) {
       setError(err.message || 'Saunan kytkentävirhe');
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const scheduleSauna = async (delayMinutes: number, durationMinutes = 90) => {
+    setActionLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/tuya/sauna/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delay_minutes: delayMinutes, duration_minutes: durationMinutes }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Saunan ajastus epäonnistui');
+      }
+
+      const data = await res.json();
+      if (data.sauna) setSauna(data.sauna);
+      return data.sauna;
+    } catch (err: any) {
+      setError(err.message || 'Saunan ajastusvirhe');
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const cancelScheduledSauna = async () => {
+    setActionLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/tuya/sauna/cancel-schedule', {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Ajastuksen peruutus epäonnistui');
+      }
+
+      const data = await res.json();
+      if (data.sauna) setSauna(data.sauna);
+      return data.sauna;
+    } catch (err: any) {
+      setError(err.message || 'Ajastuksen peruutusvirhe');
       throw err;
     } finally {
       setActionLoading(false);
@@ -112,6 +162,8 @@ export function useTuya() {
     actionLoading,
     error,
     setSaunaPower,
+    scheduleSauna,
+    cancelScheduledSauna,
     refreshDevices,
     refetch: fetchStatus,
   };

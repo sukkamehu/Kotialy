@@ -7,8 +7,9 @@ interface SaunaCardProps {
 }
 
 export function SaunaCard({ readOnly = false }: SaunaCardProps) {
-  const { sauna, setSaunaPower, actionLoading, error } = useTuya();
-  const [selectedDuration, setSelectedDuration] = useState<number>(180);
+  const { sauna, setSaunaPower, scheduleSauna, cancelScheduledSauna, actionLoading, error } = useTuya();
+  const [selectedDuration, setSelectedDuration] = useState<number>(90);
+  const [selectedDelay, setSelectedDelay] = useState<number>(0);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [now, setNow] = useState<number>(Date.now());
 
@@ -19,8 +20,9 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
   }, []);
 
   const isOn = Boolean(sauna?.isOn);
+  const isScheduled = !isOn && Boolean(sauna?.scheduledStartAt && sauna.scheduledStartAt > now);
 
-  // Calculate live countdown
+  // Calculate live countdown for active heating
   let remainingMs = 0;
   let remainingText = '';
   let progressPercent = 0;
@@ -28,7 +30,7 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
 
   if (isOn && sauna?.autoOffAt) {
     remainingMs = Math.max(0, sauna.autoOffAt - now);
-    const totalDurationMs = (sauna.durationMinutes || 180) * 60 * 1000;
+    const totalDurationMs = (sauna.durationMinutes || 90) * 60 * 1000;
     progressPercent = Math.max(0, Math.min(100, (remainingMs / totalDurationMs) * 100));
 
     const totalSeconds = Math.ceil(remainingMs / 1000);
@@ -51,19 +53,63 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
     });
   }
 
+  // Calculate live countdown for scheduled start
+  let scheduledDelayMs = 0;
+  let scheduledDelayText = '';
+  let scheduledStartTimeStr = '';
+  let scheduledEndTimeStr = '';
+
+  if (isScheduled && sauna?.scheduledStartAt) {
+    scheduledDelayMs = Math.max(0, sauna.scheduledStartAt - now);
+    const totalSecs = Math.ceil(scheduledDelayMs / 1000);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+
+    if (h > 0) {
+      scheduledDelayText = `${h}h ${m}min ${s}s`;
+    } else if (m > 0) {
+      scheduledDelayText = `${m}min ${s}s`;
+    } else {
+      scheduledDelayText = `${s}s`;
+    }
+
+    scheduledStartTimeStr = new Date(sauna.scheduledStartAt).toLocaleTimeString('fi-FI', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const endTimestamp = sauna.scheduledStartAt + ((sauna.scheduledDurationMinutes || 90) * 60 * 1000);
+    scheduledEndTimeStr = new Date(endTimestamp).toLocaleTimeString('fi-FI', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  const plannedStartTime = new Date(Date.now() + selectedDelay * 60000).toLocaleTimeString('fi-FI', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   const handleToggleClick = () => {
     if (readOnly || actionLoading) return;
-    if (!isOn) {
-      setShowConfirmModal(true);
-    } else {
+    if (isOn) {
       setSaunaPower(false);
+    } else {
+      setShowConfirmModal(true);
     }
   };
 
-  const confirmTurnOn = async () => {
+  const confirmAction = async () => {
     setShowConfirmModal(false);
-    await setSaunaPower(true, selectedDuration);
+    if (selectedDelay > 0) {
+      await scheduleSauna(selectedDelay, selectedDuration);
+    } else {
+      await setSaunaPower(true, selectedDuration);
+    }
   };
+
+  const formattedDuration = (selectedDuration / 60).toString().replace('.', ',');
 
   return (
     <div
@@ -71,10 +117,14 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
       style={{
         background: isOn
           ? 'linear-gradient(135deg, rgba(30, 18, 12, 0.95) 0%, rgba(45, 20, 10, 0.92) 100%)'
+          : isScheduled
+          ? 'linear-gradient(135deg, rgba(20, 24, 38, 0.95) 0%, rgba(30, 32, 50, 0.92) 100%)'
           : 'var(--card-bg, rgba(15, 23, 42, 0.75))',
-        borderColor: isOn ? 'rgba(245, 158, 11, 0.5)' : 'var(--border)',
+        borderColor: isOn ? 'rgba(245, 158, 11, 0.5)' : isScheduled ? 'rgba(56, 189, 248, 0.4)' : 'var(--border)',
         boxShadow: isOn
           ? '0 0 35px rgba(245, 158, 11, 0.25), 0 8px 32px rgba(0, 0, 0, 0.6)'
+          : isScheduled
+          ? '0 0 25px rgba(56, 189, 248, 0.15), 0 8px 32px rgba(0, 0, 0, 0.5)'
           : 'var(--card-shadow, 0 4px 20px rgba(0, 0, 0, 0.3))',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         position: 'relative',
@@ -119,6 +169,22 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
                 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 6px #ef4444' }} />
                   LÄMPIÄÄ
+                </span>
+              ) : isScheduled ? (
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  <span>⏱️</span>
+                  AJASTETTU KLO {scheduledStartTimeStr}
                 </span>
               ) : (
                 <span style={{
@@ -246,44 +312,154 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
           </div>
         )}
 
-        {/* Duration selector (only when OFF) */}
-        {!isOn && !readOnly && (
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 }}>
-              Valitse lämmitysaika (max 3h):
+        {/* Scheduled Start Pending Box */}
+        {isScheduled && (
+          <div style={{
+            background: 'rgba(56, 189, 248, 0.1)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: 12,
+            padding: 14,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>⏳</span> Käynnistyy ajastetusti:
+              </span>
+              <strong style={{ fontSize: 16, color: '#38bdf8', fontFamily: 'monospace' }}>
+                {scheduledDelayText || 'Käynnistyy...'}
+              </strong>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-              {[
-                { min: 60, label: '1 h' },
-                { min: 90, label: '1.5 h' },
-                { min: 120, label: '2 h' },
-                { min: 180, label: '3 h (Max)' },
-              ].map(({ min, label }) => (
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Kiuas kytkeytyy automaattisesti päälle klo <strong>{scheduledStartTimeStr}</strong> ja lämpiää klo <strong>{scheduledEndTimeStr}</strong> asti ({((sauna?.scheduledDurationMinutes || 90) / 60).toString().replace('.', ',')} h).
+            </div>
+
+            {!readOnly && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
                 <button
-                  key={min}
                   type="button"
-                  onClick={() => setSelectedDuration(min)}
+                  onClick={() => setSaunaPower(true, sauna?.scheduledDurationMinutes || selectedDuration)}
+                  disabled={actionLoading}
                   style={{
-                    padding: '8px 6px',
+                    padding: '8px 12px',
                     borderRadius: 8,
                     fontSize: 12,
-                    fontWeight: selectedDuration === min ? 700 : 500,
-                    border: selectedDuration === min ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
-                    background: selectedDuration === min ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.03)',
-                    color: selectedDuration === min ? '#fbbf24' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    color: '#fff',
+                    cursor: actionLoading ? 'wait' : 'pointer',
                   }}
                 >
-                  {label}
+                  ⚡ Käynnistä heti
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={cancelScheduledSauna}
+                  disabled={actionLoading}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#f87171',
+                    cursor: actionLoading ? 'wait' : 'pointer',
+                  }}
+                >
+                  ❌ Peruuta ajastus
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Duration selector & Delay selector (only when OFF and not scheduled) */}
+        {!isOn && !isScheduled && !readOnly && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* 1. Heating Duration */}
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 }}>
+                1. Valitse lämmitysaika (max 3h):
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {[
+                  { min: 60, label: '1 h' },
+                  { min: 90, label: '1,5 h' },
+                  { min: 120, label: '2 h' },
+                  { min: 180, label: '3 h (Max)' },
+                ].map(({ min, label }) => (
+                  <button
+                    key={min}
+                    type="button"
+                    onClick={() => setSelectedDuration(min)}
+                    style={{
+                      padding: '8px 6px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: selectedDuration === min ? 700 : 500,
+                      border: selectedDuration === min ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
+                      background: selectedDuration === min ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                      color: selectedDuration === min ? '#fbbf24' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Delay / Scheduled Start */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  2. Käynnistyksen ajastus:
+                </span>
+                {selectedDelay > 0 && (
+                  <span style={{ fontSize: 11, color: '#38bdf8', fontWeight: 600 }}>
+                    Käynnistyy klo {plannedStartTime}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                {[
+                  { delay: 0, label: '⚡ Heti' },
+                  { delay: 30, label: '+30 min' },
+                  { delay: 60, label: '+1 h' },
+                  { delay: 120, label: '+2 h' },
+                  { delay: 180, label: '+3 h' },
+                ].map(({ delay, label }) => (
+                  <button
+                    key={delay}
+                    type="button"
+                    onClick={() => setSelectedDelay(delay)}
+                    style={{
+                      padding: '8px 4px',
+                      borderRadius: 8,
+                      fontSize: 11,
+                      fontWeight: selectedDelay === delay ? 700 : 500,
+                      border: selectedDelay === delay ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                      background: selectedDelay === delay ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                      color: selectedDelay === delay ? '#38bdf8' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
         {/* Main Big Toggle Button */}
-        {!readOnly && (
+        {!readOnly && !isScheduled && (
           <button
             type="button"
             onClick={handleToggleClick}
@@ -292,21 +468,29 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
               width: '100%',
               padding: '14px 20px',
               borderRadius: 12,
-              border: isOn ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(245, 158, 11, 0.5)',
+              border: isOn
+                ? '1px solid rgba(239, 68, 68, 0.5)'
+                : selectedDelay > 0
+                ? '1px solid rgba(56, 189, 248, 0.5)'
+                : '1px solid rgba(245, 158, 11, 0.5)',
               background: isOn
                 ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                : selectedDelay > 0
+                ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
                 : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
               color: '#fff',
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: 700,
               cursor: actionLoading ? 'wait' : 'pointer',
               boxShadow: isOn
                 ? '0 4px 20px rgba(239, 68, 68, 0.4)'
+                : selectedDelay > 0
+                ? '0 4px 20px rgba(2, 132, 199, 0.35)'
                 : '0 4px 20px rgba(245, 158, 11, 0.35)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 10,
+              gap: 8,
               transition: 'all 0.2s ease',
             }}
           >
@@ -317,10 +501,15 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
                 <span>⏹️</span>
                 <span>SAMMUTA KIUAS NYT</span>
               </>
+            ) : selectedDelay > 0 ? (
+              <>
+                <span>⏱️</span>
+                <span>AJASTA SAUNA PÄÄLLE (klo {plannedStartTime} · {formattedDuration} h)</span>
+              </>
             ) : (
               <>
                 <span>🔥</span>
-                <span>KYTKE SAUNA PÄÄLLE ({selectedDuration / 60} h)</span>
+                <span>KYTKE SAUNA PÄÄLLE ({formattedDuration} h)</span>
               </>
             )}
           </button>
@@ -330,15 +519,24 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
       {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={showConfirmModal}
-        title="Kytketäänkö kiuas päälle?"
-        message={`Olet kytkemässä saunan päälle ${selectedDuration / 60} tunniksi (${selectedDuration} min). Kiuas sammuu automaattisesti viimeistään klo ${new Date(Date.now() + selectedDuration * 60000).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}.`}
-        confirmLabel={`Kyllä, kytke päälle (${selectedDuration / 60} h)`}
+        title={selectedDelay > 0 ? 'Ajastetaanko sauna päälle?' : 'Kytketäänkö kiuas päälle?'}
+        message={
+          selectedDelay > 0
+            ? `Olet ajastamassa saunan käynnistymään klo ${plannedStartTime} (${selectedDelay} min kuluttua) ${formattedDuration} tunniksi (${selectedDuration} min). Kiuas sammuu automaattisesti viimeistään klo ${new Date(Date.now() + (selectedDelay + selectedDuration) * 60000).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}.`
+            : `Olet kytkemässä saunan päälle heti ${formattedDuration} tunniksi (${selectedDuration} min). Kiuas sammuu automaattisesti viimeistään klo ${new Date(Date.now() + selectedDuration * 60000).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}.`
+        }
+        confirmLabel={
+          selectedDelay > 0
+            ? `Kyllä, ajasta (klo ${plannedStartTime})`
+            : `Kyllä, kytke päälle (${formattedDuration} h)`
+        }
         cancelLabel="Peruuta"
         danger={false}
         pending={actionLoading}
-        onConfirm={confirmTurnOn}
+        onConfirm={confirmAction}
         onCancel={() => setShowConfirmModal(false)}
       />
     </div>
   );
 }
+

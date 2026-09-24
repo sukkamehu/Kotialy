@@ -38,10 +38,13 @@ export interface SaunaState {
   startedAt: number | null;
   autoOffAt: number | null;
   durationMinutes: number;
+  scheduledStartAt?: number | null;
+  scheduledDurationMinutes?: number | null;
   temperature: number | null;
   humidity: number | null;
   remainingMinutes: number;
   remainingSeconds: number;
+  scheduledRemainingSeconds?: number;
   maxHours: number;
   maxMinutes: number;
   lastSeen: number | null;

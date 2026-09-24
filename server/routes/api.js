@@ -1046,14 +1046,52 @@ router.get('/tuya/sauna', (req, res) => {
 
 /**
  * POST /api/tuya/sauna
- * Control Sauna relay ON / OFF with safety timeout (max 180 min).
- * Body: { state: boolean | 'ON' | 'OFF', duration_minutes: number }
+ * Control Sauna relay ON / OFF or schedule start with safety timeout.
+ * Body: { state?: boolean | 'ON' | 'OFF', duration_minutes?: number, delay_minutes?: number, cancel_schedule?: boolean }
  */
 router.post('/tuya/sauna', requireAdmin, async (req, res) => {
   try {
-    const { state, duration_minutes = 180 } = req.body || {};
+    const { state, duration_minutes = 90, delay_minutes, cancel_schedule } = req.body || {};
+
+    if (cancel_schedule) {
+      const sauna = await tuyaService.cancelScheduledSauna();
+      return res.json({ ok: true, sauna });
+    }
+
+    if (delay_minutes && parseInt(delay_minutes) > 0) {
+      const sauna = await tuyaService.scheduleSauna(delay_minutes, duration_minutes);
+      return res.json({ ok: true, sauna });
+    }
+
     const turnOn = state === true || state === '1' || state === 'ON' || state === 'on';
     const sauna = await tuyaService.setSaunaPower(turnOn, duration_minutes);
+    res.json({ ok: true, sauna });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tuya/sauna/schedule
+ * Schedule sauna start after delay (in minutes).
+ */
+router.post('/tuya/sauna/schedule', requireAdmin, async (req, res) => {
+  try {
+    const { delay_minutes = 30, duration_minutes = 90 } = req.body || {};
+    const sauna = await tuyaService.scheduleSauna(delay_minutes, duration_minutes);
+    res.json({ ok: true, sauna });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tuya/sauna/cancel-schedule
+ * Cancel pending scheduled sauna start.
+ */
+router.post('/tuya/sauna/cancel-schedule', requireAdmin, async (req, res) => {
+  try {
+    const sauna = await tuyaService.cancelScheduledSauna();
     res.json({ ok: true, sauna });
   } catch (err) {
     res.status(500).json({ error: err.message });

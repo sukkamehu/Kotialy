@@ -29,6 +29,8 @@ class TuyaService {
       startedAt: null,
       autoOffAt: null,
       durationMinutes: this.maxHours * 60,
+      scheduledStartAt: null,
+      scheduledDurationMinutes: null,
       temperature: null,
       humidity: null,
       lastSeen: null,
@@ -309,6 +311,10 @@ class TuyaService {
       throw new Error(`Saunan kytkentä epäonnistui: ${res.msg || JSON.stringify(res)}`);
     }
 
+    // Clear any pending scheduled start
+    this.saunaState.scheduledStartAt = null;
+    this.saunaState.scheduledDurationMinutes = null;
+
     // Update local state immediately
     this.saunaState.isOn = Boolean(turnOn);
     if (turnOn) {
@@ -327,8 +333,62 @@ class TuyaService {
     // Sync state to DB
     db.updateState('tuya/sauna/switch', turnOn ? '1' : '0');
     db.updateState('tuya/sauna/auto_off_at', this.saunaState.autoOffAt ? String(this.saunaState.autoOffAt) : '0');
+    db.updateState('tuya/sauna/scheduled_start_at', '0');
+    db.updateState('tuya/sauna/scheduled_duration', '0');
 
     // Broadcast immediately
+    if (this.wsBroadcast) {
+      this.wsBroadcast({
+        type: 'sauna_status',
+        sauna: this.getSaunaStatus(),
+        ts: Date.now(),
+      });
+    }
+
+    return this.getSaunaStatus();
+  }
+
+  /**
+   * Schedule sauna to turn on after a delay (in minutes)
+   */
+  async scheduleSauna(delayMinutes, durationMinutes = 90) {
+    const delay = Math.max(1, parseInt(delayMinutes) || 0);
+    const duration = Math.min(Math.max(15, parseInt(durationMinutes) || 90), this.maxHours * 60);
+    const scheduledStartAt = Date.now() + (delay * 60 * 1000);
+
+    this.saunaState.scheduledStartAt = scheduledStartAt;
+    this.saunaState.scheduledDurationMinutes = duration;
+    this.saunaState.lastAction = `Ajastettu käynnistymään ${delay} min kuluttua (kesto ${duration} min)`;
+
+    console.log(`[TUYA] ⏱️ Sauna ajastettu käynnistymään klo ${new Date(scheduledStartAt).toLocaleTimeString('fi-FI')} (${delay} min kuluttua, kesto ${duration} min).`);
+
+    db.updateState('tuya/sauna/scheduled_start_at', String(scheduledStartAt));
+    db.updateState('tuya/sauna/scheduled_duration', String(duration));
+
+    if (this.wsBroadcast) {
+      this.wsBroadcast({
+        type: 'sauna_status',
+        sauna: this.getSaunaStatus(),
+        ts: Date.now(),
+      });
+    }
+
+    return this.getSaunaStatus();
+  }
+
+  /**
+   * Cancel pending scheduled sauna start
+   */
+  async cancelScheduledSauna() {
+    this.saunaState.scheduledStartAt = null;
+    this.saunaState.scheduledDurationMinutes = null;
+    this.saunaState.lastAction = 'Ajastus peruutettu';
+
+    console.log('[TUYA] ❌ Saunan ajastettu käynnistys peruutettu.');
+
+    db.updateState('tuya/sauna/scheduled_start_at', '0');
+    db.updateState('tuya/sauna/scheduled_duration', '0');
+
     if (this.wsBroadcast) {
       this.wsBroadcast({
         type: 'sauna_status',
@@ -347,6 +407,7 @@ class TuyaService {
     const now = Date.now();
     let remainingMinutes = 0;
     let remainingSeconds = 0;
+    let scheduledRemainingSeconds = 0;
 
     if (this.saunaState.isOn && this.saunaState.autoOffAt) {
       const remainingMs = Math.max(0, this.saunaState.autoOffAt - now);
@@ -354,22 +415,45 @@ class TuyaService {
       remainingSeconds = Math.ceil(remainingMs / 1000);
     }
 
+    if (!this.saunaState.isOn && this.saunaState.scheduledStartAt) {
+      const delayMs = Math.max(0, this.saunaState.scheduledStartAt - now);
+      scheduledRemainingSeconds = Math.ceil(delayMs / 1000);
+    }
+
     return {
       ...this.saunaState,
       remainingMinutes,
       remainingSeconds,
+      scheduledRemainingSeconds,
       maxHours: this.maxHours,
       maxMinutes: this.maxHours * 60,
     };
   }
 
   /**
-   * Safety ticker: runs every 5 seconds to enforce 3-hour safety timeout
+   * Safety ticker: runs every 5 seconds to enforce 3-hour safety timeout and scheduled starts
    */
   checkSafetyTimeout() {
+    const now = Date.now();
+
+    // Check scheduled start
+    if (!this.saunaState.isOn && this.saunaState.scheduledStartAt) {
+      if (now >= this.saunaState.scheduledStartAt) {
+        const duration = this.saunaState.scheduledDurationMinutes || 90;
+        console.log(`[TUYA] 🚀 Ajastettu saunan käynnistys aktivoituu nyt (${duration} min kesto).`);
+        this.saunaState.scheduledStartAt = null;
+        this.saunaState.scheduledDurationMinutes = null;
+        db.updateState('tuya/sauna/scheduled_start_at', '0');
+        db.updateState('tuya/sauna/scheduled_duration', '0');
+        this.setSaunaPower(true, duration).catch(err => {
+          console.error('[TUYA] Ajastettu saunan käynnistys epäonnistui:', err.message);
+        });
+        return;
+      }
+    }
+
     if (!this.saunaState.isOn) return;
 
-    const now = Date.now();
     // 1. Check if auto-off time has passed
     if (this.saunaState.autoOffAt && now >= this.saunaState.autoOffAt) {
       console.warn(`[TUYA] 🛡️ SAUNAN TURVAKATKAISU: Asetettu aikaraja (${this.saunaState.durationMinutes} min) saavutettu. Sammutetaan kiuas välittömästi!`);
