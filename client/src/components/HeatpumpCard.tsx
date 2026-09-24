@@ -19,7 +19,7 @@ const ALL_OPERATING_MODES = [
 const envAllowedModes = import.meta.env.VITE_ALLOWED_OPERATING_MODES;
 const allowedIds: number[] = envAllowedModes
   ? envAllowedModes.split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n))
-  : [4, 3]; // Default: Lämmitys+KV ja Käyttövesi
+  : [0, 4, 3]; // Default: Lämmitys, Lämmitys+KV ja Käyttövesi
 
 const OPERATING_MODES = allowedIds.length > 0
   ? allowedIds

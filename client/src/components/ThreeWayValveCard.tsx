@@ -31,27 +31,25 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
   async function setValveTarget(target: 'auto' | 'heating' | 'dhw') {
     if (readOnly || pending) return;
     if (target === 'dhw') {
-      if (isHeatingOnlyMode) {
-        await send('commands/SetOperationMode', 4);
-      }
+      await send('commands/SetForceDHW', 0);
       await send(
-        'commands/SetForceDHW',
-        1,
-        '3-tieventtiili pakotettu käyttövesivaraajalle (Force DHW)'
+        'commands/SetOperationMode',
+        3,
+        'Käyttötila: Vain käyttövesi (3-tieventtiili käännetty LKV-varaajalle)'
       );
     } else if (target === 'heating') {
       await send('commands/SetForceDHW', 0);
       await send(
         'commands/SetOperationMode',
         0,
-        'Toimintatila asetettu tilaan Vain lämmitys (3-tieventtiili lukittu puskuriin)'
+        'Käyttötila: Vain lämmitys (3-tieventtiili käännetty puskurivaraajalle)'
       );
     } else {
       await send('commands/SetForceDHW', 0);
       await send(
         'commands/SetOperationMode',
         4,
-        '3-tieventtiilin ohjaus palautettu automaatille (Lämmitys + KV)'
+        'Käyttötila: Lämmitys + KV (3-tieventtiili automaatilla)'
       );
     }
   }
@@ -246,7 +244,7 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
               Ohjaus / Pakotus
             </span>
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {forceDHW ? '⚡ Pikakäyttövesi päällä' : '🔄 Automaatti'}
+              {forceDHW ? '⚡ Pikakäyttövesi päällä' : isDhwOnlyMode ? '💧 Vain käyttövesi' : isHeatingOnlyMode ? '🏠 Vain lämmitys' : '🔄 Automaatti'}
             </span>
           </div>
 
@@ -266,7 +264,7 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
               onClick={() => setValveTarget('dhw')}
               disabled={pending || readOnly}
               id="btn-valve-force-dhw"
-              title="Pakota venttiili käyttövesivaraajalle (Force DHW)"
+              title="Käännä venttiili käyttövesivaraajalle (Vain käyttövesi)"
               style={{
                 fontSize: 12,
                 padding: '8px 6px',
@@ -276,14 +274,14 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
                 color: isDhwForced ? '#fff' : undefined,
               }}
             >
-              💧 Pakota KV
+              💧 Käyttövesi
             </button>
             <button
               className={`btn btn-sm ${isHeatingOnlyMode ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setValveTarget('heating')}
               disabled={pending || readOnly}
               id="btn-valve-force-heating"
-              title="Lukitse venttiili puskuriin/lämmitykseen (Vain lämmitys -tila)"
+              title="Käännä venttiili puskurivaraajaan (Vain lämmitys)"
               style={{
                 fontSize: 12,
                 padding: '8px 6px',
@@ -298,9 +296,13 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
           </div>
 
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4, textAlign: 'center' }}>
-            {forceDHW
-              ? 'Venttiili on pakotettu käyttövesivaraajalle (Force DHW).'
-              : 'Venttiili seuraa lämpöpumpun normaalia säätöä.'}
+            {isDhwOnlyMode
+              ? 'Tila: Vain käyttövesi — virtaus ohjataan LKV-varaajalle.'
+              : isHeatingOnlyMode
+              ? 'Tila: Vain lämmitys — virtaus ohjataan puskurivaraajalle.'
+              : forceDHW
+              ? 'Pikakäyttövesi (Force DHW) pakotettu päälle.'
+              : 'Automaattinen lämmitys ja käyttöveden lämmitys tarpeen mukaan.'}
           </div>
 
           {(error || success) && (
