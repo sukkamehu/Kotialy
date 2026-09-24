@@ -27,9 +27,11 @@ const MODE_KEY = 'kotialy.z1Mode';
 
 function loadMode(): Z1Mode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'curve' ? 'curve' : 'direct';
+    const saved = localStorage.getItem(MODE_KEY);
+    if (saved === 'direct' || saved === 'curve') return saved;
+    return 'curve';
   } catch {
-    return 'direct';
+    return 'curve';
   }
 }
 
@@ -555,14 +557,20 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
             min={cfg.min}
             max={cfg.max}
             step={1}
-            unit={mode === 'curve' ? '' : '°C'}
+            unit={mode === 'curve' ? ' °C (siirto)' : ' °C'}
             signed={cfg.signed}
             accentColor="var(--buffer-primary)"
             pending={pending}
             disabled={readOnly}
             onCommit={setZ1}
             idPrefix="z1-request"
-            hint={apcEnabled && mode === 'curve' ? 'APC laskee siirrot tämän perusarvon päälle' : cfg.hint}
+            hint={
+              mode === 'curve'
+                ? apcEnabled
+                  ? `0 = peruskäyrä (ei siirtoa) · Menoveden tavoite nyt ~${mainTargetTemp !== null ? mainTargetTemp.toFixed(1) : '—'} °C`
+                  : `0 = peruskäyrä (ei siirtoa) · Menoveden tavoite nyt ~${mainTargetTemp !== null ? mainTargetTemp.toFixed(1) : '—'} °C`
+                : cfg.hint
+            }
           />
 
           {z1Request === null && (
