@@ -192,7 +192,7 @@ class TuyaService {
           if (saunaRelayStatus) {
             // Turned ON (or already ON)
             if (!wasOn || !this.saunaState.autoOffAt || this.saunaState.autoOffAt < Date.now()) {
-              this.saunaState.startedAt = this.saunaState.startedAt || Date.now();
+              this.saunaState.startedAt = Date.now();
               this.saunaState.durationMinutes = this.saunaState.durationMinutes || (this.maxHours * 60);
               this.saunaState.autoOffAt = Date.now() + (this.saunaState.durationMinutes * 60 * 1000);
               console.log(`[TUYA] 🧖‍♂️ Sauna havaittu PÄÄLLÄ. Turva-ajastin aktivoitu (sammutus: ${new Date(this.saunaState.autoOffAt).toLocaleTimeString('fi-FI')}).`);
