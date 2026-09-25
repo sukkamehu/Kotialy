@@ -94,6 +94,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [dhwHours, setDhwHours] = useState<string>(String(status?.settings?.dhw_duration_hours ?? 2));
   const [heatingCutoff, setHeatingCutoff] = useState<string>(String(status?.settings?.heating_cutoff_c ?? 13));
   const [preventCurveShift, setPreventCurveShift] = useState<boolean>(status?.settings?.prevent_curve_shift_above_cutoff !== false);
+  const [quietAutoEnabled, setQuietAutoEnabled] = useState<boolean>(status?.settings?.quiet_mode_auto_enabled !== false);
+  const [quiet3Temp, setQuiet3Temp] = useState<string>(String(status?.settings?.quiet_mode_level_3_temp ?? 3.0));
+  const [quiet2Temp, setQuiet2Temp] = useState<string>(String(status?.settings?.quiet_mode_level_2_temp ?? 0.0));
+  const [quiet1Temp, setQuiet1Temp] = useState<string>(String(status?.settings?.quiet_mode_level_1_temp ?? -5.0));
   const [floorPumpMode, setFloorPumpModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
   const [floorPumpCutoff, setFloorPumpCutoff] = useState<string>('20.0');
   const [floorPumpSummerPulse, setFloorPumpSummerPulse] = useState<boolean>(true);
@@ -146,6 +150,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setDhwHours(String(status.settings.dhw_duration_hours ?? 2));
       setHeatingCutoff(String(status.settings.heating_cutoff_c ?? 13));
       setPreventCurveShift(status.settings.prevent_curve_shift_above_cutoff !== false);
+      setQuietAutoEnabled(status.settings.quiet_mode_auto_enabled !== false);
+      setQuiet3Temp(String(status.settings.quiet_mode_level_3_temp ?? 3.0));
+      setQuiet2Temp(String(status.settings.quiet_mode_level_2_temp ?? 0.0));
+      setQuiet1Temp(String(status.settings.quiet_mode_level_1_temp ?? -5.0));
       setFloorPumpModeState(status.settings.floor_pump_mode ?? 'auto');
       setFloorPumpCutoff(String(status.settings.floor_pump_summer_cutoff_temp ?? 20.0));
       setFloorPumpSummerPulse(status.settings.floor_pump_summer_pulse_enabled !== false);
@@ -213,6 +221,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       dhw_duration_hours: parseInt(dhwHours, 10) || 2,
       heating_cutoff_c: parseFloat(heatingCutoff) || 13,
       prevent_curve_shift_above_cutoff: Boolean(preventCurveShift),
+      quiet_mode_auto_enabled: Boolean(quietAutoEnabled),
+      quiet_mode_level_3_temp: parseFloat(quiet3Temp) || 3.0,
+      quiet_mode_level_2_temp: parseFloat(quiet2Temp) || 0.0,
+      quiet_mode_level_1_temp: parseFloat(quiet1Temp) || -5.0,
       floor_pump_mode: floorPumpMode,
       floor_pump_summer_cutoff_temp: parseFloat(floorPumpCutoff) || 20.0,
       floor_pump_summer_pulse_enabled: Boolean(floorPumpSummerPulse),
@@ -998,6 +1010,124 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                   </span>
                 </label>
               </div>
+            </div>
+
+            {/* Column: Automaattinen Quiet Mode (Hiljainen tila / Pätkäkäynnin esto) */}
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(168, 85, 247, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🤫</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Hiljainen tila (Quiet Mode -ohjaus)
+                  </span>
+                </div>
+                <span className="badge" style={{ fontSize: 10, padding: '2px 8px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                  9 kW T-CAP optimi
+                </span>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={quietAutoEnabled}
+                  onChange={(e) => setQuietAutoEnabled(e.target.checked)}
+                  disabled={readOnly}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#a855f7' }}
+                />
+                <span>
+                  <strong style={{ color: 'var(--text-primary)' }}>Automaattinen Quiet Mode ulkolämpötilan mukaan</strong>: Rajoittaa kompressorin kierrosnopeutta ja estää tehon ryntäämisen leudoilla keleillä (poistaa pätkäkäynnin ja parantaa COP:ta).
+                </span>
+              </label>
+
+              {quietAutoEnabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 4 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#c084fc', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Quiet 3 raja (°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={quiet3Temp}
+                      onChange={(e) => setQuiet3Temp(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#c084fc',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      ≥ {quiet3Temp}°C → Taso 3 (leuto sää, min. taajuus)
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Quiet 2 raja (°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={quiet2Temp}
+                      onChange={(e) => setQuiet2Temp(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#38bdf8',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {quiet2Temp}°C ... {quiet3Temp}°C → Taso 2
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: '#34d399', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Quiet 1 raja (°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={quiet1Temp}
+                      onChange={(e) => setQuiet1Temp(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#34d399',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {quiet1Temp}°C ... {quiet2Temp}°C → Taso 1 (alle {quiet1Temp}°C → Pois/Täysi teho)
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Column E: Lattialämmityksen kiertovesipumppu (Sonoff) */}

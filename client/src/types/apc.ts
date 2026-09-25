@@ -37,6 +37,10 @@ export interface ApcSettings {
   defrost_cable_defrost_runover_min?: number;
   defrost_cable_override_until?: number;
   defrost_cable_override_state?: 'ON' | 'OFF' | null;
+  quiet_mode_auto_enabled?: boolean;
+  quiet_mode_level_3_temp?: number;
+  quiet_mode_level_2_temp?: number;
+  quiet_mode_level_1_temp?: number;
 }
 
 export interface FloorPumpStatus {

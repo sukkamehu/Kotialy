@@ -21,6 +21,7 @@ class PanasonicDriver {
     this.currentOffset = null;
     this.currentDhwTarget = null;
     this.currentForceDhw = null;
+    this.currentQuietLevel = null;
   }
 
   setMqttClient(client) {
@@ -122,6 +123,24 @@ class PanasonicDriver {
       forceDhw = 0;
     }
 
+    // Automatic Quiet Mode level based on outdoor temperature (lampopumput.info T-CAP cycling prevention)
+    let targetQuietLevel = null;
+    if (outdoorTemp != null && settings.quiet_mode_auto_enabled !== false) {
+      const q3Temp = settings.quiet_mode_level_3_temp != null ? settings.quiet_mode_level_3_temp : 3.0;
+      const q2Temp = settings.quiet_mode_level_2_temp != null ? settings.quiet_mode_level_2_temp : 0.0;
+      const q1Temp = settings.quiet_mode_level_1_temp != null ? settings.quiet_mode_level_1_temp : -5.0;
+
+      if (outdoorTemp >= q3Temp) {
+        targetQuietLevel = 3; // Leuto sää (> +3°C): Quiet 3 (minimoi pätkäkäynnin, matala taajuus)
+      } else if (outdoorTemp >= q2Temp) {
+        targetQuietLevel = 2; // Viileä (0...+3°C): Quiet 2
+      } else if (outdoorTemp >= q1Temp) {
+        targetQuietLevel = 1; // Pikkupakkanen (-5...0°C): Quiet 1
+      } else {
+        targetQuietLevel = 0; // Pakkanen (<-5°C): Quiet 0 (Pois / täysi teho)
+      }
+    }
+
     const results = [];
 
     // 1. Apply Heating / Buffer Tank curve shift (Z1 Heat Request Temp) only if changed
@@ -154,6 +173,16 @@ class PanasonicDriver {
       }
     }
 
+    // 4. Apply Quiet Mode level if auto quiet mode is enabled and changed
+    if (targetQuietLevel !== null && this.currentQuietLevel !== targetQuietLevel) {
+      log(`Setting Quiet Mode level: ${targetQuietLevel} (Outdoor temp: ${outdoorTemp}°C)`);
+      const qOk = await this.sendCommand('commands/SetQuietMode', targetQuietLevel);
+      if (qOk) {
+        this.currentQuietLevel = targetQuietLevel;
+        results.push({ target: 'Quiet_Mode', value: targetQuietLevel });
+      }
+    }
+
     this.lastAppliedDirective = directive;
     this.lastAppliedAt = now;
 
@@ -163,6 +192,7 @@ class PanasonicDriver {
       appliedShift: targetShift,
       appliedDhwTarget: targetDhw,
       appliedForceDhw: forceDhw,
+      appliedQuietLevel: targetQuietLevel,
       results,
     };
   }
@@ -176,6 +206,7 @@ class PanasonicDriver {
       lastDirective: this.lastAppliedDirective,
       lastAppliedAt: this.lastAppliedAt,
       currentOffset: this.currentOffset,
+      currentQuietLevel: this.currentQuietLevel,
     };
   }
 }

@@ -514,6 +514,10 @@ function getApcSettings() {
     defrost_cable_defrost_runover_min: 20,
     defrost_cable_override_until: 0,
     defrost_cable_override_state: null,
+    quiet_mode_auto_enabled: true,
+    quiet_mode_level_3_temp: 3.0,
+    quiet_mode_level_2_temp: 0.0,
+    quiet_mode_level_1_temp: -5.0,
   };
 
   for (const r of rows) {
@@ -523,6 +527,8 @@ function getApcSettings() {
       settings.dhw_boost_on_cheap = r.value === '1' || r.value === 'true';
     } else if (r.key === 'prevent_curve_shift_above_cutoff') {
       settings.prevent_curve_shift_above_cutoff = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'quiet_mode_auto_enabled') {
+      settings.quiet_mode_auto_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_anti_seize_enabled') {
       settings.floor_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_summer_pulse_enabled') {

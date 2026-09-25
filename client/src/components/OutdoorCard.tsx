@@ -496,17 +496,27 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
           </div>
         )}
 
-        <SegmentedControl
-          label="🤫 Hiljainen tila"
-          options={QUIET_LEVELS}
-          value={quietLevel === null ? null : Math.round(quietLevel)}
-          onSelect={(v) => send('commands/SetQuietMode', v,
-            v === 0 ? 'Hiljainen tila pois' : `Hiljainen tila: Taso ${v}`)}
-          pending={pending}
-          disabled={readOnly}
-          idPrefix="btn-quiet"
-          hint="korkeampi taso = hiljaisempi ääni, alempi maksimiteho"
-        />
+        {/* Quiet Mode Control */}
+        {(() => {
+          const isQuietAuto = apcStatus?.enabled && apcStatus?.settings?.quiet_mode_auto_enabled !== false;
+          return (
+            <SegmentedControl
+              label="🤫 Hiljainen tila"
+              options={QUIET_LEVELS}
+              value={quietLevel === null ? null : Math.round(quietLevel)}
+              onSelect={(v) => send('commands/SetQuietMode', v,
+                v === 0 ? 'Hiljainen tila pois' : `Hiljainen tila: Taso ${v}`)}
+              pending={pending}
+              disabled={readOnly}
+              idPrefix="btn-quiet"
+              hint={
+                isQuietAuto
+                  ? `✨ APC ohjaa automaattisesti ulkolämmön mukaan (${outsideTemp != null ? `${outsideTemp.toFixed(1)} °C` : ''} → ${quietLevel && quietLevel > 0 ? `Taso ${Math.round(quietLevel)}` : 'Pois päältä'})`
+                  : 'korkeampi taso = hiljaisempi ääni, alempi maksimiteho'
+              }
+            />
+          );
+        })()}
 
         <div className="divider" style={{ margin: '14px 0 10px' }} />
 
