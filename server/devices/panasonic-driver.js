@@ -134,8 +134,8 @@ class PanasonicDriver {
     if (isSmartCyclingEnabled && !isDhwActive) {
       const isCompressorRunning = (compressorFreq > 0) && (heatpumpState === 1);
       const chargeBoost = settings.smart_cycling_charge_boost_c ?? 3.0;
-      const minRestMin = settings.smart_cycling_min_rest_min ?? 60;
-      const restSetback = settings.smart_cycling_rest_setback_c ?? -2.0;
+      const minRestMin = settings.smart_cycling_min_rest_min ?? 75;
+      const restSetback = settings.smart_cycling_rest_setback_c ?? -4.0;
       const maxRunMin = settings.smart_cycling_max_run_min ?? 75;
 
       // Transition 1: Compressor just started heating
@@ -200,10 +200,10 @@ class PanasonicDriver {
       this.lastCompressorRunning = (compressorFreq > 0) && (heatpumpState === 1);
     }
 
-    // Safeguard: Inhibit positive curve shift (boost) if outdoor temperature exceeds heating cutoff
+    // Safeguard: Inhibit positive curve shift (boost) if outdoor temperature exceeds heating cutoff (only when not actively charging)
     const heatingCutoff = settings.heating_cutoff_c != null ? settings.heating_cutoff_c : 13;
     const isAboveCutoff = outdoorTemp != null && outdoorTemp >= heatingCutoff;
-    if (isAboveCutoff && settings.prevent_curve_shift_above_cutoff !== false) {
+    if (isAboveCutoff && settings.prevent_curve_shift_above_cutoff !== false && this.cyclingPhase !== 'CHARGING') {
       if (targetShift > baseShift) {
         log(`Outdoor temp (${outdoorTemp}°C) >= heating cutoff (${heatingCutoff}°C): Inhibiting buffer boost shift ${targetShift}°C -> ${Math.min(0, baseShift)}°C`);
         targetShift = Math.min(0, baseShift);

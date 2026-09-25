@@ -520,8 +520,8 @@ function getApcSettings() {
     quiet_mode_level_1_temp: -5.0,
     smart_cycling_enabled: true,
     smart_cycling_charge_boost_c: 3.0,
-    smart_cycling_min_rest_min: 60,
-    smart_cycling_rest_setback_c: -2.0,
+    smart_cycling_min_rest_min: 75,
+    smart_cycling_rest_setback_c: -4.0,
     smart_cycling_max_run_min: 75,
   };
 
