@@ -20,6 +20,8 @@ class TuyaService {
     this.pollTimer = null;
     this.safetyTimer = null;
     this.isPolling = false;
+    this.lastCommandAt = 0;
+    this.lastCommandState = null;
 
     // Sauna safety state
     this.saunaState = {
@@ -43,7 +45,7 @@ class TuyaService {
   }
 
   /**
-   * Tuya OpenAPI signature and request helper
+   * Tuya OpenAPI signature and request helper with query string sorting
    */
   async request(path, method = 'GET', body = '') {
     if (!this.isConfigured()) {
@@ -59,7 +61,18 @@ class TuyaService {
     const nonce = '';
     const bodyStr = typeof body === 'object' ? JSON.stringify(body) : (body || '');
     const contentHash = crypto.createHash('sha256').update(bodyStr).digest('hex');
-    const stringToSign = [method.toUpperCase(), contentHash, '', path].join('\n');
+
+    // Handle query params sorting for Tuya v2 signing spec
+    const [urlPath, queryString] = path.split('?');
+    let urlAndQuery = urlPath;
+    if (queryString) {
+      const params = new URLSearchParams(queryString);
+      const sorted = [...params.entries()].sort(([a], [b]) => a.localeCompare(b));
+      const sortedQuery = sorted.map(([k, v]) => `${k}=${v}`).join('&');
+      urlAndQuery = `${urlPath}?${sortedQuery}`;
+    }
+
+    const stringToSign = [method.toUpperCase(), contentHash, '', urlAndQuery].join('\n');
     const accessToken = (path !== '/v1.0/token?grant_type=1' && this.token) ? this.token : '';
     const signStr = this.clientId + accessToken + t + nonce + stringToSign;
     const sign = crypto.createHmac('sha256', this.clientSecret).update(signStr).digest('hex').toUpperCase();
@@ -80,8 +93,8 @@ class TuyaService {
     });
 
     const data = await res.json();
-    if (!data.success && data.code === 1010) {
-      // Token expired, clear and retry once
+    if (!data.success && (data.code === 1010 || data.code === 1004)) {
+      // Token expired or invalid sign, clear and retry once
       this.token = null;
       this.tokenExpiresAt = 0;
       await this.ensureToken();
@@ -111,7 +124,7 @@ class TuyaService {
   }
 
   /**
-   * Fetch all devices from Tuya account and categorize them
+   * Fetch all devices from Tuya account and update real-time states
    */
   async fetchDevices() {
     if (this.isPolling) return this.devices;
@@ -124,7 +137,7 @@ class TuyaService {
       const parsedDevices = [];
       let foundSaunaTemp = null;
       let foundSaunaHumidity = null;
-      let saunaRelayStatus = false;
+      let saunaRelayStatus = null;
 
       for (const d of rawList) {
         const parsed = this.parseDevice(d);
@@ -134,43 +147,74 @@ class TuyaService {
         // Update DB topic states
         this.syncDeviceToDb(parsed);
 
-        // Track sauna-specific readings
-        if (parsed.id === this.saunaDeviceId || parsed.category === 'kg' || parsed.name.toLowerCase().includes('saun')) {
+        // Track sauna breaker switch (STRICTLY matching saunaDeviceId or category kg)
+        if (parsed.id === this.saunaDeviceId || (!this.saunaDeviceId && parsed.category === 'kg')) {
           if (parsed.properties.switch_1 !== undefined) {
             saunaRelayStatus = Boolean(parsed.properties.switch_1);
           }
         }
 
-        // Sauna temperature sensor
+        // Sauna climate sensor
         if (parsed.name.toLowerCase() === 'sauna' && parsed.type === 'climate') {
           if (parsed.properties.temperature != null) foundSaunaTemp = parsed.properties.temperature;
           if (parsed.properties.humidity != null) foundSaunaHumidity = parsed.properties.humidity;
         }
       }
 
+      // If saunaDeviceId is configured, query live status directly to bypass cloud list caching
+      if (this.saunaDeviceId) {
+        try {
+          const liveRes = await this.request(`/v1.0/devices/${this.saunaDeviceId}/status`, 'GET');
+          if (liveRes.success && Array.isArray(liveRes.result)) {
+            const switchDp = liveRes.result.find(dp => dp.code === 'switch_1' || dp.code === 'switch');
+            if (switchDp !== undefined) {
+              saunaRelayStatus = Boolean(switchDp.value);
+            }
+          }
+        } catch (e) {
+          // ignore direct live status error and keep list status
+        }
+      }
+
       this.devices = parsedDevices;
 
-      // Update sauna state
-      const wasOn = this.saunaState.isOn;
-      this.saunaState.isOn = saunaRelayStatus;
+      // Check if within command grace period (30s)
+      const isWithinGracePeriod = (Date.now() - (this.lastCommandAt || 0)) < 30000;
+
+      if (saunaRelayStatus !== null) {
+        if (isWithinGracePeriod && this.lastCommandState !== null && saunaRelayStatus !== this.lastCommandState) {
+          // Keep optimistic state during grace period to prevent cloud lag from flickering switch OFF/ON
+          console.log(`[TUYA] Säilytetään optimistinen tila (${this.lastCommandState ? 'PÄÄLLÄ' : 'POIS'}) komentoviiveen aikana.`);
+        } else {
+          const wasOn = this.saunaState.isOn;
+          this.saunaState.isOn = saunaRelayStatus;
+
+          if (saunaRelayStatus) {
+            // Turned ON (or already ON)
+            if (!wasOn || !this.saunaState.autoOffAt || this.saunaState.autoOffAt < Date.now()) {
+              this.saunaState.startedAt = this.saunaState.startedAt || Date.now();
+              this.saunaState.durationMinutes = this.saunaState.durationMinutes || (this.maxHours * 60);
+              this.saunaState.autoOffAt = Date.now() + (this.saunaState.durationMinutes * 60 * 1000);
+              console.log(`[TUYA] 🧖‍♂️ Sauna havaittu PÄÄLLÄ. Turva-ajastin aktivoitu (sammutus: ${new Date(this.saunaState.autoOffAt).toLocaleTimeString('fi-FI')}).`);
+            }
+          } else {
+            // Turned OFF
+            if (wasOn) {
+              this.saunaState.startedAt = null;
+              this.saunaState.autoOffAt = null;
+              console.log('[TUYA] 🧖‍♂️ Sauna sammutettu.');
+            }
+          }
+        }
+      }
+
       if (foundSaunaTemp != null) this.saunaState.temperature = foundSaunaTemp;
       if (foundSaunaHumidity != null) this.saunaState.humidity = foundSaunaHumidity;
       this.saunaState.lastSeen = Date.now();
 
-      // Handle safety timer if sauna turned ON outside Kotiäly (e.g. from physical switch or SmartLife app)
-      if (saunaRelayStatus) {
-        if (!wasOn || !this.saunaState.autoOffAt || this.saunaState.autoOffAt < Date.now()) {
-          this.saunaState.startedAt = Date.now();
-          this.saunaState.autoOffAt = Date.now() + (this.maxHours * 60 * 60 * 1000);
-          console.log(`[TUYA] 🧖‍♂️ Sauna havaittu PÄÄLLÄ. 3h turva-ajastin aktivoitu (sammutus: ${new Date(this.saunaState.autoOffAt).toLocaleTimeString('fi-FI')}).`);
-        }
-      } else {
-        if (wasOn) {
-          this.saunaState.startedAt = null;
-          this.saunaState.autoOffAt = null;
-          console.log('[TUYA] 🧖‍♂️ Sauna sammutettu.');
-        }
-      }
+      // Sync state to DB
+      db.updateState('tuya/sauna/switch', this.saunaState.isOn ? '1' : '0');
+      db.updateState('tuya/sauna/auto_off_at', this.saunaState.autoOffAt ? String(this.saunaState.autoOffAt) : '0');
 
       // Broadcast updates to WebSocket clients
       if (this.wsBroadcast) {
@@ -322,6 +366,9 @@ class TuyaService {
 
     console.log(`[TUYA] Saunan ohjauspyyntö: ${turnOn ? 'PÄÄLLE' : 'POIS'}, kesto: ${clampedMinutes} min`);
 
+    this.lastCommandAt = Date.now();
+    this.lastCommandState = Boolean(turnOn);
+
     const commandBody = {
       commands: [
         {
@@ -358,6 +405,8 @@ class TuyaService {
     // Sync state to DB
     db.updateState('tuya/sauna/switch', turnOn ? '1' : '0');
     db.updateState('tuya/sauna/auto_off_at', this.saunaState.autoOffAt ? String(this.saunaState.autoOffAt) : '0');
+    db.updateState('tuya/sauna/duration', String(clampedMinutes));
+    db.updateState('tuya/sauna/started_at', this.saunaState.startedAt ? String(this.saunaState.startedAt) : '0');
     db.updateState('tuya/sauna/scheduled_start_at', '0');
     db.updateState('tuya/sauna/scheduled_duration', '0');
 
@@ -458,10 +507,10 @@ class TuyaService {
   /**
    * Safety ticker: runs every 5 seconds to enforce 3-hour safety timeout and scheduled starts
    */
-  checkSafetyTimeout() {
+  async checkSafetyTimeout() {
     const now = Date.now();
 
-    // Check scheduled start
+    // 1. Check scheduled start
     if (!this.saunaState.isOn && this.saunaState.scheduledStartAt) {
       if (now >= this.saunaState.scheduledStartAt) {
         const duration = this.saunaState.scheduledDurationMinutes || 90;
@@ -470,16 +519,26 @@ class TuyaService {
         this.saunaState.scheduledDurationMinutes = null;
         db.updateState('tuya/sauna/scheduled_start_at', '0');
         db.updateState('tuya/sauna/scheduled_duration', '0');
-        this.setSaunaPower(true, duration).catch(err => {
-          console.error('[TUYA] Ajastettu saunan käynnistys epäonnistui:', err.message);
-        });
+        try {
+          await this.setSaunaPower(true, duration);
+        } catch (err) {
+          console.error('[TUYA] Ajastettu saunan käynnistys epäonnistui, yritetään uudelleen 3s kuluttua:', err.message);
+          setTimeout(() => {
+            this.setSaunaPower(true, duration).catch(e => {
+              console.error('[TUYA] Uusintayritys epäonnistui:', e.message);
+            });
+          }, 3000);
+        }
         return;
       }
     }
 
     if (!this.saunaState.isOn) return;
 
-    // 1. Check if auto-off time has passed
+    // Do not run safety cutoff if we just sent a command within 15s
+    if (Date.now() - (this.lastCommandAt || 0) < 15000) return;
+
+    // 2. Check if auto-off time has passed
     if (this.saunaState.autoOffAt && now >= this.saunaState.autoOffAt) {
       console.warn(`[TUYA] 🛡️ SAUNAN TURVAKATKAISU: Asetettu aikaraja (${this.saunaState.durationMinutes} min) saavutettu. Sammutetaan kiuas välittömästi!`);
       this.setSaunaPower(false).catch(err => {
@@ -489,7 +548,7 @@ class TuyaService {
       return;
     }
 
-    // 2. Absolute hard ceiling: if started more than 3 hours ago regardless of state
+    // 3. Absolute hard ceiling: if started more than 3 hours ago regardless of state
     if (this.saunaState.startedAt && (now - this.saunaState.startedAt >= this.maxHours * 3600 * 1000)) {
       console.warn('[TUYA] 🛡️ SAUNAN MAKSIMIAIKAKATKAISU (3H): Kiuas sammutetaan varotoimena.');
       this.setSaunaPower(false).catch(() => {});
@@ -511,7 +570,7 @@ class TuyaService {
   }
 
   /**
-   * Initialize service, start polling and safety watcher
+   * Initialize service, restore persistent timers, start polling and safety watcher
    */
   init(wsBroadcast) {
     this.wsBroadcast = wsBroadcast;
@@ -522,6 +581,43 @@ class TuyaService {
     }
 
     console.log('[TUYA] Initializing SmartLife / Tuya IoT service...');
+
+    // Restore persistent timers and states from DB on startup
+    try {
+      const schedStartRow = db.getState('tuya/sauna/scheduled_start_at');
+      const schedDurRow = db.getState('tuya/sauna/scheduled_duration');
+      const autoOffRow = db.getState('tuya/sauna/auto_off_at');
+      const startedAtRow = db.getState('tuya/sauna/started_at');
+      const durationRow = db.getState('tuya/sauna/duration');
+
+      const now = Date.now();
+      const schedStart = schedStartRow ? parseInt(schedStartRow.value) : 0;
+      const schedDur = schedDurRow ? parseInt(schedDurRow.value) : 90;
+      const autoOff = autoOffRow ? parseInt(autoOffRow.value) : 0;
+      const startedAt = startedAtRow ? parseInt(startedAtRow.value) : 0;
+      const dur = durationRow ? parseInt(durationRow.value) : 90;
+
+      if (schedStart > 0) {
+        if (schedStart > now) {
+          this.saunaState.scheduledStartAt = schedStart;
+          this.saunaState.scheduledDurationMinutes = schedDur;
+          console.log(`[TUYA] Palautettiin saunan ajastus tietokannasta: klo ${new Date(schedStart).toLocaleTimeString('fi-FI')} (${schedDur} min).`);
+        } else if (now - schedStart < 5 * 60 * 1000) {
+          // If scheduled start passed within the last 5 minutes during restart, trigger immediately
+          console.log('[TUYA] Ajastettu aika saavutettiin palvelimen käynnistyksen aikana. Käynnistetään sauna nyt.');
+          this.setSaunaPower(true, schedDur).catch(() => {});
+        }
+      }
+
+      if (autoOff > now) {
+        this.saunaState.autoOffAt = autoOff;
+        this.saunaState.startedAt = startedAt || (now - ((dur * 60 * 1000) - (autoOff - now)));
+        this.saunaState.durationMinutes = dur;
+        console.log(`[TUYA] Palautettiin aktiivinen lämmitysjakso tietokannasta (päättyy: ${new Date(autoOff).toLocaleTimeString('fi-FI')}).`);
+      }
+    } catch (err) {
+      console.warn('[TUYA] State restoration from DB warning:', err.message);
+    }
 
     // Initial fetch
     this.fetchDevices().then(() => {
@@ -537,7 +633,7 @@ class TuyaService {
 
     // Safety timeout check every 5 seconds
     this.safetyTimer = setInterval(() => {
-      this.checkSafetyTimeout();
+      this.checkSafetyTimeout().catch(() => {});
     }, 5000);
   }
 

@@ -184,6 +184,7 @@ const stmtInsertHistory = db.prepare(`
 `);
 
 const stmtGetState = db.prepare(`SELECT * FROM sensor_state`);
+const stmtGetSingleState = db.prepare(`SELECT topic, value, updated_at FROM sensor_state WHERE topic = ?`);
 
 const stmtGetHistory = db.prepare(`
   SELECT topic, value, recorded_at
@@ -361,6 +362,18 @@ function getFullState() {
     state[row.topic] = { value: row.value, updated_at: Number(row.updated_at) };
   }
   return state;
+}
+
+/**
+ * Get the state for a single topic.
+ */
+function getState(topic) {
+  try {
+    return stmtGetSingleState.get(topic) || null;
+  } catch (err) {
+    console.error(`[DB] getState failed for ${topic}:`, err.message);
+    return null;
+  }
 }
 
 /**
@@ -1052,6 +1065,7 @@ function updateTapoDevice(id, data) {
 module.exports = {
   db,
   updateState,
+  getState,
   appendHistory,
   maybeAppendHistory,
   getFullState,

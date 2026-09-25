@@ -165,7 +165,7 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
   }, []);
 
   const isOn = Boolean(sauna?.isOn);
-  const isScheduled = !isOn && Boolean(sauna?.scheduledStartAt && sauna.scheduledStartAt > now);
+  const isScheduled = !isOn && Boolean(sauna?.scheduledStartAt);
 
   // Calculate live countdown for active heating
   let remainingMs = 0;
@@ -211,7 +211,9 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
     const m = Math.floor((totalSecs % 3600) / 60);
     const s = totalSecs % 60;
 
-    if (h > 0) {
+    if (totalSecs <= 0) {
+      scheduledDelayText = 'Käynnistetään kiuas...';
+    } else if (h > 0) {
       scheduledDelayText = `${h}h ${m}min ${s}s`;
     } else if (m > 0) {
       scheduledDelayText = `${m}min ${s}s`;
