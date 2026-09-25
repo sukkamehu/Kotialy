@@ -41,6 +41,11 @@ export interface ApcSettings {
   quiet_mode_level_3_temp?: number;
   quiet_mode_level_2_temp?: number;
   quiet_mode_level_1_temp?: number;
+  smart_cycling_enabled?: boolean;
+  smart_cycling_charge_boost_c?: number;
+  smart_cycling_min_rest_min?: number;
+  smart_cycling_rest_setback_c?: number;
+  smart_cycling_max_run_min?: number;
 }
 
 export interface FloorPumpStatus {
@@ -98,6 +103,7 @@ export interface ApcDeviceStatus {
   lastDirective?: ApcDirective;
   currentOffset?: number;
   targetOffset?: number;
+  currentQuietLevel?: number | null;
   currentState?: string;
   mode?: string;
   overrideActive?: boolean;
@@ -105,6 +111,12 @@ export interface ApcDeviceStatus {
   overrideState?: string | null;
   reason?: string;
   antiSeizeActive?: boolean;
+  cyclingPhase?: 'IDLE' | 'CHARGING' | 'RESTING';
+  phaseStartedAt?: number;
+  chargeStartedAt?: number;
+  restStartedAt?: number;
+  lastCycleDurationMin?: number | null;
+  lastRestDurationMin?: number | null;
 }
 
 export interface ApcPriceStats {

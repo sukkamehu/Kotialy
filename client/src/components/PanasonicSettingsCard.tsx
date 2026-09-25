@@ -31,11 +31,11 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     category: 'curve',
     name: 'Käyrä: Menovesi leudolla säällä (+15 °C)',
     menuPath: 'Toiminnan määritys → Lämm.ON: Ved. lämp. (Vasen ala)',
-    recommendedValue: '26 °C',
+    recommendedValue: '27 °C',
     allowedRange: '20 °C – 65 °C',
-    previousValue: '37 °C @ +15 °C',
-    reason: 'Estää ylilämpenemisen ja pätkäkäynnin syksyllä ja keväällä. Pitää lattian miellyttävän haaleana.',
-    kotiAlyImpact: 'Luo tasaisen matalan pohjan, josta Kotiäly voi optimoida tehoa.',
+    previousValue: '26 °C @ +15 °C',
+    reason: 'Pitää laatan ja puskurin riittävän lämpimänä leudolla syyskelillä ja pidentää kompressorin käyntijaksoa ennen sammutusta.',
+    kotiAlyImpact: 'Luo tasaisen matalan pohjan, josta Kotiäly optimoi tehon ja puskurin latausjaksot.',
   },
   {
     id: 'curve_ambient_low',
@@ -66,11 +66,11 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     category: 'heating',
     name: 'Työsäiliö / Puskurivaraaja (Buffer Tank)',
     menuPath: 'Toiminnan määritys → Järjestelmäasetukset → Puskurisäiliö',
-    recommendedValue: 'Päällä (Kyllä), ΔT 5 °C',
+    recommendedValue: 'Odottaa Zone-1 anturia (Kyllä, ΔT 5 °C kytkettäessä)',
     allowedRange: 'Kyllä / Ei',
     previousValue: 'Pois päältä',
-    reason: 'Aktivoi puskurisäiliön anturiohjauksen (Buffer_Temp), jolloin kompressorin käyntiä ohjataan tasaisen varaajalämmön eikä pienen putkitilavuuden mukaan.',
-    kotiAlyImpact: 'Poistaa leutojen kelien pätkäkäynnin, pitkittää käyntijaksoja ja vakauttaa hyötysuhteen (COP).',
+    reason: 'Aktivoidaan heti kun 6,5 kΩ Zone 1 / Buffer -anturi on fyysisesti kytketty. Siihen asti Kotiälyn älykäs puskurisyklaus hoitaa pätkäkäynnin eston.',
+    kotiAlyImpact: 'Kotiälyn älykäs puskurisyklaus ja Quiet Mode 3 pitkittävät käyntijaksoja automaattisesti.',
   },
   {
     id: 'heating_on_dt',
@@ -81,18 +81,18 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     allowedRange: '1 °C – 15 °C',
     previousValue: '5 °C',
     reason: 'Antaa pumpun säätää virtausta laajasti ja hyödyntää työsäiliön koko tilavuutta ennen sammutusta.',
-    kotiAlyImpact: 'Pidentää käyntijaksoja ja mahdollistaa työsäiliön täyden hyödyntämisen.',
+    kotiAlyImpact: 'Pidentää käyntijaksoja ja hidastaa sisäisen kiertovesipumpun virtausta.',
   },
   {
     id: 'heating_off_ambient',
     category: 'heating',
     name: 'Lämmitys OFF: ulkolämpötila (Kesäsulku)',
     menuPath: 'Toiminnan määritys → Lämmitys → Lämmitys OFF: ulkolämpötila',
-    recommendedValue: '17 °C',
+    recommendedValue: '15 °C',
     allowedRange: '5 °C – 35 °C',
-    previousValue: 'Ei tiedossa',
-    reason: 'Sammuttaa lattialämmityksen automaattisesti kesäksi ja jättää vain käyttöveden päälle.',
-    kotiAlyImpact: 'Estää turhan lämmityksen kesähelteillä säästäen sähköä.',
+    previousValue: '17 °C',
+    reason: 'Sammuttaa lattialämmityksen automaattisesti kesäksi ja leudoiksi iltapäiviksi (jättää vain käyttöveden päälle).',
+    kotiAlyImpact: 'Estää turhan lämmityksen ja katkokäynnin leudoilla ilmoilla.',
   },
 
   // ─── 3. Käyttövesi (LKV) ───
@@ -161,7 +161,7 @@ export function PanasonicSettingsCard() {
   const [filter, setFilter] = useState<'all' | 'curve' | 'heating' | 'dhw' | 'heater'>('all');
   const [notes, setNotes] = useState<string>(() => {
     try {
-      return localStorage.getItem(NOTES_KEY) || '22.9.2026: Työsäiliö aktivoitu käyttöön (Buffer_Installed = 1, ΔT 5 °C). Lämm.ON ΔT nostettu 8 °C:een. Lämpökäyrä asetettu: 38 °C @ -20 °C ... 26 °C @ +15 °C. Pätkäkäynti eliminoitu ja laitteiston toiminta optimoitu.';
+      return localStorage.getItem(NOTES_KEY) || '25.9.2026: Lämm.ON ΔT = 8 °C. Lämpökäyrän leutopää asetettu 27 °C @ +15 °C. Lämmityksen kesäkatkaisu 15 °C. Puskurivaraajan Zone-1 anturia odotetaan, jolloin Kotiälyn älykäs puskurisyklaus ja Quiet Mode 3 hoitavat pätkäkäynnin eston ja puskurin latauksen.';
     } catch {
       return '';
     }

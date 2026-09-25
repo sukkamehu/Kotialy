@@ -1,6 +1,7 @@
 /**
  * Panasonic Aquarea Driver for APC
  * Controls Panasonic Heat Pump via Heishamon MQTT topics
+ * Implements Smart Buffer Cycling (Anti-Short-Cycling for 9kW T-CAP)
  */
 
 function log(...args) {
@@ -22,6 +23,15 @@ class PanasonicDriver {
     this.currentDhwTarget = null;
     this.currentForceDhw = null;
     this.currentQuietLevel = null;
+
+    // Smart Buffer Cycling state machine
+    this.cyclingPhase = 'IDLE'; // 'IDLE' | 'CHARGING' | 'RESTING'
+    this.phaseStartedAt = Date.now();
+    this.lastCompressorRunning = false;
+    this.chargeStartedAt = 0;
+    this.restStartedAt = 0;
+    this.lastCycleDurationMin = null;
+    this.lastRestDurationMin = null;
   }
 
   setMqttClient(client) {
@@ -54,10 +64,20 @@ class PanasonicDriver {
   /**
    * Apply an APC directive to the heat pump
    * @param {string} directive - BOOST | NORMAL | SETBACK | DHW_CYCLE | ECO
-   * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, isDhwSlot }
+   * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, compressorFreq, heatpumpState, threeWayValve, isDhwSlot }
    */
   async applyDirective(directive, context) {
-    const { settings, price, outdoorTemp, bufferTemp, dhwTemp, isDhwSlot } = context;
+    const {
+      settings,
+      price,
+      outdoorTemp,
+      bufferTemp,
+      dhwTemp,
+      compressorFreq = 0,
+      heatpumpState = 1,
+      threeWayValve = 0,
+      isDhwSlot = false,
+    } = context;
     const now = Date.now();
 
     const baseShift = settings.base_z1_shift ?? 0;
@@ -72,7 +92,7 @@ class PanasonicDriver {
 
     switch (directive) {
       case 'BOOST':
-        targetShift = Math.max(-5, Math.min(15, baseShift + (settings.buffer_boost_c || 3)));
+        targetShift = Math.max(-5, Math.min(5, baseShift + (settings.buffer_boost_c || 3)));
         if (boostDhwOnCheap || isDhwSlot) {
           targetDhw = dhwBoostTarget;
         }
@@ -81,13 +101,13 @@ class PanasonicDriver {
         break;
 
       case 'SETBACK':
-        targetShift = Math.max(-10, Math.min(5, baseShift + (settings.buffer_setback_c || -2)));
+        targetShift = Math.max(-5, Math.min(5, baseShift + (settings.buffer_setback_c || -2)));
         targetDhw = dhwMinTarget;
         forceDhw = 0;
         break;
 
       case 'ECO':
-        targetShift = baseShift - 1;
+        targetShift = Math.max(-5, Math.min(5, baseShift - 1));
         targetDhw = dhwMinTarget;
         forceDhw = 0;
         break;
@@ -107,6 +127,79 @@ class PanasonicDriver {
         break;
     }
 
+    // ─── Smart Buffer Cycling State Machine (Puskurin älykäs syklaus / pätkäkäynnin esto) ───
+    const isSmartCyclingEnabled = settings.smart_cycling_enabled !== false;
+    const isDhwActive = threeWayValve === 1 || isDhwSlot || directive === 'DHW_CYCLE';
+
+    if (isSmartCyclingEnabled && !isDhwActive) {
+      const isCompressorRunning = (compressorFreq > 0) && (heatpumpState === 1);
+      const chargeBoost = settings.smart_cycling_charge_boost_c ?? 3.0;
+      const minRestMin = settings.smart_cycling_min_rest_min ?? 60;
+      const restSetback = settings.smart_cycling_rest_setback_c ?? -2.0;
+      const maxRunMin = settings.smart_cycling_max_run_min ?? 75;
+
+      // Transition 1: Compressor just started heating
+      if (isCompressorRunning && !this.lastCompressorRunning) {
+        this.cyclingPhase = 'CHARGING';
+        this.chargeStartedAt = now;
+        this.phaseStartedAt = now;
+        log(`Smart Cycling: Kompressori käynnistyi (${compressorFreq} Hz) -> CHARGING (+${chargeBoost}°C teholataus)`);
+      }
+      // Running state: in charging phase
+      else if (isCompressorRunning) {
+        if (this.cyclingPhase !== 'CHARGING') {
+          this.cyclingPhase = 'CHARGING';
+          this.chargeStartedAt = this.chargeStartedAt || now;
+          this.phaseStartedAt = this.chargeStartedAt;
+        }
+
+        // Check maximum run time safeguard
+        const runDurationMin = (now - this.chargeStartedAt) / 60000;
+        if (runDurationMin >= maxRunMin) {
+          log(`Smart Cycling: Maksimi latausaika (${maxRunMin} min) ylittyi, palautetaan normaali pyynti.`);
+        }
+      }
+      // Transition 2: Compressor just stopped
+      else if (!isCompressorRunning && this.lastCompressorRunning) {
+        this.lastCycleDurationMin = this.chargeStartedAt > 0 ? Math.round((now - this.chargeStartedAt) / 60000) : null;
+        this.cyclingPhase = 'RESTING';
+        this.restStartedAt = now;
+        this.phaseStartedAt = now;
+        log(`Smart Cycling: Kompressori sammui (kävi ${this.lastCycleDurationMin ?? '?'} min) -> RESTING (${restSetback}°C, min. ${minRestMin} min lepoaika)`);
+      }
+      // Stopped state: resting or idle
+      else if (!isCompressorRunning) {
+        if (this.cyclingPhase === 'RESTING') {
+          const restDurationMin = this.restStartedAt > 0 ? (now - this.restStartedAt) / 60000 : minRestMin;
+          if (restDurationMin >= minRestMin) {
+            this.lastRestDurationMin = Math.round(restDurationMin);
+            this.cyclingPhase = 'IDLE';
+            this.phaseStartedAt = now;
+            log(`Smart Cycling: Lepoaika suoritettu (${this.lastRestDurationMin} min) -> IDLE (valmiustila, normaali käyrä)`);
+          }
+        } else if (this.cyclingPhase === 'CHARGING') {
+          this.cyclingPhase = 'RESTING';
+          this.restStartedAt = now;
+          this.phaseStartedAt = now;
+        }
+      }
+
+      this.lastCompressorRunning = isCompressorRunning;
+
+      // Modulate target shift based on cycling phase
+      if (this.cyclingPhase === 'CHARGING') {
+        const runDurationMin = this.chargeStartedAt > 0 ? (now - this.chargeStartedAt) / 60000 : 0;
+        if (runDurationMin < maxRunMin) {
+          targetShift = Math.max(targetShift, baseShift + chargeBoost);
+        }
+      } else if (this.cyclingPhase === 'RESTING') {
+        targetShift = Math.min(targetShift, baseShift + restSetback);
+      }
+    } else {
+      // If disabled or in DHW mode, reset running flag
+      this.lastCompressorRunning = (compressorFreq > 0) && (heatpumpState === 1);
+    }
+
     // Safeguard: Inhibit positive curve shift (boost) if outdoor temperature exceeds heating cutoff
     const heatingCutoff = settings.heating_cutoff_c != null ? settings.heating_cutoff_c : 13;
     const isAboveCutoff = outdoorTemp != null && outdoorTemp >= heatingCutoff;
@@ -116,6 +209,9 @@ class PanasonicDriver {
         targetShift = Math.min(0, baseShift);
       }
     }
+
+    // Safeguard: Clamp target shift to valid Panasonic range [-5, +5]
+    targetShift = Math.max(-5, Math.min(5, Math.round(targetShift)));
 
     // Safeguard: If DHW temp is low (< dhw_min_c), ensure target temp is at least normal target
     if (dhwTemp != null && dhwTemp < dhwMinTarget) {
@@ -145,11 +241,11 @@ class PanasonicDriver {
 
     // 1. Apply Heating / Buffer Tank curve shift (Z1 Heat Request Temp) only if changed
     if (this.currentOffset !== targetShift) {
-      log(`Setting Z1 Heat Request offset: ${targetShift > 0 ? '+' : ''}${targetShift}°C`);
+      log(`Setting Z1 Heat Request offset: ${targetShift > 0 ? '+' : ''}${targetShift}°C (Phase: ${this.cyclingPhase})`);
       const ok = await this.sendCommand('commands/SetZ1HeatRequestTemperature', targetShift);
       if (ok) {
         this.currentOffset = targetShift;
-        results.push({ target: 'Z1_Shift', value: targetShift });
+        results.push({ target: 'Z1_Shift', value: targetShift, phase: this.cyclingPhase });
       }
     }
 
@@ -193,6 +289,7 @@ class PanasonicDriver {
       appliedDhwTarget: targetDhw,
       appliedForceDhw: forceDhw,
       appliedQuietLevel: targetQuietLevel,
+      cyclingPhase: this.cyclingPhase,
       results,
     };
   }
@@ -207,6 +304,12 @@ class PanasonicDriver {
       lastAppliedAt: this.lastAppliedAt,
       currentOffset: this.currentOffset,
       currentQuietLevel: this.currentQuietLevel,
+      cyclingPhase: this.cyclingPhase,
+      phaseStartedAt: this.phaseStartedAt,
+      chargeStartedAt: this.chargeStartedAt,
+      restStartedAt: this.restStartedAt,
+      lastCycleDurationMin: this.lastCycleDurationMin,
+      lastRestDurationMin: this.lastRestDurationMin,
     };
   }
 }

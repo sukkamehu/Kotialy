@@ -60,7 +60,10 @@ class ApcService {
     const bufferTemp = state['main/Buffer_Temp']?.value ? parseFloat(state['main/Buffer_Temp'].value) : null;
     const dhwTemp = state['main/DHW_Temp']?.value ? parseFloat(state['main/DHW_Temp'].value) : null;
     const outsideTemp = state['main/Outside_Temp']?.value ? parseFloat(state['main/Outside_Temp'].value) : null;
-    return { bufferTemp, dhwTemp, outsideTemp };
+    const compressorFreq = state['main/Compressor_Freq']?.value ? parseFloat(state['main/Compressor_Freq'].value) : 0;
+    const heatpumpState = state['main/Heatpump_State']?.value !== undefined ? parseInt(state['main/Heatpump_State'].value, 10) : 1;
+    const threeWayValve = state['main/ThreeWay_Valve_State']?.value !== undefined ? parseInt(state['main/ThreeWay_Valve_State'].value, 10) : 0;
+    return { bufferTemp, dhwTemp, outsideTemp, compressorFreq, heatpumpState, threeWayValve };
   }
 
   /**
@@ -70,7 +73,7 @@ class ApcService {
     try {
       const now = Date.now();
       const settings = db.getApcSettings();
-      const { bufferTemp, dhwTemp, outsideTemp } = this.getCurrentSensors();
+      const { bufferTemp, dhwTemp, outsideTemp, compressorFreq, heatpumpState, threeWayValve } = this.getCurrentSensors();
 
       // Get 24-36h window of prices
       const startWindow = now - 60 * 60 * 1000; // include 1h past
@@ -142,6 +145,9 @@ class ApcService {
         outsideTemp,
         bufferTemp,
         dhwTemp,
+        compressorFreq,
+        heatpumpState,
+        threeWayValve,
         isDhwSlot,
       };
 

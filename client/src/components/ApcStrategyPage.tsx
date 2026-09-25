@@ -103,6 +103,11 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [floorPumpSummerPulse, setFloorPumpSummerPulse] = useState<boolean>(true);
   const [floorPumpAntiSeize, setFloorPumpAntiSeize] = useState<boolean>(true);
   const [floorPumpOverrideDuration, setFloorPumpOverrideDuration] = useState<number>(0);
+  const [smartCyclingEnabled, setSmartCyclingEnabled] = useState<boolean>(status?.settings?.smart_cycling_enabled !== false);
+  const [smartCyclingBoost, setSmartCyclingBoost] = useState<string>(String(status?.settings?.smart_cycling_charge_boost_c ?? 3.0));
+  const [smartCyclingMinRest, setSmartCyclingMinRest] = useState<string>(String(status?.settings?.smart_cycling_min_rest_min ?? 60));
+  const [smartCyclingRestSetback, setSmartCyclingRestSetback] = useState<string>(String(status?.settings?.smart_cycling_rest_setback_c ?? -2.0));
+  const [smartCyclingMaxRun, setSmartCyclingMaxRun] = useState<string>(String(status?.settings?.smart_cycling_max_run_min ?? 75));
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Sähkösopimus & Siirtohinnat state
@@ -158,6 +163,11 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setFloorPumpCutoff(String(status.settings.floor_pump_summer_cutoff_temp ?? 20.0));
       setFloorPumpSummerPulse(status.settings.floor_pump_summer_pulse_enabled !== false);
       setFloorPumpAntiSeize(status.settings.floor_pump_anti_seize_enabled !== false);
+      setSmartCyclingEnabled(status.settings.smart_cycling_enabled !== false);
+      setSmartCyclingBoost(String(status.settings.smart_cycling_charge_boost_c ?? 3.0));
+      setSmartCyclingMinRest(String(status.settings.smart_cycling_min_rest_min ?? 60));
+      setSmartCyclingRestSetback(String(status.settings.smart_cycling_rest_setback_c ?? -2.0));
+      setSmartCyclingMaxRun(String(status.settings.smart_cycling_max_run_min ?? 75));
     }
   }, [status?.settings]);
 
@@ -229,6 +239,11 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       floor_pump_summer_cutoff_temp: parseFloat(floorPumpCutoff) || 20.0,
       floor_pump_summer_pulse_enabled: Boolean(floorPumpSummerPulse),
       floor_pump_anti_seize_enabled: Boolean(floorPumpAntiSeize),
+      smart_cycling_enabled: Boolean(smartCyclingEnabled),
+      smart_cycling_charge_boost_c: parseFloat(smartCyclingBoost) || 3.0,
+      smart_cycling_min_rest_min: parseInt(smartCyclingMinRest, 10) || 60,
+      smart_cycling_rest_setback_c: parseFloat(smartCyclingRestSetback) || -2.0,
+      smart_cycling_max_run_min: parseInt(smartCyclingMaxRun, 10) || 75,
     });
     if (ok) {
       setSaveSuccess(true);
@@ -1124,6 +1139,242 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     />
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
                       {quiet1Temp}°C ... {quiet2Temp}°C → Taso 1 (alle {quiet1Temp}°C → Pois/Täysi teho)
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Column: Älykäs puskurisyklaus (Pätkäkäynnin esto / Syvä puskurin lataus) */}
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(14, 165, 233, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🔄</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Älykäs puskurisyklaus
+                  </span>
+                </div>
+                <span className="badge" style={{ fontSize: 10, padding: '2px 8px', background: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8', border: '1px solid rgba(14, 165, 233, 0.3)' }}>
+                  Pätkäkäynnin esto
+                </span>
+              </div>
+
+              {/* Live Cycling Status Box */}
+              {(() => {
+                const panasonic = status?.devices?.find(d => d.driver === 'panasonic');
+                const phase = panasonic?.cyclingPhase || 'IDLE';
+                const chargeStartedAt = panasonic?.chargeStartedAt || 0;
+                const restStartedAt = panasonic?.restStartedAt || 0;
+                const lastCycleMin = panasonic?.lastCycleDurationMin;
+                const lastRestMin = panasonic?.lastRestDurationMin;
+                const now = Date.now();
+
+                const chargeElapsedMin = chargeStartedAt > 0 ? Math.floor((now - chargeStartedAt) / 60000) : 0;
+                const restElapsedMin = restStartedAt > 0 ? Math.floor((now - restStartedAt) / 60000) : 0;
+                const minRest = parseInt(smartCyclingMinRest, 10) || 60;
+                const restRemainingMin = Math.max(0, minRest - restElapsedMin);
+
+                const isCharging = phase === 'CHARGING';
+                const isResting = phase === 'RESTING';
+
+                return (
+                  <div style={{
+                    background: isCharging
+                      ? 'rgba(34, 197, 94, 0.1)'
+                      : isResting
+                      ? 'rgba(59, 130, 246, 0.1)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                    border: isCharging
+                      ? '1px solid rgba(34, 197, 94, 0.3)'
+                      : isResting
+                      ? '1px solid rgba(59, 130, 246, 0.3)'
+                      : '1px solid rgba(255, 255, 255, 0.07)',
+                    borderRadius: 10,
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Reaaliaikainen vaihe:
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: isCharging ? '#22c55e' : isResting ? '#38bdf8' : '#94a3b8',
+                          boxShadow: isCharging ? '0 0 8px #22c55e' : isResting ? '0 0 8px #38bdf8' : 'none',
+                        }} />
+                        <span style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: isCharging ? '#22c55e' : isResting ? '#38bdf8' : 'var(--text-muted)',
+                        }}>
+                          {isCharging
+                            ? `⚡ Latausvaihe (+${smartCyclingBoost} °C)`
+                            : isResting
+                            ? `🌙 Lepotauko / Purku (${smartCyclingRestSetback} °C)`
+                            : '⚪ Valmiustila (Odottaa)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {isCharging && (
+                        <span>🔥 Kompressori lataa puskurisäiliötä syvällisesti (kestänyt <strong>{chargeElapsedMin} min</strong> / max {smartCyclingMaxRun} min).</span>
+                      )}
+                      {isResting && (
+                        <span>🌀 Lattialämmityksen toisiopumppu purkaa puskurin lämpöä laattaan (lepoaikaa jäljellä <strong>{restRemainingMin} min</strong>).</span>
+                      )}
+                      {!isCharging && !isResting && (
+                        <span>Normaali käyräpyynti voimassa. Odottaa lämpöpumpun luonnollista käynnistymistä.</span>
+                      )}
+                    </div>
+
+                    {(lastCycleMin != null || lastRestMin != null) && (
+                      <div style={{ display: 'flex', gap: 12, fontSize: 10, color: 'var(--text-muted)', marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        {lastCycleMin != null && <span>Edellinen lataus: <strong>{lastCycleMin} min</strong></span>}
+                        {lastRestMin != null && <span>Edellinen lepo: <strong>{lastRestMin} min</strong></span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={smartCyclingEnabled}
+                  onChange={(e) => setSmartCyclingEnabled(e.target.checked)}
+                  disabled={readOnly}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#0ea5e9' }}
+                />
+                <span>
+                  <strong style={{ color: 'var(--text-primary)' }}>Automaattinen puskurisyklaus (Anti-short-cycling)</strong>: Korvaa puuttuvan Zone 1 -anturin. Latauksen aikana nostaa pyyntiä +{smartCyclingBoost} °C (kompressori ajaa pitkän 30–60 min jakson) ja sammumisen jälkeen laskee pyyntiä {smartCyclingRestSetback} °C min. {smartCyclingMinRest} minuutiksi.
+                </span>
+              </label>
+
+              {smartCyclingEnabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#22c55e', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Latausvaiheen lisänosto (°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="1.0"
+                      max="5.0"
+                      value={smartCyclingBoost}
+                      onChange={(e) => setSmartCyclingBoost(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#22c55e',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Nostaa käyrää +{smartCyclingBoost}°C kompressorin käydessä
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Minimilepoaika (min)
+                    </label>
+                    <input
+                      type="number"
+                      step="5"
+                      min="15"
+                      max="180"
+                      value={smartCyclingMinRest}
+                      onChange={(e) => setSmartCyclingMinRest(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#38bdf8',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Estää uudelleenkäynnistyksen {smartCyclingMinRest} min ajaksi
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Lepojakson pudotus (°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="-5.0"
+                      max="0.0"
+                      value={smartCyclingRestSetback}
+                      onChange={(e) => setSmartCyclingRestSetback(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#38bdf8',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Laskee pyyntiä {smartCyclingRestSetback}°C lepojakson aikana
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: '#f59e0b', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Maksimi latausaika (min)
+                    </label>
+                    <input
+                      type="number"
+                      step="5"
+                      min="30"
+                      max="180"
+                      value={smartCyclingMaxRun}
+                      onChange={(e) => setSmartCyclingMaxRun(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#f59e0b',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Turvaraja: palauttaa peruspyynnin {smartCyclingMaxRun} min jälkeen
                     </div>
                   </div>
                 </div>
