@@ -270,20 +270,45 @@ class TuyaService {
   }
 
   /**
+   * Normalize device name to clean topic slug handling Scandinavian characters
+   */
+  cleanTopicName(name) {
+    if (!name) return 'unknown';
+    return name
+      .toLowerCase()
+      .replace(/ä|å/g, 'a')
+      .replace(/ö/g, 'o')
+      .replace(/[^a-z0-9_]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+  }
+
+  /**
    * Sync parsed device properties to SQLite DB
    */
   syncDeviceToDb(device) {
-    const cleanName = device.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const cleanName = this.cleanTopicName(device.name);
     const prefix = `tuya/${cleanName}/`;
+
+    // Also support legacy ASCII-replaced name for backwards compatibility (e.g. yl_kerran_ty_huone)
+    const legacyName = device.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const legacyPrefix = `tuya/${legacyName}/`;
 
     for (const [prop, val] of Object.entries(device.properties)) {
       if (val === null || val === undefined) continue;
       const topic = `${prefix}${prop}`;
       db.updateState(topic, String(val));
 
-      // Append history for numeric properties (temperature, humidity, battery)
+      if (legacyPrefix !== prefix) {
+        db.updateState(`${legacyPrefix}${prop}`, String(val));
+      }
+
+      // Append history for numeric properties (temperature, humidity, battery, etc.)
       if (typeof val === 'number') {
         db.maybeAppendHistory(topic, val, 60000);
+        if (legacyPrefix !== prefix) {
+          db.maybeAppendHistory(`${legacyPrefix}${prop}`, val, 60000);
+        }
       }
     }
   }

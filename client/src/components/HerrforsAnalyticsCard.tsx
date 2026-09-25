@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -22,6 +22,15 @@ import type {
 const BASELINE_KW = 0.55;
 const BASELINE_15MIN_KWH = 0.138;
 
+function toLocalDateString(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+type HerrforsHistoryPreset = 'today' | 'yesterday' | '2d' | '7d' | '14d' | '30d' | 'day';
+
 interface HerrforsAnalyticsCardProps {
   readOnly?: boolean;
 }
@@ -31,10 +40,81 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
   const [data, setData] = useState<HerrforsAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [rangeDays, setRangeDays] = useState<number>(7);
+  const [historyPreset, setHistoryPreset] = useState<HerrforsHistoryPreset>('7d');
+  const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateString());
   const [viewMode, setViewMode] = useState<'stacked' | 'bars' | 'power' | 'table'>('stacked');
   const [showSettings, setShowSettings] = useState(false);
   const [hiddenSeries, setHiddenSeries] = useState<Record<string, boolean>>({});
+
+  const todayStr = useMemo(() => toLocalDateString(), []);
+
+  const { fromMs, toMs, dateLabel, isSingleDay, effectiveDays } = useMemo(() => {
+    const nowMs = Date.now();
+    if (historyPreset === 'today') {
+      const [y, m, d] = todayStr.split('-').map(Number);
+      const from = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+      return { fromMs: from, toMs: nowMs, dateLabel: 'Tänään', isSingleDay: true, effectiveDays: 1 };
+    }
+    if (historyPreset === 'yesterday') {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      const [y, m, d] = toLocalDateString(yest).split('-').map(Number);
+      const from = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+      const to = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+      const dayName = new Date(from).toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' });
+      return { fromMs: from, toMs: to, dateLabel: `Eilen (${dayName})`, isSingleDay: true, effectiveDays: 1 };
+    }
+    if (historyPreset === '2d') {
+      return { fromMs: nowMs - 2 * 24 * 3600 * 1000, toMs: nowMs, dateLabel: '2 päivää', isSingleDay: false, effectiveDays: 2 };
+    }
+    if (historyPreset === '7d') {
+      return { fromMs: nowMs - 7 * 24 * 3600 * 1000, toMs: nowMs, dateLabel: '7 päivää', isSingleDay: false, effectiveDays: 7 };
+    }
+    if (historyPreset === '14d') {
+      return { fromMs: nowMs - 14 * 24 * 3600 * 1000, toMs: nowMs, dateLabel: '14 päivää', isSingleDay: false, effectiveDays: 14 };
+    }
+    if (historyPreset === '30d') {
+      return { fromMs: nowMs - 30 * 24 * 3600 * 1000, toMs: nowMs, dateLabel: '30 päivää', isSingleDay: false, effectiveDays: 30 };
+    }
+
+    // Single custom day mode
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const from = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+    const isSelectedToday = selectedDate === todayStr;
+    const to = isSelectedToday ? nowMs : new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+    const dayName = new Date(from).toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' });
+    return { fromMs: from, toMs: to, dateLabel: isSelectedToday ? `Tänään (${dayName})` : dayName, isSingleDay: true, effectiveDays: 1 };
+  }, [historyPreset, selectedDate, todayStr]);
+
+  const handlePrevDay = () => {
+    const base = historyPreset === 'today' ? todayStr : historyPreset === 'yesterday' ? (() => {
+      const y = new Date(); y.setDate(y.getDate() - 1); return toLocalDateString(y);
+    })() : selectedDate;
+    const [y, m, d] = base.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    dateObj.setDate(dateObj.getDate() - 1);
+    const prevStr = toLocalDateString(dateObj);
+    setSelectedDate(prevStr);
+    setHistoryPreset('day');
+  };
+
+  const handleNextDay = () => {
+    const base = historyPreset === 'yesterday' ? (() => {
+      const y = new Date(); y.setDate(y.getDate() - 1); return toLocalDateString(y);
+    })() : selectedDate;
+    const [y, m, d] = base.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    dateObj.setDate(dateObj.getDate() + 1);
+    const nextStr = toLocalDateString(dateObj);
+    if (nextStr > todayStr) return;
+    setSelectedDate(nextStr);
+    setHistoryPreset(nextStr === todayStr ? 'today' : 'day');
+  };
+
+  const handleGoToday = () => {
+    setSelectedDate(todayStr);
+    setHistoryPreset('today');
+  };
 
   const toggleSeries = (dataKey: string) => {
     setHiddenSeries((prev) => ({
@@ -65,7 +145,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
 
   const fetchAnalytics = async () => {
     try {
-      const res = await apiFetch(`/api/herrfors/analytics?days=${rangeDays}`);
+      const res = await apiFetch(`/api/herrfors/analytics?from=${fromMs}&to=${toMs}&days=${effectiveDays}`);
       if (res.ok) {
         const d: HerrforsAnalyticsResponse = await res.json();
         setData(d);
@@ -85,7 +165,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
       fetchAnalytics();
     }, 60_000);
     return () => clearInterval(interval);
-  }, [rangeDays]);
+  }, [fromMs, toMs]);
 
   const handleManualSync = async () => {
     setSyncing(true);
@@ -93,7 +173,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
       const res = await apiFetch('/api/herrfors/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days: rangeDays }),
+        body: JSON.stringify({ days: effectiveDays, from: fromMs, to: toMs }),
       });
       if (res.ok) {
         await Promise.all([fetchStatus(), fetchAnalytics()]);
@@ -159,12 +239,18 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
 
   const sortedSeries = data?.series ? data.series.slice().sort((a, b) => a.time - b.time) : [];
 
+  const hoursInRange = Math.max(1, (toMs - fromMs) / (1000 * 3600));
+  const baselineEnergyKwh = hoursInRange * BASELINE_KW;
+
   // Format date for chart X-axis
   const formatTimeX = (timeMs: number) => {
     const d = new Date(timeMs);
     const weekday = d.toLocaleDateString('fi-FI', { weekday: 'short' });
     const weekdayCap = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-    if (rangeDays <= 2) {
+    if (isSingleDay) {
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    if (effectiveDays <= 2) {
       return `${weekdayCap} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
     return `${weekdayCap} ${d.getDate()}.${d.getMonth() + 1}.`;
@@ -663,13 +749,13 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                 <span>Jakson pohjaosuus:</span>
                 <strong style={{ color: '#34d399' }}>
-                  {summary.total_house_kwh > 0 ? `${Math.min(100, Math.round((rangeDays * 24 * BASELINE_KW / summary.total_house_kwh) * 100))}%` : '-'}
+                  {summary.total_house_kwh > 0 ? `${Math.min(100, Math.round((baselineEnergyKwh / summary.total_house_kwh) * 100))}%` : '-'}
                 </strong>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
                 <span>Aktiivinen lisäkuorma:</span>
                 <span style={{ color: '#fb923c' }}>
-                  {summary.total_house_kwh > 0 ? `${Math.max(0, Math.round(100 - (rangeDays * 24 * BASELINE_KW / summary.total_house_kwh) * 100))}%` : '-'}
+                  {summary.total_house_kwh > 0 ? `${Math.max(0, Math.round(100 - (baselineEnergyKwh / summary.total_house_kwh) * 100))}%` : '-'}
                 </span>
               </div>
             </div>
@@ -729,37 +815,42 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 16,
+          marginBottom: 12,
           gap: 10,
           flexWrap: 'wrap',
         }}>
           {/* Range tabs */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[
-              { days: 1, label: 'Tänään' },
-              { days: 2, label: '2 pv' },
-              { days: 7, label: '7 pv' },
-              { days: 14, label: '14 pv' },
-              { days: 30, label: '30 pv' },
-            ].map(({ days, label }) => (
-              <button
-                key={days}
-                type="button"
-                onClick={() => setRangeDays(days)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: 8,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  border: rangeDays === days ? '1px solid var(--accent-primary, #3b82f6)' : '1px solid rgba(255,255,255,0.08)',
-                  background: rangeDays === days ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: rangeDays === days ? '#60a5fa' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                {label}
-              </button>
-            ))}
+              { preset: 'today' as HerrforsHistoryPreset, label: 'Tänään' },
+              { preset: 'yesterday' as HerrforsHistoryPreset, label: 'Eilen' },
+              { preset: '2d' as HerrforsHistoryPreset, label: '2 pv' },
+              { preset: '7d' as HerrforsHistoryPreset, label: '7 pv' },
+              { preset: '14d' as HerrforsHistoryPreset, label: '14 pv' },
+              { preset: '30d' as HerrforsHistoryPreset, label: '30 pv' },
+            ].map(({ preset, label }) => {
+              const isSelected = historyPreset === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setHistoryPreset(preset)}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: isSelected ? '1px solid var(--accent-primary, #3b82f6)' : '1px solid rgba(255,255,255,0.08)',
+                    background: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
+                    color: isSelected ? '#60a5fa' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Chart mode tabs */}
@@ -788,6 +879,154 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                 {label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Day Navigator Stepper Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'rgba(255, 255, 255, 0.03)',
+          padding: '8px 12px',
+          borderRadius: 8,
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          marginBottom: 16,
+          flexWrap: 'wrap',
+          gap: 8,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handlePrevDay}
+              title="Edellinen päivä"
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                transition: 'background 0.15s ease',
+              }}
+            >
+              <span>◀</span>
+              <span>Edellinen</span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="date"
+                max={todayStr}
+                value={
+                  historyPreset === 'today'
+                    ? todayStr
+                    : historyPreset === 'yesterday'
+                    ? (() => {
+                        const y = new Date();
+                        y.setDate(y.getDate() - 1);
+                        return toLocalDateString(y);
+                      })()
+                    : selectedDate
+                }
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value);
+                    setHistoryPreset(e.target.value === todayStr ? 'today' : 'day');
+                  }
+                }}
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 6,
+                  color: '#60a5fa',
+                  padding: '4px 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              />
+
+              {historyPreset !== 'today' && selectedDate !== todayStr && (
+                <button
+                  type="button"
+                  onClick={handleGoToday}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    color: '#60a5fa',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  ⟲ Tänään
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleNextDay}
+              disabled={
+                historyPreset === 'today' ||
+                (historyPreset === 'day' && selectedDate >= todayStr)
+              }
+              title="Seuraava päivä"
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                background:
+                  historyPreset === 'today' ||
+                  (historyPreset === 'day' && selectedDate >= todayStr)
+                    ? 'rgba(255, 255, 255, 0.02)'
+                    : 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color:
+                  historyPreset === 'today' ||
+                  (historyPreset === 'day' && selectedDate >= todayStr)
+                    ? 'var(--text-muted)'
+                    : 'var(--text-primary)',
+                cursor:
+                  historyPreset === 'today' ||
+                  (historyPreset === 'day' && selectedDate >= todayStr)
+                    ? 'not-allowed'
+                    : 'pointer',
+                opacity:
+                  historyPreset === 'today' ||
+                  (historyPreset === 'day' && selectedDate >= todayStr)
+                    ? 0.4
+                    : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                transition: 'background 0.15s ease',
+              }}
+            >
+              <span>Seuraava</span>
+              <span>▶</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+              🗓️ {dateLabel}
+            </span>
+            {isSingleDay && (
+              <span style={{ fontSize: 11, background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.25)', color: '#60a5fa', padding: '2px 7px', borderRadius: 10 }}>
+                1 vrk (15 min tarkkuus)
+              </span>
+            )}
           </div>
         </div>
 

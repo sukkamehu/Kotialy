@@ -12,35 +12,57 @@ interface ChartTopicConfig {
   unit: string;
   yAxisId: 'left' | 'right';
   dash?: string;
+  category: 'vilp' | 'smartlife' | 'tapo' | 'electricity';
 }
 
 const BASELINE_POWER_KW = 0.55;
 
 const CHART_TOPICS: ChartTopicConfig[] = [
-  { key: 'main/Outside_Temp', label: 'VILP Ulkolämpö', color: '#22d3ee', unit: '°C', yAxisId: 'left' },
-  { key: 'weather_temp', label: '🌤️ Sääennuste', color: '#06b6d4', unit: '°C', yAxisId: 'left', dash: '3 3' },
-  { key: 'main/Main_Inlet_Temp', label: 'Tulo', color: '#38bdf8', unit: '°C', yAxisId: 'left' },
-  { key: 'main/Main_Outlet_Temp', label: 'Meno', color: '#f59e0b', unit: '°C', yAxisId: 'left' },
-  { key: 'main/DHW_Temp', label: 'Käyttövesi', color: '#10b981', unit: '°C', yAxisId: 'left' },
-  { key: 'main/Buffer_Temp', label: 'Puskuri', color: '#a78bfa', unit: '°C', yAxisId: 'left' },
-  { key: 'herrfors_power', label: '🔌 Talon sähköteho (Herrfors)', color: '#ec4899', unit: 'kW', yAxisId: 'right' },
-  { key: 'baseline_power', label: '🎯 Baseline (0.55 kW)', color: '#10b981', unit: 'kW', yAxisId: 'right', dash: '3 3' },
-  { key: 'tapo/total_power', label: '🔌 Tapo Yhteisteho', color: '#818cf8', unit: 'W', yAxisId: 'right' },
-  { key: 'tapo/total_today_energy', label: '⚡ Tapo Yhteiskulutus tänään', color: '#6366f1', unit: 'kWh', yAxisId: 'right' },
-  { key: 'tapo/isovarasto/power', label: '🔥 Isovarasto teho', color: '#fb923c', unit: 'W', yAxisId: 'right' },
-  { key: 'tapo/isovarasto/energy', label: '⚡ Isovarasto kulutus', color: '#ea580c', unit: 'kWh', yAxisId: 'right' },
-  { key: 'tapo/pikkuvarasto/power', label: '🔥 Pikkuvarasto teho', color: '#f97316', unit: 'W', yAxisId: 'right' },
-  { key: 'tapo/pikkuvarasto/energy', label: '⚡ Pikkuvarasto kulutus', color: '#d97706', unit: 'kWh', yAxisId: 'right' },
-  { key: 'tapo/pesukone/power', label: '🧺 Pesukone teho', color: '#0ea5e9', unit: 'W', yAxisId: 'right' },
-  { key: 'tapo/pesukone/energy', label: '⚡ Pesukone kulutus', color: '#0284c7', unit: 'kWh', yAxisId: 'right' },
-  { key: 'tapo/kuivausrumpu/power', label: '💨 Kuivausrumpu teho', color: '#c084fc', unit: 'W', yAxisId: 'right' },
-  { key: 'tapo/kuivausrumpu/energy', label: '⚡ Kuivausrumpu kulutus', color: '#9333ea', unit: 'kWh', yAxisId: 'right' },
-  { key: 'main/Compressor_Freq', label: 'Komp. Hz', color: '#fb923c', unit: 'Hz', yAxisId: 'right' },
-  { key: 'main/Heat_Power_Consumption', label: 'VILP Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right' },
-  { key: 'main/Heat_Power_Production', label: 'Lämmitysteho', color: '#f97316', unit: 'W', yAxisId: 'right' },
-  { key: 'electricity_price', label: '⚡ Pörssisähkö', color: '#facc15', unit: 'snt/kWh', yAxisId: 'right', dash: '4 2' },
-  { key: 'main/Pump_Flow', label: 'Virtaus', color: '#34d399', unit: 'L/min', yAxisId: 'right' },
-  { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3' },
+  // ─── VILP & Lämmitys ──────────────────────────────────────────
+  { key: 'main/Outside_Temp', label: 'VILP Ulkolämpö', color: '#22d3ee', unit: '°C', yAxisId: 'left', category: 'vilp' },
+  { key: 'weather_temp', label: '🌤️ Sääennuste', color: '#06b6d4', unit: '°C', yAxisId: 'left', dash: '3 3', category: 'vilp' },
+  { key: 'main/Main_Inlet_Temp', label: 'Tulo', color: '#38bdf8', unit: '°C', yAxisId: 'left', category: 'vilp' },
+  { key: 'main/Main_Outlet_Temp', label: 'Meno', color: '#f59e0b', unit: '°C', yAxisId: 'left', category: 'vilp' },
+  { key: 'main/DHW_Temp', label: 'Käyttövesi', color: '#10b981', unit: '°C', yAxisId: 'left', category: 'vilp' },
+  { key: 'main/Buffer_Temp', label: 'Puskuri', color: '#a78bfa', unit: '°C', yAxisId: 'left', category: 'vilp' },
+  { key: 'main/Compressor_Freq', label: 'Komp. Hz', color: '#fb923c', unit: 'Hz', yAxisId: 'right', category: 'vilp' },
+  { key: 'main/Heat_Power_Consumption', label: 'VILP Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right', category: 'vilp' },
+  { key: 'main/Heat_Power_Production', label: 'Lämmitysteho', color: '#f97316', unit: 'W', yAxisId: 'right', category: 'vilp' },
+  { key: 'main/Pump_Flow', label: 'Virtaus', color: '#34d399', unit: 'L/min', yAxisId: 'right', category: 'vilp' },
+  { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3', category: 'vilp' },
+
+  // ─── Smart Life / Tuya Huone- ja ulkoanturit ──────────────────
+  { key: 'tuya/sauna/temperature', label: '🧖‍♂️ Sauna lämpötila', color: '#f97316', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'tuya/sauna/humidity', label: '🧖‍♂️ Sauna kosteus', color: '#06b6d4', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
+  { key: 'tuya/alakerta/temperature', label: '🏠 Alakerta sisälämpö', color: '#e879f9', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'tuya/alakerta/humidity', label: '🏠 Alakerta kosteus', color: '#d946ef', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
+  { key: 'tuya/ylakerran_tyohuone/temperature', label: '💻 Yläkerran työhuone lämpö', color: '#a855f7', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'tuya/ylakerran_tyohuone/humidity', label: '💻 Työhuone kosteus', color: '#9333ea', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
+  { key: 'tuya/autotalli/temperature', label: '🚗 Autotalli lämpö', color: '#3b82f6', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'tuya/autotalli/humidity', label: '🚗 Autotalli kosteus', color: '#2563eb', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
+  { key: 'tuya/ulko/temperature', label: '🌳 Smart Life Ulkolämpö', color: '#14b8a6', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'tuya/ulko/humidity', label: '🌳 Smart Life Ulkokosteus', color: '#0d9488', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
+  { key: 'tuya/naytollinen/temperature', label: '📟 Näytöllinen anturi lämpö', color: '#ec4899', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'tuya/naytollinen/humidity', label: '📟 Näytöllinen anturi kosteus', color: '#db2777', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
+  { key: 'tuya/temperature_humidity_sensor/temperature', label: '🌡️ T&H lisäanturi lämpö', color: '#f43f5e', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'tuya/temperature_humidity_sensor/humidity', label: '🌡️ T&H lisäanturi kosteus', color: '#e11d48', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
+
+  // ─── Sähkö & Pörssihinta ───────────────────────────────────────
+  { key: 'herrfors_power', label: '🔌 Talon sähköteho (Herrfors)', color: '#ec4899', unit: 'kW', yAxisId: 'right', category: 'electricity' },
+  { key: 'baseline_power', label: '🎯 Baseline (0.55 kW)', color: '#10b981', unit: 'kW', yAxisId: 'right', dash: '3 3', category: 'electricity' },
+  { key: 'electricity_price', label: '⚡ Pörssisähkö', color: '#facc15', unit: 'snt/kWh', yAxisId: 'right', dash: '4 2', category: 'electricity' },
+
+  // ─── Tapo-älypistorasiat ──────────────────────────────────────
+  { key: 'tapo/total_power', label: '🔌 Tapo Yhteisteho', color: '#818cf8', unit: 'W', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/total_today_energy', label: '⚡ Tapo Yhteiskulutus tänään', color: '#6366f1', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/isovarasto/power', label: '🔥 Isovarasto teho', color: '#fb923c', unit: 'W', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/isovarasto/energy', label: '⚡ Isovarasto kulutus', color: '#ea580c', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/pikkuvarasto/power', label: '🔥 Pikkuvarasto teho', color: '#f97316', unit: 'W', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/pikkuvarasto/energy', label: '⚡ Pikkuvarasto kulutus', color: '#d97706', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/pesukone/power', label: '🧺 Pesukone teho', color: '#0ea5e9', unit: 'W', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/pesukone/energy', label: '⚡ Pesukone kulutus', color: '#0284c7', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/kuivausrumpu/power', label: '💨 Kuivausrumpu teho', color: '#c084fc', unit: 'W', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/kuivausrumpu/energy', label: '⚡ Kuivausrumpu kulutus', color: '#9333ea', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
 ];
 
 type QuickPreset = '1h' | '6h' | '24h' | 'today' | 'yesterday' | '7d' | '30d' | 'custom_day' | 'custom_range';
@@ -299,6 +321,7 @@ export function HistoryChart() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([
     'main/Outside_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp', 'herrfors_power',
   ]);
+  const [activeCategory, setActiveCategory] = useState<'all' | 'vilp' | 'smartlife' | 'electricity' | 'tapo'>('all');
   const [preset, setPreset] = useState<QuickPreset>('24h');
   
   // Custom date controls
@@ -698,9 +721,75 @@ export function HistoryChart() {
       </div>
 
       <div className="card-body">
+        {/* Category filter tabs */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4, fontWeight: 600 }}>Kategoriat:</span>
+          {[
+            { id: 'all', label: '✨ Kaikki kohteet' },
+            { id: 'vilp', label: '🔥 VILP & Lämmitys' },
+            { id: 'smartlife', label: '📱 Smart Life -anturit' },
+            { id: 'electricity', label: '⚡ Sähkö & Pörssihinta' },
+            { id: 'tapo', label: '🔌 Tapo-pistorasiat' },
+          ].map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id as any)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 600,
+                border: activeCategory === cat.id ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
+                background: activeCategory === cat.id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
+                color: activeCategory === cat.id ? '#60a5fa' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+          
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => {
+                const visibleKeys = CHART_TOPICS.filter(t => activeCategory === 'all' || t.category === activeCategory).map(t => t.key);
+                setSelectedTopics(prev => Array.from(new Set([...prev, ...visibleKeys])));
+              }}
+              style={{
+                padding: '3px 8px',
+                borderRadius: 6,
+                fontSize: 11,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              + Valitse näkyvät
+            </button>
+            <button
+              onClick={() => {
+                const visibleKeys = new Set(CHART_TOPICS.filter(t => activeCategory === 'all' || t.category === activeCategory).map(t => t.key));
+                setSelectedTopics(prev => prev.filter(k => !visibleKeys.has(k)));
+              }}
+              style={{
+                padding: '3px 8px',
+                borderRadius: 6,
+                fontSize: 11,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              - Tyhjennä näkyvät
+            </button>
+          </div>
+        </div>
+
         {/* Topic toggles */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-          {CHART_TOPICS.map(({ key, label, color }) => {
+          {CHART_TOPICS.filter(t => activeCategory === 'all' || t.category === activeCategory).map(({ key, label, color }) => {
             const active = selectedTopics.includes(key);
             return (
               <button
