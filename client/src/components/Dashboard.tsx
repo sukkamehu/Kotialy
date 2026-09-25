@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { HeishamonState, MqttStatus } from '../types/heishamon';
 import type { ZigbeeRegistry } from '../types/zigbee';
 import { StatusBar } from './StatusBar';
@@ -41,6 +41,30 @@ interface DashboardProps {
   onLogout?: () => void;
 }
 
+export type DashboardTab = 'dashboard' | 'herrfors' | 'apc_strategy' | 'history' | 'smartlife' | 'hydraulics' | 'heatpump_guide';
+
+const VALID_TABS: DashboardTab[] = ['dashboard', 'herrfors', 'apc_strategy', 'history', 'smartlife', 'hydraulics', 'heatpump_guide'];
+
+function getInitialTab(): DashboardTab {
+  // 1. Check URL hash first (e.g. #smartlife)
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash.replace(/^#/, '');
+    if (VALID_TABS.includes(hash as DashboardTab)) {
+      return hash as DashboardTab;
+    }
+    // 2. Check localStorage
+    try {
+      const saved = localStorage.getItem('kotialy_active_tab');
+      if (saved && VALID_TABS.includes(saved as DashboardTab)) {
+        return saved as DashboardTab;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return 'dashboard';
+}
+
 export function Dashboard({
   state,
   mqtt,
@@ -57,10 +81,50 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const hasAnyData = Object.keys(state).length > 0;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'herrfors' | 'apc_strategy' | 'history' | 'smartlife' | 'hydraulics' | 'heatpump_guide'>('dashboard');
+  const [activeTab, setActiveTab] = useState<DashboardTab>(getInitialTab);
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
   const readOnly = role === 'viewer';
+
+  const handleTabChange = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('kotialy_active_tab', tab);
+    } catch {
+      // ignore
+    }
+    if (typeof window !== 'undefined') {
+      const targetHash = tab === 'dashboard' ? '' : `#${tab}`;
+      const currentHash = window.location.hash;
+      if (currentHash !== targetHash) {
+        window.history.replaceState(null, '', tab === 'dashboard' ? window.location.pathname + window.location.search : `#${tab}`);
+      }
+    }
+  };
+
+  // Synchronize on browser forward / back or hash navigation
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace(/^#/, '');
+      if (VALID_TABS.includes(hash as DashboardTab)) {
+        setActiveTab(hash as DashboardTab);
+        try {
+          localStorage.setItem('kotialy_active_tab', hash);
+        } catch {}
+      } else if (!hash) {
+        setActiveTab('dashboard');
+        try {
+          localStorage.setItem('kotialy_active_tab', 'dashboard');
+        } catch {}
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    window.addEventListener('popstate', onHashChange);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+      window.removeEventListener('popstate', onHashChange);
+    };
+  }, []);
 
   return (
     <div className="app-bg" style={{ minHeight: '100vh' }}>
@@ -76,6 +140,10 @@ export function Dashboard({
         role={role}
         onLogout={onLogout}
         onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
+        onNavigateHome={() => {
+          handleTabChange('dashboard');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       <PullToRefresh onRefresh={refresh || (() => window.location.reload())}>
@@ -94,7 +162,7 @@ export function Dashboard({
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => setActiveTab('dashboard')}
+                onClick={() => handleTabChange('dashboard')}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 10,
@@ -115,7 +183,7 @@ export function Dashboard({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('smartlife')}
+                onClick={() => handleTabChange('smartlife')}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 10,
@@ -136,7 +204,7 @@ export function Dashboard({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('herrfors')}
+                onClick={() => handleTabChange('herrfors')}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 10,
@@ -157,7 +225,7 @@ export function Dashboard({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('apc_strategy')}
+                onClick={() => handleTabChange('apc_strategy')}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 10,
@@ -178,7 +246,7 @@ export function Dashboard({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('history')}
+                onClick={() => handleTabChange('history')}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 10,
@@ -199,7 +267,7 @@ export function Dashboard({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('hydraulics')}
+                onClick={() => handleTabChange('hydraulics')}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 10,
@@ -220,7 +288,7 @@ export function Dashboard({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('heatpump_guide')}
+                onClick={() => handleTabChange('heatpump_guide')}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 10,

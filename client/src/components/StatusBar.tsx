@@ -15,6 +15,7 @@ interface StatusBarProps {
   role?: 'admin' | 'viewer';
   onLogout?: () => void;
   onOpenOutdoorModal?: () => void;
+  onNavigateHome?: () => void;
 }
 
 function timeAgo(ts: number | null, now: number): string {
@@ -38,6 +39,7 @@ export function StatusBar({
   role = 'admin',
   onLogout,
   onOpenOutdoorModal,
+  onNavigateHome,
 }: StatusBarProps) {
   // The clock and the "updated Xs ago" label are derived from Date.now(), so
   // they only advance if something re-renders. Tick once a second.
@@ -89,17 +91,27 @@ export function StatusBar({
   return (
     <header className="status-bar">
       <div className="status-bar-inner">
-        {/* Logo (Click to scroll top) */}
+        {/* Logo (Click to navigate to main dashboard & scroll top) */}
         <div
           className="status-logo"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
+          onClick={() => {
+            if (onNavigateHome) {
+              onNavigateHome();
+            } else {
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }
           }}
-          title="Takaisin alkuun (Sivun alku)"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (onNavigateHome) {
+                onNavigateHome();
+              } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }
+          }}
+          title="Palaa pääkojelautaan (Koti)"
           role="button"
           tabIndex={0}
         >
