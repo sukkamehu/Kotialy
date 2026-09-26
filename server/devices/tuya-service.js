@@ -161,21 +161,7 @@ class TuyaService {
         }
       }
 
-      // If saunaDeviceId is configured, query live status directly to bypass cloud list caching
-      if (this.saunaDeviceId) {
-        try {
-          const liveRes = await this.request(`/v1.0/devices/${this.saunaDeviceId}/status`, 'GET');
-          if (liveRes.success && Array.isArray(liveRes.result)) {
-            const switchDp = liveRes.result.find(dp => dp.code === 'switch_1' || dp.code === 'switch');
-            if (switchDp !== undefined) {
-              saunaRelayStatus = Boolean(switchDp.value);
-            }
-          }
-        } catch (e) {
-          // ignore direct live status error and keep list status
-        }
-      }
-
+      // Use cloud-cached status from bulk devices list to avoid forcing live MQTT hardware pings
       this.devices = parsedDevices;
 
       // Check if within command grace period (30s)
@@ -626,10 +612,11 @@ class TuyaService {
       console.error('[TUYA] Initial device fetch failed:', err.message);
     });
 
-    // Poll every 30 seconds for sensor updates
+    // Poll every 60 seconds for sensor updates (gentle background polling)
+    const pollInterval = parseInt(process.env.TUYA_POLL_INTERVAL_MS) || 60000;
     this.pollTimer = setInterval(() => {
       this.fetchDevices().catch(() => {});
-    }, 30000);
+    }, pollInterval);
 
     // Safety timeout check every 5 seconds
     this.safetyTimer = setInterval(() => {
