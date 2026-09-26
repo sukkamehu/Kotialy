@@ -147,8 +147,12 @@ class TuyaService {
         // Update DB topic states
         this.syncDeviceToDb(parsed);
 
-        // Track sauna breaker switch (STRICTLY matching saunaDeviceId or category kg)
-        if (parsed.id === this.saunaDeviceId || (!this.saunaDeviceId && parsed.category === 'kg')) {
+        // Track sauna breaker switch (matching saunaDeviceId or category kg)
+        if (parsed.id === this.saunaDeviceId || (!this.saunaDeviceId && parsed.category === 'kg') || parsed.category === 'kg') {
+          if (!this.saunaDeviceId || parsed.category === 'kg') {
+            this.saunaDeviceId = parsed.id;
+            this.saunaState.id = parsed.id;
+          }
           if (parsed.properties.switch_1 !== undefined) {
             saunaRelayStatus = Boolean(parsed.properties.switch_1);
           }
