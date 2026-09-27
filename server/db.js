@@ -157,7 +157,31 @@ db.exec(`
     override_state     TEXT,
     last_seen          INTEGER,
     last_action_reason TEXT
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint     TEXT PRIMARY KEY,
+    keys_p256dh  TEXT NOT NULL,
+    keys_auth    TEXT NOT NULL,
+    user_agent   TEXT,
+    created_at   INTEGER NOT NULL,
+    last_used_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS notification_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS notification_history (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    type       TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    body       TEXT NOT NULL,
+    severity   TEXT NOT NULL DEFAULT 'info',
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_notification_history_created
+    ON notification_history (created_at DESC);
 `);
 
 // Safe migrations
@@ -1062,6 +1086,85 @@ function updateTapoDevice(id, data) {
   db.prepare(`UPDATE tapo_devices SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
 }
 
+function savePushSubscription({ endpoint, keys, userAgent }) {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO push_subscriptions (endpoint, keys_p256dh, keys_auth, user_agent, created_at, last_used_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      keys_p256dh = excluded.keys_p256dh,
+      keys_auth = excluded.keys_auth,
+      user_agent = excluded.user_agent,
+      last_used_at = excluded.last_used_at
+  `).run(endpoint, keys.p256dh, keys.auth, userAgent || null, now, now);
+}
+
+function deletePushSubscription(endpoint) {
+  db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+}
+
+function getPushSubscriptions() {
+  return db.prepare('SELECT * FROM push_subscriptions ORDER BY last_used_at DESC').all();
+}
+
+function updatePushSubscriptionUsed(endpoint) {
+  db.prepare('UPDATE push_subscriptions SET last_used_at = ? WHERE endpoint = ?').run(Date.now(), endpoint);
+}
+
+const DEFAULT_NOTIFICATION_SETTINGS = {
+  notifications_enabled: 'true',
+  leak_alerts_enabled: 'true',
+  heatpump_alerts_enabled: 'true',
+  dhw_heater_alerts_enabled: 'true',
+  sauna_alerts_enabled: 'true',
+  freeze_alerts_enabled: 'true',
+  daily_report_enabled: 'true',
+  daily_report_time: '07:30',
+  telegram_enabled: 'false',
+  telegram_bot_token: '',
+  telegram_chat_id: '',
+};
+
+function getNotificationSettings() {
+  const rows = db.prepare('SELECT key, value FROM notification_settings').all();
+  const settings = { ...DEFAULT_NOTIFICATION_SETTINGS };
+  for (const r of rows) {
+    settings[r.key] = r.value;
+  }
+  return settings;
+}
+
+function updateNotificationSetting(key, value) {
+  db.prepare(`
+    INSERT INTO notification_settings (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, String(value));
+}
+
+function addNotificationHistory({ type, title, body, severity = 'info' }) {
+  db.prepare(`
+    INSERT INTO notification_history (type, title, body, severity, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(type, title, body, severity, Date.now());
+
+  // Clean up older than latest 200
+  db.prepare(`
+    DELETE FROM notification_history
+    WHERE id NOT IN (
+      SELECT id FROM notification_history ORDER BY created_at DESC LIMIT 200
+    )
+  `).run();
+}
+
+function getNotificationHistory(limit = 50) {
+  return db.prepare(`
+    SELECT * FROM notification_history
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit);
+}
+
 module.exports = {
   db,
   updateState,
@@ -1092,5 +1195,14 @@ module.exports = {
   getTapoDevice,
   updateTapoDeviceTelemetry,
   updateTapoDevice,
+  savePushSubscription,
+  deletePushSubscription,
+  getPushSubscriptions,
+  updatePushSubscriptionUsed,
+  getNotificationSettings,
+  updateNotificationSetting,
+  addNotificationHistory,
+  getNotificationHistory,
 };
+
 

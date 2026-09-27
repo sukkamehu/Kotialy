@@ -1,0 +1,17 @@
+{
+  "name": "Kotiäly",
+  "short_name": "Kotiäly",
+  "description": "Älykäs lämmityksen ja kodin energianhallintajärjestelmä",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

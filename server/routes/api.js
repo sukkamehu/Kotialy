@@ -11,7 +11,13 @@ const {
   updateCostSetting,
   getApcLogs,
   getCompressorAnalytics,
+  savePushSubscription,
+  deletePushSubscription,
+  getNotificationSettings,
+  updateNotificationSetting,
+  getNotificationHistory,
 } = require('../db');
+const notificationService = require('../notification-service');
 const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
 const mqttClient = require('../mqtt-client');
 const zigbeeClient = require('../zigbee-client');
@@ -1128,6 +1134,129 @@ router.post('/tuya/command', requireAdmin, async (req, res) => {
     }
     const result = await tuyaService.sendCommand(device_id, commands);
     res.json({ ok: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/push/public-key
+ * Returns VAPID public key for browser push subscription.
+ */
+router.get('/push/public-key', (req, res) => {
+  try {
+    const publicKey = notificationService.getPublicKey();
+    res.json({ publicKey });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/push/subscribe
+ * Register Web Push subscription.
+ * Body: { subscription, userAgent }
+ */
+router.post('/push/subscribe', express.json(), (req, res) => {
+  try {
+    const { subscription, userAgent } = req.body || {};
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: 'Valid push subscription required' });
+    }
+
+    savePushSubscription({
+      endpoint: subscription.endpoint,
+      keys: subscription.keys,
+      userAgent: userAgent || req.headers['user-agent'],
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/push/unsubscribe
+ * Remove Web Push subscription.
+ * Body: { endpoint }
+ */
+router.post('/push/unsubscribe', express.json(), (req, res) => {
+  try {
+    const { endpoint } = req.body || {};
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint required' });
+    }
+
+    deletePushSubscription(endpoint);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/push/test
+ * Send a test notification.
+ */
+router.post('/push/test', requireAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.sendNotification({
+      title: '🧪 Testi-ilmoitus Kotiälystä',
+      body: 'Push-ilmoitukset toimivat onnistuneesti laitteellasi!',
+      severity: 'info',
+      type: 'test',
+      url: '/',
+    });
+    res.json({ ok: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/notifications/settings
+ */
+router.get('/notifications/settings', (req, res) => {
+  try {
+    const settings = getNotificationSettings();
+    // Do not leak private key to frontend
+    const safeSettings = { ...settings };
+    delete safeSettings.vapid_private_key;
+    res.json(safeSettings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/notifications/settings
+ * Update notification settings.
+ */
+router.post('/notifications/settings', requireAdmin, express.json(), (req, res) => {
+  try {
+    const updates = req.body || {};
+    for (const [k, v] of Object.entries(updates)) {
+      if (k === 'vapid_private_key') continue; // protect private key
+      updateNotificationSetting(k, v);
+    }
+    const updated = getNotificationSettings();
+    delete updated.vapid_private_key;
+    res.json({ ok: true, settings: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/notifications/history
+ * Fetch recent alert history.
+ */
+router.get('/notifications/history', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit || '50', 10);
+    const history = getNotificationHistory(limit);
+    res.json(history);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

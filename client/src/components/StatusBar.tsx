@@ -16,6 +16,7 @@ interface StatusBarProps {
   onLogout?: () => void;
   onOpenOutdoorModal?: () => void;
   onNavigateHome?: () => void;
+  onOpenNotifications?: () => void;
 }
 
 function timeAgo(ts: number | null, now: number): string {
@@ -40,6 +41,7 @@ export function StatusBar({
   onLogout,
   onOpenOutdoorModal,
   onNavigateHome,
+  onOpenNotifications,
 }: StatusBarProps) {
   // The clock and the "updated Xs ago" label are derived from Date.now(), so
   // they only advance if something re-renders. Tick once a second.
@@ -253,6 +255,29 @@ export function StatusBar({
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
+
+        {/* Notification Bell Button */}
+        {onOpenNotifications && (
+          <button
+            onClick={onOpenNotifications}
+            className="btn btn-sm btn-ghost"
+            title="Hälytykset ja ilmoitusasetukset"
+            style={{
+              padding: '4px 8px',
+              fontSize: 14,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'rgba(255,255,255,0.06)',
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.1)',
+              cursor: 'pointer',
+              color: '#fff',
+            }}
+          >
+            <span>🔔</span>
+          </button>
+        )}
 
         {/* Auth status & Logout */}
         {!isLocal && authenticated && onLogout && (

@@ -24,6 +24,7 @@ import { SaunaCard } from './SaunaCard';
 import { SmartLifePanel } from './SmartLifePanel';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
+import { NotificationsModal } from './NotificationsModal';
 
 interface DashboardProps {
   state: HeishamonState;
@@ -84,6 +85,7 @@ export function Dashboard({
   const [activeTab, setActiveTab] = useState<DashboardTab>(getInitialTab);
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const readOnly = role === 'viewer';
 
   const handleTabChange = (tab: DashboardTab) => {
@@ -140,6 +142,7 @@ export function Dashboard({
         role={role}
         onLogout={onLogout}
         onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
+        onOpenNotifications={() => setNotificationsOpen(true)}
         onNavigateHome={() => {
           handleTabChange('dashboard');
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -476,6 +479,11 @@ export function Dashboard({
         onClose={() => setOutdoorModalOpen(false)}
         state={state}
       />
+
+      {/* Notifications & Push Alerts Modal */}
+      {notificationsOpen && (
+        <NotificationsModal onClose={() => setNotificationsOpen(false)} />
+      )}
     </div>
   );
 }

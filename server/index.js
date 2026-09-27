@@ -177,13 +177,19 @@ cameraService.startScheduler();
 s3Service.startScheduler();
 herrforsClient.startScheduler();
 
+// ─── Tuya & SmartLife Service ───────────────────────────────────────────────
+tuyaService.init(wsBroadcast);
+
 // ─── Tapo Smart Plugs Service ───────────────────────────────────────────────
 tapoService.setWsBroadcast(wsBroadcast);
 tapoService.setMqttClient(mqttClient);
 tapoService.start();
 
-// ─── Tuya & SmartLife Service ───────────────────────────────────────────────
-tuyaService.init(wsBroadcast);
+// ─── Notification & Alert Engine ───────────────────────────────────────────
+const notificationService = require('./notification-service');
+const alertEngine = require('./alert-engine');
+notificationService.setWsClients(wsClients);
+alertEngine.start();
 
 // Daily database maintenance (prune records older than 30 days & truncate WAL)
 const { pruneOldHistory, vacuumDatabase } = require('./db');
