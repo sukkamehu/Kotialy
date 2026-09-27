@@ -157,6 +157,8 @@ db.exec(`
     override_state     TEXT,
     last_seen          INTEGER,
     last_action_reason TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS push_subscriptions (
     endpoint     TEXT PRIMARY KEY,
     keys_p256dh  TEXT NOT NULL,
