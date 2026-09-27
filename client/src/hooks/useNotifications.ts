@@ -168,12 +168,12 @@ export function useNotifications() {
   };
 
   // Send a test notification
-  const sendTest = async (): Promise<{ ok: boolean; error?: string }> => {
+  const sendTest = async (): Promise<{ ok: boolean; webPushSent?: number; telegramSent?: boolean; error?: string }> => {
     try {
       const res = await apiFetch('/api/push/test', { method: 'POST' });
       const data = await res.json();
       await loadSettingsAndHistory();
-      return { ok: res.ok, error: data.error };
+      return { ok: res.ok, webPushSent: data.webPushSent, telegramSent: data.telegramSent, error: data.error };
     } catch (err: unknown) {
       return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
     }

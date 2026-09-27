@@ -1208,7 +1208,11 @@ router.post('/push/test', requireAdmin, async (req, res) => {
       type: 'test',
       url: '/',
     });
-    res.json({ ok: true, result });
+    res.json({
+      ok: true,
+      webPushSent: result.webPushSent,
+      telegramSent: result.telegramSent,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

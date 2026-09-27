@@ -50,7 +50,14 @@ export function NotificationsModal({ onClose }: NotificationsModalProps) {
     setTestResult('Lähetetään...');
     const res = await sendTest();
     if (res.ok) {
-      setTestResult('✅ Testi-ilmoitus lähetetty onnistuneesti!');
+      const count = res.webPushSent || 0;
+      if (count > 0) {
+        setTestResult(`✅ Testi-ilmoitus toimitettu onnistuneesti ${count} laitteelle!`);
+      } else if (res.telegramSent) {
+        setTestResult('✅ Testi-ilmoitus toimitettu Telegramiin!');
+      } else {
+        setTestResult('ℹ️ Testi suoritettu, mutta laitteita ei ollut vielä tilattuna.');
+      }
     } else {
       setTestResult(`❌ Lähetys epäonnistui: ${res.error || 'Tuntematon virhe'}`);
     }

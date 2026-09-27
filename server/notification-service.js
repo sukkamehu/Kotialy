@@ -30,9 +30,19 @@ class NotificationService {
     this.vapidPublicKey = pub;
     this.vapidPrivateKey = priv;
 
-    const email = process.env.VAPID_EMAIL || 'mailto:admin@kotialy.local';
+    let email = process.env.VAPID_EMAIL;
+    if (!email) {
+      const user = process.env.HERRFORS_USERNAME || process.env.TAPO_USERNAME || process.env.ADMIN_EMAIL;
+      if (user) {
+        const cleanUser = user.replace(/["']/g, '').trim();
+        email = cleanUser.startsWith('mailto:') ? cleanUser : `mailto:${cleanUser}`;
+      } else {
+        email = 'mailto:notifications@kotialy.app';
+      }
+    }
+
     webpush.setVapidDetails(email, this.vapidPublicKey, this.vapidPrivateKey);
-    console.log('[NotificationService] VAPID initialized successfully. Public key ready.');
+    console.log(`[NotificationService] VAPID initialized successfully with subject ${email}. Public key ready.`);
   }
 
   getPublicKey() {

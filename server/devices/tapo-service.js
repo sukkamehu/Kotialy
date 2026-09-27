@@ -51,7 +51,7 @@ class TapoService {
   }
 
   getCredentials() {
-    const email = process.env.TAPO_USERNAME || process.env.TAPO_EMAIL || 'juusos93@gmail.com';
+    const email = process.env.TAPO_USERNAME || process.env.TAPO_EMAIL || '';
     const password = process.env.TAPO_PASSWORD || process.env.TAPO_PASS || '';
     return { email, password };
   }
