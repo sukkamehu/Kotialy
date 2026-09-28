@@ -1140,6 +1140,30 @@ router.post('/tuya/command', requireAdmin, async (req, res) => {
 });
 
 /**
+ * POST /api/tuya/light
+ * Control smart RGB / White light
+ * Body: { device_id, power, brightness, colorTemp, colorHsv, mode }
+ */
+router.post('/tuya/light', requireAdmin, async (req, res) => {
+  try {
+    const { device_id, power, brightness, colorTemp, colorHsv, mode } = req.body || {};
+    if (!device_id) {
+      return res.status(400).json({ error: 'device_id required' });
+    }
+    const result = await tuyaService.setLightState(device_id, {
+      power,
+      brightness,
+      colorTemp,
+      colorHsv,
+      mode,
+    });
+    res.json({ ok: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/push/public-key
  * Returns VAPID public key for browser push subscription.
  */

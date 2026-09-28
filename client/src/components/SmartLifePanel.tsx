@@ -119,8 +119,22 @@ export function SmartLifePanel() {
   // Categorize devices
   const climateSensors = devices.filter((d) => d.type === 'climate');
   const waterLeakSensors = devices.filter((d) => d.type === 'water_leak');
+  const lightDevices = devices.filter((d) => d.type === 'light');
   const doorSensors = devices.filter((d) => d.type === 'door');
-  const otherDevices = devices.filter((d) => d.type !== 'climate' && d.type !== 'water_leak' && d.type !== 'door');
+  const otherDevices = devices.filter((d) => d.type !== 'climate' && d.type !== 'water_leak' && d.type !== 'door' && d.type !== 'light');
+
+  const handleControlLight = async (deviceId: string, params: Record<string, any>) => {
+    try {
+      await apiFetch('/api/tuya/light', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: deviceId, ...params }),
+      });
+      refreshDevices();
+    } catch (err) {
+      console.error('Failed to control light:', err);
+    }
+  };
 
   // Auto-select first climate sensor if none selected
   useEffect(() => {
@@ -688,7 +702,124 @@ export function SmartLifePanel() {
           </div>
         </div>
 
-        {/* 4. Door Sensors & Others */}
+        {/* 4. Smart RGB & Ceiling Lights */}
+        {lightDevices.length > 0 && (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>💡</span> Älyvalot & Kylpyhuoneen RGB-kattovalot ({lightDevices.length} kpl)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+              {lightDevices.map((d: TuyaDevice) => {
+                const isOn = Boolean(d.properties.switch_led);
+                const isOnline = Boolean(d.online);
+                const mode = d.properties.work_mode || 'white';
+                const colour = d.properties.colour_data;
+                const bright = d.properties.bright_value ? Math.round(d.properties.bright_value / 10) : 100;
+
+                return (
+                  <div
+                    key={d.id}
+                    style={{
+                      background: isOn ? 'rgba(245, 158, 11, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                      border: isOn ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>{isOn ? '💡' : '🌑'}</span>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{d.name}</div>
+                          <div style={{ fontSize: 10, color: isOnline ? 'var(--text-muted)' : '#ef4444' }}>
+                            {isOnline ? `${bright} % · ${mode === 'colour' ? `Väritila (H:${colour?.h ?? 0})` : 'Valkoinen valo'}` : 'Laite offline'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleControlLight(d.id, { power: !isOn })}
+                        style={{
+                          background: isOn ? 'var(--heat-primary, #f97316)' : 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          color: '#fff',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isOn ? 'Päällä' : 'Pois'}
+                      </button>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleControlLight(d.id, { power: true, mode: 'colour', colorHsv: { h: 22, s: 950, v: 500 } })}
+                        title="Kiuashehku (syvä oranssi)"
+                        style={{
+                          background: 'rgba(234, 88, 12, 0.2)',
+                          border: '1px solid rgba(234, 88, 12, 0.4)',
+                          color: '#fb923c',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: '3px 7px',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🔥 Kiuashehku
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleControlLight(d.id, { power: true, mode: 'colour', colorHsv: { h: 42, s: 780, v: 900 } })}
+                        title="Saunakulta"
+                        style={{
+                          background: 'rgba(234, 179, 8, 0.2)',
+                          border: '1px solid rgba(234, 179, 8, 0.4)',
+                          color: '#facc15',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: '3px 7px',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✨ Saunakulta
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleControlLight(d.id, { power: true, mode: 'white', colorTemp: 1000, brightness: 600 })}
+                        title="Lämmin valkoinen"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.1)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: '#fff',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: '3px 7px',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ☀️ Lämmin valkoinen
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 5. Door Sensors & Others */}
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>🚪</span> Ovi- ja muut laitteet ({doorSensors.length + otherDevices.length} kpl)

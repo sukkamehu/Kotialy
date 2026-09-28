@@ -7,6 +7,9 @@ export interface NotificationSettings {
   heatpump_alerts_enabled: string;
   dhw_heater_alerts_enabled: string;
   sauna_alerts_enabled: string;
+  sauna_glow_enabled: string;
+  door_alerts_enabled: string;
+  door_left_open_minutes: string;
   freeze_alerts_enabled: string;
   daily_report_enabled: string;
   daily_report_time: string;

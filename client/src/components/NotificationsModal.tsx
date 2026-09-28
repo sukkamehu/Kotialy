@@ -303,6 +303,22 @@ export function NotificationsModal({ onClose }: NotificationsModalProps) {
             />
 
             <AlertToggleRow
+              icon="🚪"
+              title="Autotallin ovi (Hälytykset)"
+              description="Ilmoittaa kun autotallin ovi avataan, ja varoittaa jos ovi on jäänyt auki yli 15 minuutiksi."
+              enabled={settings?.door_alerts_enabled === 'true'}
+              onToggle={() => handleToggleSetting('door_alerts_enabled', settings?.door_alerts_enabled || 'true')}
+            />
+
+            <AlertToggleRow
+              icon="🔥"
+              title="Kiuashehku (Kylpyhuoneen RGB-valot)"
+              description="Kylpyhuoneen valot syttyvät ja hehkuvat syvän oranssista kultaiseksi saunan lämpötilan noustessa."
+              enabled={settings?.sauna_glow_enabled === 'true'}
+              onToggle={() => handleToggleSetting('sauna_glow_enabled', settings?.sauna_glow_enabled || 'true')}
+            />
+
+            <AlertToggleRow
               icon="❄️"
               title="Pakkas- ja jäätymisvahti"
               description="Hälyttää, jos teknisen tilan tai sisätilojen lämpötila laskee alle 10 °C."

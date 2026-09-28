@@ -8,6 +8,8 @@ class AlertEngine {
     this.dhwHeaterStartTime = null;
     this.saunaNotified = false;
     this.lastDailyReportDate = null;
+    this.doorStates = new Map(); // topic -> boolean
+    this.doorOpenTimes = new Map(); // topic -> timestamp
     this.checkInterval = null;
   }
 
@@ -52,6 +54,7 @@ class AlertEngine {
       await this.checkHeatpumpErrors(state, settings);
       await this.checkDhwHeaterAnomaly(state, settings);
       await this.checkSaunaReady(state, settings);
+      await this.checkDoorAlerts(state, settings);
       await this.checkFreezeAlerts(state, settings);
       await this.checkDailyMorningReport(settings);
     } catch (err) {
@@ -171,7 +174,67 @@ class AlertEngine {
   }
 
   /**
-   * 5. Technical Room / Indoor Freeze Protection
+   * 5. Door / Garage Door Alerts
+   */
+  async checkDoorAlerts(state, settings) {
+    if (settings.door_alerts_enabled === 'false') return;
+
+    for (const [topic, item] of Object.entries(state)) {
+      if (topic.includes('door_sensor') || topic.includes('autotalli') || topic.includes('ovi') || topic.includes('door')) {
+        if (topic.endsWith('/is_open') || topic.endsWith('/open') || topic.endsWith('/switch')) {
+          const isOpen = item.value === 'true' || item.value === '1' || item.value === true;
+          const hadState = this.doorStates.has(topic);
+          const prevOpen = this.doorStates.get(topic) || false;
+          this.doorStates.set(topic, isOpen);
+
+          // 1. Alert on door opening (ignore on first cycle to avoid startup alert)
+          if (hadState && isOpen && !prevOpen) {
+            this.doorOpenTimes.set(topic, Date.now());
+            const key = `door_opened_${topic}`;
+            if (!this.isCooldown(key, 2 * 60 * 1000)) {
+              this.setCooldown(key);
+              await notificationService.sendNotification({
+                title: '🚪 Autotallin ovi avattiin',
+                body: 'Autotallin ovi on avattu.',
+                severity: 'info',
+                type: 'door',
+                url: '/',
+              });
+            }
+          } else if (!isOpen) {
+            this.doorOpenTimes.delete(topic);
+          }
+
+          // 2. Alert if door left open
+          if (isOpen) {
+            if (!this.doorOpenTimes.has(topic)) {
+              this.doorOpenTimes.set(topic, Date.now());
+            }
+            const openedAt = this.doorOpenTimes.get(topic);
+            const durationMin = (Date.now() - openedAt) / (60 * 1000);
+            const warningLimit = parseInt(settings.door_left_open_minutes || '15', 10);
+
+            if (durationMin >= warningLimit) {
+              const key = `door_left_open_${topic}`;
+              if (!this.isCooldown(key, 15 * 60 * 1000)) {
+                this.setCooldown(key);
+                await notificationService.sendNotification({
+                  title: '⚠️ Autotallin ovi jäänyt auki!',
+                  body: `Autotallin ovi on ollut auki jo ${Math.round(durationMin)} minuuttia. Muista sulkea ovi!`,
+                  severity: 'warning',
+                  type: 'door',
+                  url: '/',
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 6. Technical Room / Indoor Freeze Protection
    */
   async checkFreezeAlerts(state, settings) {
     if (settings.freeze_alerts_enabled === 'false') return;

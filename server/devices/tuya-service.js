@@ -22,6 +22,8 @@ class TuyaService {
     this.isPolling = false;
     this.lastCommandAt = 0;
     this.lastCommandState = null;
+    this.lastGlowKey = null;
+    this.lastGlowOn = false;
 
     // Sauna safety state
     this.saunaState = {
@@ -216,6 +218,9 @@ class TuyaService {
         });
       }
 
+      // Trigger sauna glow update for bathroom lights
+      this.updateSaunaGlow(this.saunaState.temperature, this.saunaState.isOn);
+
       return this.devices;
     } catch (err) {
       console.error('[TUYA] Failed to fetch devices:', err.message);
@@ -276,12 +281,25 @@ class TuyaService {
       properties.is_open = statusMap.switch === true;
       properties.battery = statusMap.battery != null ? Number(statusMap.battery) : (statusMap.battery_percentage != null ? Number(statusMap.battery_percentage) : null);
     } 
-    // 5. Gateway (wg2)
+    // 5. Light / RGB Ceiling Light (dj, dd, dc or product_name contains light)
+    else if (category === 'dj' || category === 'dd' || category === 'dc' || (d.product_name && d.product_name.toLowerCase().includes('light'))) {
+      type = 'light';
+      properties.switch_led = statusMap.switch_led === true || statusMap.switch === true;
+      properties.work_mode = statusMap.work_mode || 'white';
+      properties.bright_value = statusMap.bright_value_v2 != null ? Number(statusMap.bright_value_v2) : (statusMap.bright_value != null ? Number(statusMap.bright_value) : 1000);
+      properties.temp_value = statusMap.temp_value_v2 != null ? Number(statusMap.temp_value_v2) : (statusMap.temp_value != null ? Number(statusMap.temp_value) : 1000);
+      if (statusMap.colour_data_v2) {
+        try {
+          properties.colour_data = typeof statusMap.colour_data_v2 === 'string' ? JSON.parse(statusMap.colour_data_v2) : statusMap.colour_data_v2;
+        } catch {}
+      }
+    }
+    // 6. Gateway (wg2)
     else if (category === 'wg2') {
       type = 'gateway';
       properties.mode = statusMap.master_mode || 'online';
     } 
-    // 6. Generic switch
+    // 7. Generic switch
     else if (statusMap.switch !== undefined || statusMap.switch_1 !== undefined) {
       type = 'switch';
       properties.state = statusMap.switch_1 ?? statusMap.switch;
@@ -408,6 +426,9 @@ class TuyaService {
         ts: Date.now(),
       });
     }
+
+    // Trigger sauna glow update immediately
+    this.updateSaunaGlow(this.saunaState.temperature, Boolean(turnOn));
 
     return this.getSaunaStatus();
   }
@@ -626,6 +647,127 @@ class TuyaService {
     this.safetyTimer = setInterval(() => {
       this.checkSafetyTimeout().catch(() => {});
     }, 5000);
+  }
+
+  /**
+   * Set light state (power, brightness, color, work_mode)
+   */
+  async setLightState(deviceId, { power, brightness, colorTemp, colorHsv, mode }) {
+    const commands = [];
+    if (power !== undefined) {
+      commands.push({ code: 'switch_led', value: Boolean(power) });
+    }
+    if (mode) {
+      commands.push({ code: 'work_mode', value: mode });
+    }
+    if (brightness !== undefined) {
+      const b = Math.min(1000, Math.max(10, Math.round(brightness)));
+      commands.push({ code: 'bright_value_v2', value: b });
+    }
+    if (colorTemp !== undefined) {
+      const t = Math.min(1000, Math.max(0, Math.round(colorTemp)));
+      commands.push({ code: 'temp_value_v2', value: t });
+    }
+    if (colorHsv) {
+      const hsvVal = typeof colorHsv === 'string' ? colorHsv : JSON.stringify({
+        h: Math.round(colorHsv.h || 0),
+        s: Math.round(colorHsv.s != null ? colorHsv.s : 1000),
+        v: Math.round(colorHsv.v != null ? colorHsv.v : 1000),
+      });
+      commands.push({ code: 'colour_data_v2', value: hsvVal });
+      if (!mode) commands.push({ code: 'work_mode', value: 'colour' });
+    }
+
+    if (commands.length === 0) return { success: true };
+    return this.sendCommand(deviceId, commands);
+  }
+
+  /**
+   * Synchronize bathroom RGB lights with sauna heating progression (Sauna Glow / Kiuashehku)
+   */
+  async updateSaunaGlow(saunaTemp, isSaunaOn) {
+    try {
+      const settings = db.getNotificationSettings();
+      if (settings.sauna_glow_enabled === 'false') return;
+
+      // Find bathroom RGB ceiling lights
+      const bathroomLights = this.devices.filter(d => 
+        d.category === 'dj' || d.type === 'light' || (d.name && d.name.toLowerCase().includes('kattovalo'))
+      );
+
+      if (bathroomLights.length === 0) return;
+
+      const currentTemp = saunaTemp != null ? saunaTemp : (this.saunaState.temperature || 20);
+
+      if (isSaunaOn) {
+        // Temperature-responsive ember/flame color mapping
+        let h = 18;  // Hue 0-360
+        let s = 960; // Saturation 0-1000
+        let v = 400; // Brightness/Value 0-1000
+
+        if (currentTemp < 32) {
+          // Deep ember amber (heating started)
+          h = 18;
+          s = 960;
+          v = 400;
+        } else if (currentTemp < 45) {
+          // Warm fireplace orange
+          const ratio = (currentTemp - 32) / (45 - 32);
+          h = Math.round(18 + ratio * 8); // 18 -> 26
+          s = Math.round(960 - ratio * 40); // 960 -> 920
+          v = Math.round(400 + ratio * 250); // 400 -> 650
+        } else if (currentTemp < 60) {
+          // Glowing sauna gold
+          const ratio = (currentTemp - 45) / (60 - 45);
+          h = Math.round(26 + ratio * 10); // 26 -> 36
+          s = Math.round(920 - ratio * 70); // 920 -> 850
+          v = Math.round(650 + ratio * 200); // 650 -> 850
+        } else {
+          // Ready! Full golden sauna ambient
+          h = 42;
+          s = 750;
+          v = 1000;
+        }
+
+        const glowKey = `${h}_${v}`;
+        if (this.lastGlowKey === glowKey && this.lastGlowOn === true) {
+          return;
+        }
+        this.lastGlowKey = glowKey;
+        this.lastGlowOn = true;
+
+        console.log(`[TUYA:SAUNA_GLOW] 🔥 Kiuashehku aktivoitu: Saunan lämpö ${currentTemp.toFixed(1)}°C -> Väri H:${h} S:${s} V:${v}`);
+
+        const glowCmd = [
+          { code: 'switch_led', value: true },
+          { code: 'work_mode', value: 'colour' },
+          { code: 'colour_data_v2', value: JSON.stringify({ h, s, v }) },
+        ];
+
+        for (const light of bathroomLights) {
+          this.sendCommand(light.id, glowCmd).catch(() => {});
+        }
+      } else {
+        if (this.lastGlowOn) {
+          this.lastGlowOn = false;
+          this.lastGlowKey = null;
+          console.log('[TUYA:SAUNA_GLOW] 🧖‍♂️ Sauna sammutettu: Palautetaan kylpyhuoneen valot pehmeään lämpimään valkoiseen.');
+
+          const restoreCmd = [
+            { code: 'switch_led', value: true },
+            { code: 'work_mode', value: 'white' },
+            { code: 'bright_value_v2', value: 500 },
+            { code: 'temp_value_v2', value: 1000 },
+          ];
+
+          for (const light of bathroomLights) {
+            this.sendCommand(light.id, restoreCmd).catch(() => {});
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[TUYA:SAUNA_GLOW] Error updating sauna glow:', err.message);
+    }
   }
 
   destroy() {

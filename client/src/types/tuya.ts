@@ -5,6 +5,7 @@ export type TuyaDeviceType =
   | 'door'
   | 'gateway'
   | 'switch'
+  | 'light'
   | 'unknown';
 
 export interface TuyaDevice {
@@ -18,12 +19,17 @@ export interface TuyaDevice {
   ip?: string;
   properties: {
     switch_1?: boolean;
+    switch_led?: boolean;
     state?: boolean | string;
     temperature?: number;
     humidity?: number;
     battery?: number | null;
     leak_detected?: boolean;
     is_open?: boolean;
+    bright_value?: number;
+    temp_value?: number;
+    work_mode?: string;
+    colour_data?: { h: number; s: number; v: number };
     mode?: string;
     [key: string]: any;
   };
