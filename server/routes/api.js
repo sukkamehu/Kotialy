@@ -1142,15 +1142,16 @@ router.post('/tuya/command', requireAdmin, async (req, res) => {
 /**
  * POST /api/tuya/light
  * Control smart RGB / White light
- * Body: { device_id, power, brightness, colorTemp, colorHsv, mode }
+ * Body: { device_id, device_ids, power, brightness, colorTemp, colorHsv, mode }
  */
 router.post('/tuya/light', requireAdmin, async (req, res) => {
   try {
-    const { device_id, power, brightness, colorTemp, colorHsv, mode } = req.body || {};
-    if (!device_id) {
-      return res.status(400).json({ error: 'device_id required' });
+    const { device_id, device_ids, power, brightness, colorTemp, colorHsv, mode } = req.body || {};
+    const targetIds = device_ids || (Array.isArray(device_id) ? device_id : (device_id ? [device_id] : []));
+    if (!targetIds || targetIds.length === 0) {
+      return res.status(400).json({ error: 'device_id or device_ids required' });
     }
-    const result = await tuyaService.setLightState(device_id, {
+    const result = await tuyaService.setLightState(targetIds, {
       power,
       brightness,
       colorTemp,

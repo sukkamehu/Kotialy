@@ -651,8 +651,12 @@ class TuyaService {
 
   /**
    * Set light state (power, brightness, color, work_mode)
+   * Supports single deviceId or array of deviceIds for synchronized group control
    */
-  async setLightState(deviceId, { power, brightness, colorTemp, colorHsv, mode }) {
+  async setLightState(deviceIds, { power, brightness, colorTemp, colorHsv, mode }) {
+    const ids = Array.isArray(deviceIds) ? deviceIds : [deviceIds];
+    if (ids.length === 0) return { success: true };
+
     const commands = [];
     if (power !== undefined) {
       commands.push({ code: 'switch_led', value: Boolean(power) });
@@ -679,23 +683,43 @@ class TuyaService {
     }
 
     if (commands.length === 0) return { success: true };
-    return this.sendCommand(deviceId, commands);
+    const results = await Promise.allSettled(ids.map(id => this.sendCommand(id, commands)));
+    return { success: true, results };
   }
 
   /**
-   * Synchronize bathroom RGB lights with sauna heating progression (Sauna Glow / Kiuashehku)
+   * Synchronize sauna RGB lights (Kattovalo 2 & 3) with sauna heating progression (Sauna Glow / Kiuashehku)
    */
   async updateSaunaGlow(saunaTemp, isSaunaOn) {
     try {
       const settings = db.getNotificationSettings();
       if (settings.sauna_glow_enabled === 'false') return;
 
-      // Find bathroom RGB ceiling lights
-      const bathroomLights = this.devices.filter(d => 
-        d.category === 'dj' || d.type === 'light' || (d.name && d.name.toLowerCase().includes('kattovalo'))
+      // Specifically target sauna ceiling lights: Kattovalo 2 & 3
+      const isSaunaLight = (d) => {
+        const name = (d.name || '').toLowerCase();
+        return (
+          name.includes('kattovalo 2') ||
+          name.includes('kattovalo 3') ||
+          name.includes('kattovalo2') ||
+          name.includes('kattovalo3') ||
+          name.includes('saunavalo') ||
+          name.includes('sauna')
+        );
+      };
+
+      let saunaLights = this.devices.filter(d => 
+        (d.category === 'dj' || d.type === 'light') && isSaunaLight(d)
       );
 
-      if (bathroomLights.length === 0) return;
+      // Fallback if named identically: take device IDs bf13f2d77b1ba3f1cfhv4h and bf40483433d60b29d5xfe5
+      if (saunaLights.length === 0) {
+        saunaLights = this.devices.filter(d => 
+          d.id === 'bf13f2d77b1ba3f1cfhv4h' || d.id === 'bf40483433d60b29d5xfe5'
+        );
+      }
+
+      if (saunaLights.length === 0) return;
 
       const currentTemp = saunaTemp != null ? saunaTemp : (this.saunaState.temperature || 20);
 
@@ -736,7 +760,7 @@ class TuyaService {
         this.lastGlowKey = glowKey;
         this.lastGlowOn = true;
 
-        console.log(`[TUYA:SAUNA_GLOW] 🔥 Kiuashehku aktivoitu: Saunan lämpö ${currentTemp.toFixed(1)}°C -> Väri H:${h} S:${s} V:${v}`);
+        console.log(`[TUYA:SAUNA_GLOW] 🔥 Saunan Kiuashehku (Valot 2 & 3): Lämpö ${currentTemp.toFixed(1)}°C -> Väri H:${h} S:${s} V:${v}`);
 
         const glowCmd = [
           { code: 'switch_led', value: true },
@@ -744,14 +768,14 @@ class TuyaService {
           { code: 'colour_data_v2', value: JSON.stringify({ h, s, v }) },
         ];
 
-        for (const light of bathroomLights) {
+        for (const light of saunaLights) {
           this.sendCommand(light.id, glowCmd).catch(() => {});
         }
       } else {
         if (this.lastGlowOn) {
           this.lastGlowOn = false;
           this.lastGlowKey = null;
-          console.log('[TUYA:SAUNA_GLOW] 🧖‍♂️ Sauna sammutettu: Palautetaan kylpyhuoneen valot pehmeään lämpimään valkoiseen.');
+          console.log('[TUYA:SAUNA_GLOW] 🧖‍♂️ Sauna sammutettu: Palautetaan saunan valot lämpimään valkoiseen.');
 
           const restoreCmd = [
             { code: 'switch_led', value: true },
@@ -760,7 +784,7 @@ class TuyaService {
             { code: 'temp_value_v2', value: 1000 },
           ];
 
-          for (const light of bathroomLights) {
+          for (const light of saunaLights) {
             this.sendCommand(light.id, restoreCmd).catch(() => {});
           }
         }
