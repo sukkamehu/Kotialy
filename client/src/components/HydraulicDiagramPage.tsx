@@ -173,8 +173,8 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
         { label: 'Lämmitysverkoston paine', value: waterPressure.toFixed(2), unit: 'bar' },
       ],
       technicalDetails: [
-        'Betonilaatan suuri massa toimii erinomaisena passiivisena lämpöakkuna.',
-        'Yöllä ladattu ylilämpö luovutetaan hitaasti huoneisiin päivän aikana.',
+        'Lautakoolattu rossipohja: Kevyempi termomassa reagoi nopeasti ja vaatii tasaisen kierron.',
+        'Puskurivaraajan tasainen lämpö jaetaan tasaisesti eri huoneiden piireihin.',
         'Seinällä oleva punainen kalvopaisunta-astia pitää paineen tasaisena.',
       ],
     },
@@ -210,7 +210,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
         'Kierrättää puskurivaraajan lämpöä huonekohtaisille lattialämmityspiireille.',
         'Sammutetaan automaattisesti kesällä (≥ 14 °C) sähkön ja kompressorin säästämiseksi.',
         'Pyöritetään 5 min päivittäin klo 12:00 jumiutumisen estämiseksi kesäkaudella.',
-        'Hyödyntää käyttövesisyklin paluulämmön puskurista suoraan betonilaattaan.',
+        'Hyödyntää käyttövesisyklin paluulämmön puskurista suoraan lattialämmitykseen.',
       ],
     },
   };
@@ -942,7 +942,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
             </h4>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-            Käyttövesivaraajan (284L) latauskierukan paluuputki yhdistyy puskurivaraajan tulolinjaan. Kun VILP lämmittää käyttövettä 50–55 °C lämpötilaan, kierukasta poistuva vesi luovuttaa ylijäämälämpönsä puskurivaraajaan. Tämä lämpö siirtyy lattialämmityksen betonilaattaan, mikä tehostaa pörssisähkön halpatuntilatausta.
+            Käyttövesivaraajan (284L) latauskierukan paluuputki yhdistyy puskurivaraajan tulolinjaan. Kun VILP lämmittää käyttövettä 50–55 °C lämpötilaan, kierukasta poistuva vesi luovuttaa ylijäämälämpönsä puskurivaraajaan. Tämä lämpö siirtyy lattialämmitykseen, mikä tehostaa pörssisähkön halpatuntilatausta.
           </p>
         </div>
 

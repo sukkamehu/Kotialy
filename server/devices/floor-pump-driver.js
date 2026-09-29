@@ -146,9 +146,9 @@ class FloorPumpDriver {
             reason = 'Lämmityskierto aktiivinen käyttövesijakson aikana';
           }
         } else if (directive === 'BOOST') {
-          reason = 'Halvan sähkön esilämmitys: Lämpöä jaetaan tehokkaasti lattiamassaan';
+          reason = 'Halvan sähkön esilämmitys: Lämpöä jaetaan tehokkaasti lattioihin';
         } else if (directive === 'SETBACK') {
-          reason = 'Hintahuippu: Puretaan puskurin ja laatan varauslämpöä tasaisesti';
+          reason = 'Hintahuippu: Puretaan puskurin varauslämpöä tasaisesti';
         } else {
           reason = 'Automaattinen peruslämmityskierto (Päällä)';
         }

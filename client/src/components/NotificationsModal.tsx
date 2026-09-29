@@ -303,6 +303,14 @@ export function NotificationsModal({ onClose }: NotificationsModalProps) {
             />
 
             <AlertToggleRow
+              icon="🧺"
+              title="Pesukone & Kuivausrumpu (Valmis-ilmoitus)"
+              description="Ilmoittaa puhelimeen ja Telegramiin heti, kun pyykinpesukoneen tai kuivausrummun ohjelma on päättynyt."
+              enabled={settings?.appliance_alerts_enabled === 'true'}
+              onToggle={() => handleToggleSetting('appliance_alerts_enabled', settings?.appliance_alerts_enabled || 'true')}
+            />
+
+            <AlertToggleRow
               icon="🚪"
               title="Autotallin ovi (Hälytykset)"
               description="Ilmoittaa kun autotallin ovi avataan, ja varoittaa jos ovi on jäänyt auki yli 15 minuutiksi."

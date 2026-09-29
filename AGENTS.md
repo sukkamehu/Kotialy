@@ -68,3 +68,31 @@ ssh juuso@192.168.68.54 "cd ~/Dev/kotialy && docker compose restart server"
 # Koko pinon uudelleenrakennus ja käynnistys
 ssh juuso@192.168.68.54 "cd ~/Dev/kotialy && docker compose up -d --build"
 ```
+
+---
+
+## 🏠 Kiinteistön ja lämmitysjärjestelmän rakenne (TÄRKEÄ)
+
+- **Rakennus:** Omakotitalo Etelä-Suomessa, rakennusvuosi 2006, pinta-ala n. 250 m² (E-luku 265 kWh/m²/v, luokka E).
+- **Lattiarakenne:** **Lautakoolattu rossipohja** (tuulettuva alapohja / puurakenne), **EI betonilaatta**.
+  - Lämpökapasiteetti (termomassa) on pienempi ja reagointinopeus nopeampi kuin raskaassa betonissa.
+  - Lattian jatkuva kierto lämmityskaudella on kriittistä vedon tunteen ja lämpötilan tasaisuuden säilyttämiseksi.
+- **LVI- ja mitoitustiedot:**
+  - Rakennuksen mitoitusteho: **9,2 kW**
+  - Lämmitysverkoston virtaus: **870 l/h** (n. 14,5 l/min)
+  - Lämmitysverkoston suunniteltu ΔT (meno–paluu): **9,1 °C**
+  - Lämmitysverkoston painehäviö: **29 kPa**
+  - Lämmitysverkoston vesitilavuus: **123 litraa** (puskurin kanssa yht. ~223 litraa)
+- **Energiankulutuksen perusta (ennen VILP-asennusta sähkökattilalla):**
+  - Tilojen lämmitys: 16 225 kWh/v
+  - Ilmanvaihdon lämmitys: 2 115 kWh/v
+  - Käyttövesi: 4 200 kWh/v
+  - Laskennallinen lämmitysenergia: **22 540 kWh/v**
+  - Historiallinen toteutunut kokonaissähkö (lämmitys + taloussähkö): **n. 35 000 kWh/v**
+- **Nykyinen laitteisto:**
+  - Panasonic Aquarea 12 kW / T-CAP VILP (WH-MXC12J9E8 Monobloc) + HeishaMon
+  - 100 L puskurivaraaja (4-putkikytkentä), hydraulinen erotin
+  - 284 L käyttövesivaraaja laajalla latauskierukalla
+  - Toisiopiirissä Sonoff-älyohjattu kiertovesipumppu (`lattialampopumppu`)
+
+

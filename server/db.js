@@ -1118,6 +1118,7 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   leak_alerts_enabled: 'true',
   heatpump_alerts_enabled: 'true',
   dhw_heater_alerts_enabled: 'true',
+  appliance_alerts_enabled: 'true',
   sauna_alerts_enabled: 'true',
   sauna_glow_enabled: 'true',
   door_alerts_enabled: 'true',

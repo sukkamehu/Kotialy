@@ -10,6 +10,7 @@ class AlertEngine {
     this.lastDailyReportDate = null;
     this.doorStates = new Map(); // topic -> boolean
     this.doorOpenTimes = new Map(); // topic -> timestamp
+    this.applianceStates = new Map(); // deviceId -> { status, startedAt, lastActiveAt, lowPowerStartedAt, peakPowerW, startEnergyKwh }
     this.checkInterval = null;
   }
 
@@ -54,6 +55,7 @@ class AlertEngine {
       await this.checkHeatpumpErrors(state, settings);
       await this.checkDhwHeaterAnomaly(state, settings);
       await this.checkSaunaReady(state, settings);
+      await this.checkApplianceFinished(state, settings);
       await this.checkDoorAlerts(state, settings);
       await this.checkFreezeAlerts(state, settings);
       await this.checkDailyMorningReport(settings);
@@ -174,7 +176,147 @@ class AlertEngine {
   }
 
   /**
-   * 5. Door / Garage Door Alerts
+   * 5. Washing Machine & Dryer Finished Notifications (Tapo Smart Plugs)
+   */
+  async checkApplianceFinished(state, settings) {
+    if (settings.appliance_alerts_enabled === 'false') return;
+
+    try {
+      const devices = db.getTapoDevices();
+      const applianceDevices = devices.filter(
+        d => d.id === 'pesukone' || d.id === 'kuivausrumpu' ||
+             d.type === 'appliance_washing_machine' || d.type === 'appliance_dryer'
+      );
+
+      const ACTIVE_POWER_THRESHOLD = 6.0; // W (active wash/tumble)
+      const FINISHED_POWER_THRESHOLD = 3.5; // W (standby / idle)
+      const FINISHED_STABLE_DURATION_MS = 150 * 1000; // 2.5 min stable idle to confirm finish (filters soak/drum pause cycles)
+      const MIN_CYCLE_DURATION_MS = 3 * 60 * 1000; // Minimum 3 min running or peak power > 30W to qualify as real program cycle
+
+      const now = Date.now();
+
+      for (const dev of applianceDevices) {
+        const isWashingMachine = dev.id === 'pesukone' || dev.type === 'appliance_washing_machine';
+        const label = isWashingMachine ? 'Pyykinpesukone' : 'Kuivausrumpu';
+        const icon = isWashingMachine ? '🧺' : '💨';
+        const type = isWashingMachine ? 'appliance_washing_machine' : 'appliance_dryer';
+
+        // Power & energy telemetry
+        const powerW = dev.power_w != null ? Number(dev.power_w) : parseFloat(state[`tapo/${dev.id}/power`]?.value || '0');
+        const energyToday = dev.today_energy_kwh != null ? Number(dev.today_energy_kwh) : parseFloat(state[`tapo/${dev.id}/energy`]?.value || '0');
+
+        let session = this.applianceStates.get(dev.id);
+        if (!session) {
+          // If device is already running active power at startup/first check, initialize as running
+          if (powerW >= ACTIVE_POWER_THRESHOLD) {
+            let estimatedStart = now;
+            try {
+              const history = db.getTopicHistory(`tapo/${dev.id}/power`, now - 4 * 3600 * 1000, now);
+              if (history && history.length > 0) {
+                const firstActive = history.find(h => h.value >= ACTIVE_POWER_THRESHOLD);
+                if (firstActive) estimatedStart = firstActive.recorded_at;
+              }
+            } catch {
+              // ignore
+            }
+            session = {
+              status: 'running',
+              startedAt: estimatedStart,
+              lastActiveAt: now,
+              lowPowerStartedAt: null,
+              peakPowerW: powerW,
+              startEnergyKwh: energyToday,
+            };
+            this.applianceStates.set(dev.id, session);
+            console.log(`[AlertEngine] Initialized running session for ${label} (${dev.id}) at ${powerW.toFixed(1)} W`);
+          } else {
+            session = {
+              status: 'idle',
+              startedAt: 0,
+              lastActiveAt: 0,
+              lowPowerStartedAt: null,
+              peakPowerW: 0,
+              startEnergyKwh: energyToday,
+            };
+            this.applianceStates.set(dev.id, session);
+          }
+        }
+
+        // State Machine
+        if (powerW >= ACTIVE_POWER_THRESHOLD) {
+          if (session.status === 'idle') {
+            session.status = 'running';
+            session.startedAt = now;
+            session.lastActiveAt = now;
+            session.lowPowerStartedAt = null;
+            session.peakPowerW = powerW;
+            session.startEnergyKwh = energyToday;
+            console.log(`[AlertEngine] 🧺 ${label} (${dev.id}) käynnistyi (${powerW.toFixed(1)} W)`);
+          } else if (session.status === 'finishing' || session.status === 'running') {
+            // Power resumed during finish waiting (e.g. soak pause ended, spin cycle started)
+            if (session.status === 'finishing') {
+              console.log(`[AlertEngine] ${label} (${dev.id}) jatkoi ohjelmaa tauon jälkeen (${powerW.toFixed(1)} W)`);
+            }
+            session.status = 'running';
+            session.lastActiveAt = now;
+            session.lowPowerStartedAt = null;
+            session.peakPowerW = Math.max(session.peakPowerW, powerW);
+          }
+        } else if (powerW <= FINISHED_POWER_THRESHOLD) {
+          if (session.status === 'running') {
+            const runDuration = now - session.startedAt;
+            const hadMeaningfulWork = runDuration >= MIN_CYCLE_DURATION_MS || session.peakPowerW >= 30;
+            if (hadMeaningfulWork) {
+              session.status = 'finishing';
+              session.lowPowerStartedAt = now;
+              console.log(`[AlertEngine] ${label} (${dev.id}) teho laski lepotilaan (${powerW.toFixed(1)} W). Odotetaan 2.5 min valmistumisen vahvistusta...`);
+            } else {
+              // Was only briefly switched on/off (< 3 min and < 30W)
+              session.status = 'idle';
+              session.startedAt = 0;
+              session.lowPowerStartedAt = null;
+              session.peakPowerW = 0;
+            }
+          } else if (session.status === 'finishing') {
+            const lowPowerDuration = now - session.lowPowerStartedAt;
+            if (lowPowerDuration >= FINISHED_STABLE_DURATION_MS) {
+              // Cycle finished!
+              const totalDurationMin = Math.max(1, Math.round((now - session.startedAt) / 60000));
+              const energyUsed = Math.max(0, energyToday - (session.startEnergyKwh || 0)).toFixed(2);
+              const energyText = Number(energyUsed) > 0.05 ? `, sähkönkulutus ${energyUsed} kWh` : '';
+
+              const key = `appliance_done_${dev.id}`;
+              if (!this.isCooldown(key, 15 * 60 * 1000)) {
+                this.setCooldown(key);
+                console.log(`[AlertEngine] ✅ ${label} (${dev.id}) on VALMIS! Lähetetään ilmoitus. Kesto ~${totalDurationMin} min.`);
+
+                await notificationService.sendNotification({
+                  title: `${icon} ${label} on valmis!`,
+                  body: isWashingMachine
+                    ? `Pesuohjelma on päättynyt (kesto n. ${totalDurationMin} min${energyText}). Muista tyhjentää kone!`
+                    : `Kuivausohjelma on päättynyt (kesto n. ${totalDurationMin} min${energyText}). Pyykit ovat kuivia!`,
+                  severity: 'info',
+                  type: type,
+                  url: '/',
+                });
+              }
+
+              // Reset to idle
+              session.status = 'idle';
+              session.startedAt = 0;
+              session.lowPowerStartedAt = null;
+              session.peakPowerW = 0;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[AlertEngine] checkApplianceFinished error:', err.message);
+    }
+  }
+
+  /**
+   * 6. Door / Garage Door Alerts
    */
   async checkDoorAlerts(state, settings) {
     if (settings.door_alerts_enabled === 'false') return;

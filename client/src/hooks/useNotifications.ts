@@ -6,6 +6,7 @@ export interface NotificationSettings {
   leak_alerts_enabled: string;
   heatpump_alerts_enabled: string;
   dhw_heater_alerts_enabled: string;
+  appliance_alerts_enabled: string;
   sauna_alerts_enabled: string;
   sauna_glow_enabled: string;
   door_alerts_enabled: string;
