@@ -318,6 +318,27 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
               ⚠ HÄLYTYS
             </div>
           )}
+          <a
+            href={`http://${typeof window !== 'undefined' ? window.location.hostname : '192.168.68.54'}:8081`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 12px',
+              borderRadius: 8,
+              background: 'rgba(56, 189, 248, 0.12)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              color: '#38bdf8',
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            ⚙️ Zigbee2MQTT Hallinta (8081)
+          </a>
         </div>
         <div style={{
           height: 1, flex: 1,
@@ -330,11 +351,22 @@ export function ZigbeePanel({ devices, connected }: ZigbeePanelProps) {
         <div className="card" style={{ padding: 32, textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📡</div>
           <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            {connected ? 'Ei vielä löydettyjä Zigbee-laitteita' : 'Yhdistetään Zigbee-yhdyskäytävään...'}
+            {connected ? 'Ei vielä paritettuja Zigbee-laitteita' : 'Yhdistetään Zigbee-yhdyskäytävään...'}
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Odotetaan MQTT-viestejä osoitteesta 192.168.68.51 · Aihe: zigbee2mqtt/#
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 500, margin: '0 auto 16px auto', lineHeight: 1.5 }}>
+            {connected
+              ? 'Zigbee2MQTT-yhteys on aktiivinen! Voit parittaa uusia laitteita avaamalla Zigbee2MQTT-hallintapaneelin (Permit Join).'
+              : 'Käynnistetään Zigbee2MQTT-yhdyskäytävää USB-donglen kautta (/dev/ttyUSB0)...'}
           </div>
+          <a
+            href={`http://${typeof window !== 'undefined' ? window.location.hostname : '192.168.68.54'}:8081`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13 }}
+          >
+            🚀 Avaa Zigbee2MQTT Paritustila (Portti 8081)
+          </a>
         </div>
       )}
 
