@@ -17,6 +17,7 @@ const s3Service = require('./s3-service');
 const herrforsClient = require('./herrfors-client');
 const tapoService = require('./devices/tapo-service');
 const tuyaService = require('./devices/tuya-service');
+const outdoorLightsDriver = require('./devices/outdoor-lights-driver');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -101,6 +102,7 @@ wss.on('connection', (ws, req) => {
           devices: tuyaService.devices,
           sauna: tuyaService.getSaunaStatus(),
         },
+        outdoorLights: outdoorLightsDriver.getStatus(),
         ts: Date.now(),
       })
     );
@@ -184,6 +186,10 @@ tuyaService.init(wsBroadcast);
 tapoService.setWsBroadcast(wsBroadcast);
 tapoService.setMqttClient(mqttClient);
 tapoService.start();
+
+// ─── Outdoor Lights Driver (Astronomical Dusk / Dawn) ──────────────────────
+outdoorLightsDriver.setWsBroadcast(wsBroadcast);
+outdoorLightsDriver.start();
 
 // ─── Notification & Alert Engine ───────────────────────────────────────────
 const notificationService = require('./notification-service');

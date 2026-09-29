@@ -21,6 +21,7 @@ import { ApcStrategyPage } from './ApcStrategyPage';
 import { TapoPlugsCard } from './TapoPlugsCard';
 import { HydraulicDiagramPage } from './HydraulicDiagramPage';
 import { SaunaCard } from './SaunaCard';
+import { OutdoorLightsCard } from './OutdoorLightsCard';
 import { SmartLifePanel } from './SmartLifePanel';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -352,6 +353,9 @@ export function Dashboard({
           {activeTab === 'smartlife' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
               <ErrorBoundary>
+                <OutdoorLightsCard readOnly={readOnly} />
+              </ErrorBoundary>
+              <ErrorBoundary>
                 <SaunaCard readOnly={readOnly} />
               </ErrorBoundary>
               <ErrorBoundary>
@@ -443,8 +447,11 @@ export function Dashboard({
                     </ErrorBoundary>
                   </div>
 
-                  {/* Row 3: Sauna WiFi Control & Safety Timer */}
-                  <div style={{ marginBottom: 24 }}>
+                  {/* Row 3: Sauna WiFi Control & Outdoor Lights */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+                    <ErrorBoundary>
+                      <OutdoorLightsCard readOnly={readOnly} />
+                    </ErrorBoundary>
                     <ErrorBoundary>
                       <SaunaCard readOnly={readOnly} />
                     </ErrorBoundary>

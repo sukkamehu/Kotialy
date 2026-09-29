@@ -149,14 +149,16 @@ class TuyaService {
         // Update DB topic states
         this.syncDeviceToDb(parsed);
 
-        // Track sauna breaker switch (matching saunaDeviceId or category kg)
-        if (parsed.id === this.saunaDeviceId || (!this.saunaDeviceId && parsed.category === 'kg') || parsed.category === 'kg') {
-          if (!this.saunaDeviceId || parsed.category === 'kg') {
+        // Track sauna breaker switch (matching saunaDeviceId, or fallback to category kg if not set)
+        if ((this.saunaDeviceId && parsed.id === this.saunaDeviceId) || (!this.saunaDeviceId && parsed.category === 'kg')) {
+          if (!this.saunaDeviceId) {
             this.saunaDeviceId = parsed.id;
             this.saunaState.id = parsed.id;
           }
           if (parsed.properties.switch_1 !== undefined) {
             saunaRelayStatus = Boolean(parsed.properties.switch_1);
+          } else if (parsed.properties.state !== undefined) {
+            saunaRelayStatus = Boolean(parsed.properties.state);
           }
         }
 
@@ -380,13 +382,29 @@ class TuyaService {
     const commandBody = {
       commands: [
         {
+          code: 'switch',
+          value: Boolean(turnOn),
+        },
+        {
           code: 'switch_1',
           value: Boolean(turnOn),
         },
       ],
     };
 
-    const res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', commandBody);
+    let res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', commandBody);
+    if (!res.success) {
+      // Try single command with code: switch
+      res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', {
+        commands: [{ code: 'switch', value: Boolean(turnOn) }]
+      });
+      if (!res.success) {
+        // Try single command with code: switch_1
+        res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', {
+          commands: [{ code: 'switch_1', value: Boolean(turnOn) }]
+        });
+      }
+    }
     if (!res.success) {
       throw new Error(`Saunan kytkentä epäonnistui: ${res.msg || JSON.stringify(res)}`);
     }
@@ -564,6 +582,40 @@ class TuyaService {
       console.warn('[TUYA] 🛡️ SAUNAN MAKSIMIAIKAKATKAISU (3H): Kiuas sammutetaan varotoimena.');
       this.setSaunaPower(false).catch(() => {});
     }
+  }
+
+  /**
+   * Control any Tuya switch / relay (supports 'switch' and 'switch_1')
+   */
+  async setSwitchPower(deviceId, turnOn) {
+    if (!deviceId) throw new Error('Device ID required');
+    const val = Boolean(turnOn);
+    console.log(`[TUYA] Kytkimen ohjaus (${deviceId}) -> ${val ? 'PÄÄLLE' : 'POIS'}`);
+
+    let res = await this.request(`/v1.0/devices/${deviceId}/commands`, 'POST', {
+      commands: [
+        { code: 'switch', value: val },
+        { code: 'switch_1', value: val },
+      ],
+    });
+
+    if (!res.success) {
+      res = await this.request(`/v1.0/devices/${deviceId}/commands`, 'POST', {
+        commands: [{ code: 'switch', value: val }],
+      });
+      if (!res.success) {
+        res = await this.request(`/v1.0/devices/${deviceId}/commands`, 'POST', {
+          commands: [{ code: 'switch_1', value: val }],
+        });
+      }
+    }
+
+    if (!res.success) {
+      throw new Error(`Kytkimen ohjaus epäonnistui: ${res.msg || JSON.stringify(res)}`);
+    }
+
+    setTimeout(() => this.fetchDevices().catch(() => {}), 500);
+    return { success: true, state: val };
   }
 
   /**

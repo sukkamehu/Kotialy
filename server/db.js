@@ -182,6 +182,11 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS outdoor_lights_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_notification_history_created
     ON notification_history (created_at DESC);
 `);
@@ -1171,6 +1176,35 @@ function getNotificationHistory(limit = 50) {
   `).all(limit);
 }
 
+const DEFAULT_OUTDOOR_LIGHTS_SETTINGS = {
+  enabled: 'true',
+  device_id: 'bf7a39a3a10e38a52engat',
+  dusk_offset_minutes: '-15',
+  dawn_offset_minutes: '15',
+  night_off_enabled: 'true',
+  night_off_start: '23:30',
+  night_off_end: '05:30',
+  override_state: '',
+  override_until: '0',
+};
+
+function getOutdoorLightsSettings() {
+  const rows = db.prepare('SELECT key, value FROM outdoor_lights_settings').all();
+  const settings = { ...DEFAULT_OUTDOOR_LIGHTS_SETTINGS };
+  for (const r of rows) {
+    settings[r.key] = r.value;
+  }
+  return settings;
+}
+
+function updateOutdoorLightsSetting(key, value) {
+  db.prepare(`
+    INSERT INTO outdoor_lights_settings (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, String(value));
+}
+
 module.exports = {
   db,
   updateState,
@@ -1209,6 +1243,8 @@ module.exports = {
   updateNotificationSetting,
   addNotificationHistory,
   getNotificationHistory,
+  getOutdoorLightsSettings,
+  updateOutdoorLightsSetting,
 };
 
 

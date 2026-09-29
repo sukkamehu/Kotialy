@@ -28,6 +28,7 @@ const apcService = require('../apc-service');
 const cameraService = require('../camera-service');
 const s3Service = require('../s3-service');
 const herrforsClient = require('../herrfors-client');
+const outdoorLightsDriver = require('../devices/outdoor-lights-driver');
 const tuyaService = require('../devices/tuya-service');
 
 
@@ -1286,6 +1287,48 @@ router.get('/notifications/history', (req, res) => {
     const limit = parseInt(req.query.limit || '50', 10);
     const history = getNotificationHistory(limit);
     res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Outdoor Lights Routes (Astronomical Twilight Automation) ────────────────
+
+/**
+ * GET /api/outdoor-lights
+ * Returns outdoor lights status, settings, astronomical sun times and manual override state.
+ */
+router.get('/outdoor-lights', (req, res) => {
+  try {
+    const status = outdoorLightsDriver.getStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/outdoor-lights/settings
+ * Update astronomical outdoor light automation settings.
+ */
+router.post('/outdoor-lights/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const status = await outdoorLightsDriver.updateSettings(req.body);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/outdoor-lights/override
+ * Set or clear manual override. Body: { state: 'ON'|'OFF'|'AUTO', durationMinutes: 120 }
+ */
+router.post('/outdoor-lights/override', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { state, durationMinutes } = req.body;
+    const status = await outdoorLightsDriver.setOverride(state, durationMinutes);
+    res.json({ ok: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
