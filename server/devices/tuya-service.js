@@ -776,36 +776,36 @@ class TuyaService {
       const currentTemp = saunaTemp != null ? saunaTemp : (this.saunaState.temperature || 20);
 
       if (isSaunaOn) {
-        // Temperature-responsive ember/flame color mapping
-        let h = 18;  // Hue 0-360
-        let s = 960; // Saturation 0-1000
-        let v = 400; // Brightness/Value 0-1000
+        // Soft, cozy fireplace amber & golden sauna ambient (shifted away from harsh red)
+        let h = 32;  // Hue 0-360 (32° = warm golden amber flame)
+        let s = 800; // Saturation 0-1000 (softer, natural warmth)
+        let v = 450; // Brightness 0-1000
 
         if (currentTemp < 32) {
-          // Deep ember amber (heating started)
-          h = 18;
-          s = 960;
-          v = 400;
+          // Warm amber fireplace ember (heating just started)
+          h = 30;
+          s = 820;
+          v = 450;
         } else if (currentTemp < 45) {
-          // Warm fireplace orange
+          // Cozy warm golden flame
           const ratio = (currentTemp - 32) / (45 - 32);
-          h = Math.round(18 + ratio * 8); // 18 -> 26
-          s = Math.round(960 - ratio * 40); // 960 -> 920
-          v = Math.round(400 + ratio * 250); // 400 -> 650
+          h = Math.round(30 + ratio * 8);   // 30 -> 38 (amber to warm gold)
+          s = Math.round(820 - ratio * 100); // 820 -> 720
+          v = Math.round(450 + ratio * 250); // 450 -> 700
         } else if (currentTemp < 60) {
-          // Glowing sauna gold
+          // Golden sauna warmth
           const ratio = (currentTemp - 45) / (60 - 45);
-          h = Math.round(26 + ratio * 10); // 26 -> 36
-          s = Math.round(920 - ratio * 70); // 920 -> 850
-          v = Math.round(650 + ratio * 200); // 650 -> 850
+          h = Math.round(38 + ratio * 8);   // 38 -> 46 (warm gold to golden honey)
+          s = Math.round(720 - ratio * 140); // 720 -> 580
+          v = Math.round(700 + ratio * 200); // 700 -> 900
         } else {
-          // Ready! Full golden sauna ambient
-          h = 42;
-          s = 750;
-          v = 1000;
+          // Ready! Warm soft golden ambient glow
+          h = 48;
+          s = 520;
+          v = 950;
         }
 
-        const glowKey = `${h}_${v}`;
+        const glowKey = `${h}_${s}_${v}`;
         if (this.lastGlowKey === glowKey && this.lastGlowOn === true) {
           return;
         }
