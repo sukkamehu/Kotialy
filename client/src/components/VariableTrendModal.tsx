@@ -19,7 +19,7 @@ interface VariableTrendModalProps {
   onClose: () => void;
 }
 
-type TrendPreset = '6h' | '24h' | 'today' | 'yesterday' | '7d' | '30d' | 'custom_day' | 'custom_range';
+type TrendPreset = '1h' | '2h' | '6h' | '24h' | 'today' | 'yesterday' | '7d' | '30d' | 'custom_day' | 'custom_range';
 
 interface HistoryPoint {
   time: number;
@@ -61,7 +61,15 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
     let to = now;
     let label = 'Viimeiset 24 tuntia';
 
-    if (preset === '6h') {
+    if (preset === '1h') {
+      from = now - 1 * 3600 * 1000;
+      to = now;
+      label = 'Viimeinen 1 tunti';
+    } else if (preset === '2h') {
+      from = now - 2 * 3600 * 1000;
+      to = now;
+      label = 'Viimeiset 2 tuntia';
+    } else if (preset === '6h') {
       from = now - 6 * 3600 * 1000;
       to = now;
       label = 'Viimeiset 6 tuntia';
@@ -305,6 +313,8 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
           {/* Quick preset tabs */}
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
             {[
+              { id: '1h', label: '1h' },
+              { id: '2h', label: '2h' },
               { id: '6h', label: '6h' },
               { id: '24h', label: '24h' },
               { id: 'today', label: 'Tänään' },

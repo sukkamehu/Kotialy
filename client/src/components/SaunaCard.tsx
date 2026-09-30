@@ -19,7 +19,7 @@ function toLocalDateString(d: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-type SaunaHistoryPreset = 'today' | 'yesterday' | '2d' | '7d' | '14d' | '30d' | 'day';
+type SaunaHistoryPreset = '1h' | '2h' | 'today' | 'yesterday' | '2d' | '7d' | '14d' | '30d' | 'day';
 
 interface SaunaCardProps {
   readOnly?: boolean;
@@ -44,6 +44,12 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
     const nowMs = Date.now();
     const [todayY, todayM, todayD] = todayStr.split('-').map(Number);
 
+    if (historyPreset === '1h') {
+      return { fromMs: nowMs - 1 * 3600 * 1000, toMs: nowMs, dateLabel: 'Viimeinen 1 h', isSingleDay: true };
+    }
+    if (historyPreset === '2h') {
+      return { fromMs: nowMs - 2 * 3600 * 1000, toMs: nowMs, dateLabel: 'Viimeiset 2 h', isSingleDay: true };
+    }
     if (historyPreset === 'today') {
       const from = new Date(todayY, todayM - 1, todayD, 0, 0, 0, 0).getTime();
       return { fromMs: from, toMs: nowMs, dateLabel: 'Tänään', isSingleDay: true };
@@ -81,7 +87,7 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
   }, [historyPreset, selectedDate, todayStr]);
 
   const handlePrevDay = () => {
-    const base = historyPreset === 'today' ? todayStr : historyPreset === 'yesterday' ? (() => {
+    const base = (historyPreset === 'today' || historyPreset === '1h' || historyPreset === '2h') ? todayStr : historyPreset === 'yesterday' ? (() => {
       const y = new Date(); y.setDate(y.getDate() - 1); return toLocalDateString(y);
     })() : selectedDate;
     const [y, m, d] = base.split('-').map(Number);
@@ -110,53 +116,64 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
     setHistoryPreset('today');
   };
 
-  // Fetch sauna temperature history
+  // Fetch sauna temperature history with live polling
   useEffect(() => {
     if (!showHistory && !sauna?.isOn) return;
     let isMounted = true;
-    setHistoryLoading(true);
 
     const topics = 'tuya/sauna/temperature,tuya/sauna/humidity';
 
-    apiFetch(`/api/history/multi?topics=${encodeURIComponent(topics)}&from=${fromMs}&to=${toMs}`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (!isMounted) return;
-        const dataMap = json.data || {};
-        const tempRows = dataMap['tuya/sauna/temperature'] || [];
-        const humidRows = dataMap['tuya/sauna/humidity'] || [];
+    const loadData = (showSpinner = false) => {
+      if (showSpinner) setHistoryLoading(true);
+      apiFetch(`/api/history/multi?topics=${encodeURIComponent(topics)}&from=${fromMs}&to=${toMs}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (!isMounted) return;
+          const dataMap = json.data || {};
+          const tempRows = dataMap['tuya/sauna/temperature'] || [];
+          const humidRows = dataMap['tuya/sauna/humidity'] || [];
 
-        const timeMap = new Map<number, { temperature?: number; humidity?: number }>();
+          const timeMap = new Map<number, { temperature?: number; humidity?: number }>();
 
-        for (const r of tempRows) {
-          const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
-          const curr = timeMap.get(t) || {};
-          curr.temperature = Number(r.value);
-          timeMap.set(t, curr);
-        }
+          for (const r of tempRows) {
+            const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
+            const curr = timeMap.get(t) || {};
+            curr.temperature = Number(r.value);
+            timeMap.set(t, curr);
+          }
 
-        for (const r of humidRows) {
-          const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
-          const curr = timeMap.get(t) || {};
-          curr.humidity = Number(r.value);
-          timeMap.set(t, curr);
-        }
+          for (const r of humidRows) {
+            const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
+            const curr = timeMap.get(t) || {};
+            curr.humidity = Number(r.value);
+            timeMap.set(t, curr);
+          }
 
-        const points = Array.from(timeMap.entries())
-          .map(([time, vals]) => ({ time, ...vals }))
-          .sort((a, b) => a.time - b.time);
+          const points = Array.from(timeMap.entries())
+            .map(([time, vals]) => ({ time, ...vals }))
+            .sort((a, b) => a.time - b.time);
 
-        setHistoryData(points);
-      })
-      .catch((err) => console.error('Failed to load sauna history:', err))
-      .finally(() => {
-        if (isMounted) setHistoryLoading(false);
-      });
+          setHistoryData(points);
+        })
+        .catch((err) => console.error('Failed to load sauna history:', err))
+        .finally(() => {
+          if (isMounted && showSpinner) setHistoryLoading(false);
+        });
+    };
+
+    loadData(true);
+
+    // Auto-refresh every 10s when sauna is on or viewing live hour presets
+    let pollTimer: any = null;
+    if (showHistory && (sauna?.isOn || historyPreset === '1h' || historyPreset === '2h' || historyPreset === 'today')) {
+      pollTimer = setInterval(() => loadData(false), 10000);
+    }
 
     return () => {
       isMounted = false;
+      if (pollTimer) clearInterval(pollTimer);
     };
-  }, [showHistory, fromMs, toMs, sauna?.isOn]);
+  }, [showHistory, fromMs, toMs, sauna?.isOn, historyPreset]);
 
   // Realtime countdown ticker every second
   useEffect(() => {
@@ -467,6 +484,8 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
                 {/* Presets row */}
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {[
+                    { id: '1h', label: '1 h' },
+                    { id: '2h', label: '2 h' },
                     { id: 'today', label: 'Tänään' },
                     { id: 'yesterday', label: 'Eilen' },
                     { id: '2d', label: '2 pv' },
