@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTuya } from '../hooks/useTuya';
 import { ConfirmModal } from './ConfirmModal';
 import { apiFetch } from '../lib/api';
+import type { SaunaSession } from '../types/tuya';
 import {
   ResponsiveContainer,
   LineChart,
@@ -31,6 +32,9 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
   const [selectedDelay, setSelectedDelay] = useState<number>(0);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
+  const [showStats, setShowStats] = useState<boolean>(false);
+  const [sessionsList, setSessionsList] = useState<SaunaSession[]>([]);
+  const [statsLoading, setStatsLoading] = useState<boolean>(false);
   const [historyPreset, setHistoryPreset] = useState<SaunaHistoryPreset>('today');
   const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateString(new Date()));
   const [historyData, setHistoryData] = useState<{ time: number; temperature?: number; humidity?: number }[]>([]);
@@ -38,6 +42,36 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
   const [now, setNow] = useState<number>(Date.now());
 
   const todayStr = toLocalDateString(new Date());
+
+  const fetchSessions = () => {
+    setStatsLoading(true);
+    apiFetch('/api/sauna/sessions?limit=50')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.ok && json.sessions) {
+          const mapped = json.sessions.map((s: any) => ({
+            id: s.id,
+            startTime: s.start_time,
+            endTime: s.end_time,
+            durationMinutes: s.duration_minutes,
+            energyKwh: s.energy_kwh,
+            costEur: s.cost_eur,
+            avgPriceCents: s.avg_price_cents,
+            peakTemp: s.peak_temp,
+            isLive: s.status === 'heating',
+          }));
+          setSessionsList(mapped);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch sauna sessions:', err))
+      .finally(() => setStatsLoading(false));
+  };
+
+  useEffect(() => {
+    if (showStats) {
+      fetchSessions();
+    }
+  }, [showStats]);
 
   // Compute fromMs and toMs based on preset or selected date
   const { fromMs, toMs, dateLabel, isSingleDay } = useMemo(() => {
@@ -423,7 +457,7 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
               {sauna?.temperature != null ? `${sauna.temperature} °C` : '-- °C'}
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
             <div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span>💧</span> Ilmankosteus
@@ -433,26 +467,57 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowHistory(!showHistory)}
-              style={{
-                padding: '4px 8px',
-                borderRadius: 6,
-                border: showHistory ? '1px solid #f97316' : '1px solid rgba(255, 255, 255, 0.1)',
-                background: showHistory ? 'rgba(249, 115, 22, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                color: showHistory ? '#f97316' : 'var(--text-secondary)',
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              <span>📈</span>
-              <span>{showHistory ? 'Sulje' : 'Käyrä'}</span>
-            </button>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStats(!showStats);
+                  if (!showStats) setShowHistory(false);
+                }}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: showStats ? '1px solid #eab308' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: showStats ? 'rgba(234, 179, 8, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                  color: showStats ? '#facc15' : 'var(--text-secondary)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>⚡</span>
+                <span>{showStats ? 'Sulje' : 'Kulutus'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHistory(!showHistory);
+                  if (!showHistory) setShowStats(false);
+                }}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: showHistory ? '1px solid #f97316' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: showHistory ? 'rgba(249, 115, 22, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                  color: showHistory ? '#f97316' : 'var(--text-secondary)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>📈</span>
+                <span>{showHistory ? 'Sulje' : 'Käyrä'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -735,6 +800,179 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
           );
         })()}
 
+        {/* Sauna Energy & Annual Statistics Panel */}
+        {showStats && (
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.4)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            borderRadius: 12,
+            padding: '14px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>⚡</span> Saunan energiankulutus & vuositilasto
+              </div>
+              <button
+                type="button"
+                onClick={fetchSessions}
+                disabled={statsLoading}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span>🔄</span> Päivitä
+              </button>
+            </div>
+
+            {/* 4 Summary Cards */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+              gap: 8,
+            }}>
+              {/* Card 1: Count */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: 8,
+                padding: '10px 12px',
+              }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>🧖‍♂️ Saunomiset ({sauna?.yearlyStats?.year || new Date().getFullYear()})</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b', marginTop: 2 }}>
+                  {sauna?.yearlyStats?.count ?? (sessionsList.length || 0)} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>krt</span>
+                </div>
+              </div>
+
+              {/* Card 2: Total Energy */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: 8,
+                padding: '10px 12px',
+              }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>⚡ Kokonaisenergia</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#fbbf24', marginTop: 2 }}>
+                  {sauna?.yearlyStats?.totalKwh ?? (sessionsList.reduce((acc, s) => acc + s.energyKwh, 0).toFixed(1))} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>kWh</span>
+                </div>
+              </div>
+
+              {/* Card 3: Total Cost */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: 8,
+                padding: '10px 12px',
+              }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>💶 Kokonaiskustannus</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#34d399', marginTop: 2 }}>
+                  {(sauna?.yearlyStats?.totalEur ?? sessionsList.reduce((acc, s) => acc + s.costEur, 0)).toFixed(2)} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>€</span>
+                </div>
+              </div>
+
+              {/* Card 4: Avg per session */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: 8,
+                padding: '10px 12px',
+              }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>📊 Keskiarvo / kerta</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>
+                  {sauna?.yearlyStats?.avgKwhPerSession ?? 0} kWh <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>·</span> {(sauna?.yearlyStats?.avgEurPerSession ?? 0).toFixed(2)} €
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                  kesto ~{sauna?.yearlyStats?.avgDurationMinutes ?? 0} min
+                </div>
+              </div>
+            </div>
+
+            {/* Sessions Table */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                Menneet saunomiskerrat (9 kW kiuas):
+              </div>
+
+              {statsLoading ? (
+                <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                  Ladataan saunahistoriaa...
+                </div>
+              ) : sessionsList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                  Ei vielä tallennettuja saunomiskertoja.
+                </div>
+              ) : (
+                <div style={{
+                  maxHeight: 220,
+                  overflowY: 'auto',
+                  borderRadius: 8,
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                        <th style={{ padding: '6px 10px' }}>Päivä & Klo</th>
+                        <th style={{ padding: '6px 10px' }}>Kesto</th>
+                        <th style={{ padding: '6px 10px' }}>Huippulämpö</th>
+                        <th style={{ padding: '6px 10px' }}>Kulutus</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>Kustannus</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessionsList.map((s, idx) => {
+                        const d = new Date(s.startTime);
+                        const dateStr = d.toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' });
+                        const timeStr = d.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+                        return (
+                          <tr
+                            key={s.id || idx}
+                            style={{
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                              background: s.isLive ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
+                            }}
+                          >
+                            <td style={{ padding: '7px 10px', fontWeight: 600 }}>
+                              {dateStr} klo {timeStr}
+                              {s.isLive && (
+                                <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#ef4444', color: '#fff' }}>
+                                  LIVE
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: '7px 10px', color: 'var(--text-secondary)' }}>
+                              {s.durationMinutes} min
+                            </td>
+                            <td style={{ padding: '7px 10px', color: '#fb923c', fontWeight: 600 }}>
+                              {s.peakTemp != null ? `${Math.round(s.peakTemp)} °C` : '--'}
+                            </td>
+                            <td style={{ padding: '7px 10px', fontWeight: 700, color: '#fbbf24' }}>
+                              {s.energyKwh} kWh
+                            </td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: '#34d399' }}>
+                              {s.costEur.toFixed(2)} €
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Active Countdown & Auto-Off Section */}
         {isOn && (
           <div style={{
@@ -744,7 +982,7 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
             padding: 14,
             display: 'flex',
             flexDirection: 'column',
-            gap: 8,
+            gap: 10,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -775,6 +1013,38 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
               <span>Automaattinen turvakatkaisu:</span>
               <strong>klo {shutdownTimeString || '--:--'}</strong>
             </div>
+
+            {/* Live energy & cost during heating */}
+            {sauna?.session && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: 'rgba(0, 0, 0, 0.35)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                marginTop: 2,
+                flexWrap: 'wrap',
+                gap: 6,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#fde68a' }}>
+                  <span>⚡</span>
+                  <span>Kertakulutus:</span>
+                  <strong>{sauna.session.energyKwh} kWh</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6ee7b7' }}>
+                  <span>💶</span>
+                  <span>Kustannus:</span>
+                  <strong>{sauna.session.costEur.toFixed(2)} €</strong>
+                  {sauna.session.avgPriceCents != null && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                      ({sauna.session.avgPriceCents.toFixed(1)} c/kWh)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -190,6 +190,7 @@ class TuyaService {
               this.saunaState.durationMinutes = this.saunaState.durationMinutes || (this.maxHours * 60);
               this.saunaState.autoOffAt = Date.now() + (this.saunaState.durationMinutes * 60 * 1000);
               console.log(`[TUYA] 🧖‍♂️ Sauna havaittu PÄÄLLÄ. Turva-ajastin aktivoitu (sammutus: ${new Date(this.saunaState.autoOffAt).toLocaleTimeString('fi-FI')}).`);
+              this.startSaunaSession(this.saunaState.startedAt);
             }
           } else {
             // Turned OFF
@@ -197,12 +198,18 @@ class TuyaService {
               this.saunaState.startedAt = null;
               this.saunaState.autoOffAt = null;
               console.log('[TUYA] 🧖‍♂️ Sauna sammutettu.');
+              this.finishSaunaSession();
             }
           }
         }
       }
 
-      if (foundSaunaTemp != null) this.saunaState.temperature = foundSaunaTemp;
+      if (foundSaunaTemp != null) {
+        this.saunaState.temperature = foundSaunaTemp;
+        if (this.saunaState.isOn) {
+          this.updateActiveSessionPeakTemp(foundSaunaTemp);
+        }
+      }
       if (foundSaunaHumidity != null) this.saunaState.humidity = foundSaunaHumidity;
       this.saunaState.lastSeen = Date.now();
 
@@ -421,11 +428,13 @@ class TuyaService {
       this.saunaState.durationMinutes = clampedMinutes;
       this.saunaState.lastAction = `Kytketty päälle (${clampedMinutes} min)`;
       console.log(`[TUYA] 🧖‍♂️ Sauna kytketty PÄÄLLE. Automaattinen sammutus klo ${new Date(this.saunaState.autoOffAt).toLocaleTimeString('fi-FI')} (${clampedMinutes} min kuluttua).`);
+      this.startSaunaSession(this.saunaState.startedAt);
     } else {
       this.saunaState.startedAt = null;
       this.saunaState.autoOffAt = null;
       this.saunaState.lastAction = 'Kytketty pois päältä';
       console.log('[TUYA] 🧖‍♂️ Sauna kytketty POIS PÄÄLTÄ.');
+      this.finishSaunaSession();
     }
 
     // Sync state to DB
@@ -503,8 +512,67 @@ class TuyaService {
     return this.getSaunaStatus();
   }
 
+  startSaunaSession(startedAt = Date.now()) {
+    try {
+      const active = db.getActiveSaunaSession();
+      if (!active) {
+        const id = db.insertSaunaSession({
+          start_time: startedAt,
+          end_time: null,
+          duration_minutes: 0,
+          peak_temp: this.saunaState.temperature,
+          energy_kwh: 0,
+          cost_eur: 0,
+          avg_price_cents: 0,
+          status: 'heating',
+        });
+        this.currentSessionId = id;
+        console.log(`[TUYA] 📊 Uusi saunasessio luotu tietokantaan (ID: ${id})`);
+      } else {
+        this.currentSessionId = active.id;
+      }
+    } catch (err) {
+      console.warn('[TUYA] Virhe saunasession luonnissa:', err.message);
+    }
+  }
+
+  finishSaunaSession() {
+    try {
+      const active = db.getActiveSaunaSession();
+      if (active) {
+        const now = Date.now();
+        const start = active.start_time;
+        const peakTemp = Math.max(active.peak_temp || 0, this.saunaState.temperature || 0);
+        const calc = db.calculateSaunaEnergyAndCost(start, now);
+        db.updateSaunaSession(active.id, {
+          end_time: now,
+          duration_minutes: calc.durationMinutes,
+          peak_temp: peakTemp,
+          energy_kwh: calc.energyKwh,
+          cost_eur: calc.costEur,
+          avg_price_cents: calc.avgPriceCents,
+          status: 'completed',
+        });
+        console.log(`[TUYA] 📊 Saunasessio päätetty ja tallennettu: ${calc.durationMinutes} min · ${calc.energyKwh} kWh · ${calc.costEur} € (Huippu: ${peakTemp}°C)`);
+      }
+      this.currentSessionId = null;
+    } catch (err) {
+      console.warn('[TUYA] Virhe saunasession päättämisessä:', err.message);
+    }
+  }
+
+  updateActiveSessionPeakTemp(temp) {
+    if (!temp) return;
+    try {
+      const active = db.getActiveSaunaSession();
+      if (active && (temp > (active.peak_temp || 0))) {
+        db.updateSaunaSession(active.id, { peak_temp: temp });
+      }
+    } catch {}
+  }
+
   /**
-   * Get current sauna status including remaining time
+   * Get current sauna status including remaining time and live energy/cost stats
    */
   getSaunaStatus() {
     const now = Date.now();
@@ -523,6 +591,40 @@ class TuyaService {
       scheduledRemainingSeconds = Math.ceil(delayMs / 1000);
     }
 
+    // Live session calculation if ON, or latest completed session
+    let liveSession = null;
+    if (this.saunaState.isOn && this.saunaState.startedAt) {
+      const calc = db.calculateSaunaEnergyAndCost(this.saunaState.startedAt, now);
+      liveSession = {
+        startTime: this.saunaState.startedAt,
+        durationMinutes: calc.durationMinutes,
+        energyKwh: calc.energyKwh,
+        costEur: calc.costEur,
+        avgPriceCents: calc.avgPriceCents,
+        peakTemp: this.saunaState.temperature,
+        isLive: true,
+      };
+    } else {
+      const latest = db.getLatestSaunaSession();
+      if (latest) {
+        liveSession = {
+          startTime: latest.start_time,
+          endTime: latest.end_time,
+          durationMinutes: latest.duration_minutes,
+          energyKwh: latest.energy_kwh,
+          costEur: latest.cost_eur,
+          avgPriceCents: latest.avg_price_cents,
+          peakTemp: latest.peak_temp,
+          isLive: false,
+        };
+      }
+    }
+
+    let yearlyStats = null;
+    try {
+      yearlyStats = db.getSaunaStats();
+    } catch {}
+
     return {
       ...this.saunaState,
       remainingMinutes,
@@ -530,6 +632,16 @@ class TuyaService {
       scheduledRemainingSeconds,
       maxHours: this.maxHours,
       maxMinutes: this.maxHours * 60,
+      session: liveSession,
+      yearlyStats: yearlyStats ? {
+        year: yearlyStats.year,
+        count: yearlyStats.count,
+        totalKwh: yearlyStats.totalKwh,
+        totalEur: yearlyStats.totalEur,
+        avgDurationMinutes: yearlyStats.avgDurationMinutes,
+        avgKwhPerSession: yearlyStats.avgKwhPerSession,
+        avgEurPerSession: yearlyStats.avgEurPerSession,
+      } : null,
     };
   }
 

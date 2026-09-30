@@ -37,6 +37,29 @@ export interface TuyaDevice {
   update_time: number;
 }
 
+export interface SaunaSession {
+  id?: number;
+  startTime: number;
+  endTime?: number | null;
+  durationMinutes: number;
+  energyKwh: number;
+  costEur: number;
+  avgPriceCents?: number;
+  peakTemp?: number | null;
+  isLive?: boolean;
+}
+
+export interface SaunaYearlyStats {
+  year: number;
+  count: number;
+  totalKwh: number;
+  totalEur: number;
+  avgDurationMinutes: number;
+  avgKwhPerSession: number;
+  avgEurPerSession: number;
+  avgPriceCentsKwh?: number;
+}
+
 export interface SaunaState {
   id: string;
   name: string;
@@ -55,6 +78,8 @@ export interface SaunaState {
   maxMinutes: number;
   lastSeen: number | null;
   lastAction: string | null;
+  session?: SaunaSession | null;
+  yearlyStats?: SaunaYearlyStats | null;
 }
 
 export interface TuyaStatusResponse {
@@ -64,3 +89,4 @@ export interface TuyaStatusResponse {
   sauna: SaunaState;
   ts: number;
 }
+

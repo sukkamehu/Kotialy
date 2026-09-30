@@ -16,6 +16,8 @@ const {
   getNotificationSettings,
   updateNotificationSetting,
   getNotificationHistory,
+  getSaunaSessions,
+  getSaunaStats,
 } = require('../db');
 const notificationService = require('../notification-service');
 const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
@@ -1043,12 +1045,48 @@ router.get('/tuya/devices', (req, res) => {
  * GET /api/tuya/sauna
  * Get Sauna status, remaining timer, and temperature.
  */
-router.get('/tuya/sauna', (req, res) => {
+router.get(['/tuya/sauna', '/sauna'], (req, res) => {
   res.json({
     ok: true,
     configured: tuyaService.isConfigured(),
     sauna: tuyaService.getSaunaStatus(),
   });
+});
+
+/**
+ * GET /api/sauna/sessions
+ * Get list of historical sauna heating sessions with energy and cost.
+ */
+router.get(['/sauna/sessions', '/tuya/sauna/sessions'], (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const sessions = getSaunaSessions(limit);
+    const stats = getSaunaStats();
+    res.json({
+      ok: true,
+      sessions,
+      stats,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/sauna/stats
+ * Get sauna yearly and monthly statistics.
+ */
+router.get(['/sauna/stats', '/tuya/sauna/stats'], (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const stats = getSaunaStats(year);
+    res.json({
+      ok: true,
+      stats,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**

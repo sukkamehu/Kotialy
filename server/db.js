@@ -187,6 +187,21 @@ db.exec(`
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS sauna_sessions (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_time       INTEGER NOT NULL,
+    end_time         INTEGER,
+    duration_minutes INTEGER,
+    peak_temp        REAL,
+    energy_kwh       REAL NOT NULL DEFAULT 0,
+    cost_eur         REAL NOT NULL DEFAULT 0,
+    avg_price_cents  REAL,
+    status           TEXT NOT NULL DEFAULT 'completed'
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_sauna_sessions_start
+    ON sauna_sessions (start_time DESC);
+
   CREATE INDEX IF NOT EXISTS idx_notification_history_created
     ON notification_history (created_at DESC);
 `);
@@ -1205,6 +1220,227 @@ function updateOutdoorLightsSetting(key, value) {
   `).run(key, String(value));
 }
 
+// ─── Sauna Energy & Cost Calculator ──────────────────────────────────────────
+
+/**
+ * Calculate energy (kWh) and spot + transfer cost (EUR) for a sauna session.
+ * Model: 9.0 kW heater.
+ * - Initial heating phase (first 45 min): 100% duty cycle (9.0 kW).
+ * - Thermostat / maintenance phase (after 45 min): 60% duty cycle (5.4 kW).
+ */
+function calculateSaunaEnergyAndCost(startTime, endTime) {
+  const start = Number(startTime);
+  const end = Number(endTime) || Date.now();
+  if (!start || end <= start) {
+    return { durationMinutes: 0, energyKwh: 0, costEur: 0, avgPriceCents: 0 };
+  }
+
+  const durationMinutes = Math.max(1, Math.round((end - start) / 60000));
+  const settings = getCostSettings();
+  const vatMultiplier = 1 + (settings.vat_percent || 25.5) / 100;
+  const marginCents = settings.margin_cents_kwh || 0.5;
+
+  const getTransferCents = (timeMs) => {
+    if (settings.transfer_mode === 'day_night') {
+      const h = new Date(timeMs).getHours();
+      const isNight = h >= 22 || h < 7;
+      return isNight
+        ? (settings.transfer_night_cents_kwh != null ? settings.transfer_night_cents_kwh : 3.12)
+        : (settings.transfer_day_cents_kwh != null ? settings.transfer_day_cents_kwh : 5.11);
+    }
+    return settings.transfer_cents_kwh || 4.50;
+  };
+
+  // Fetch prices around this window
+  let prices = [];
+  try {
+    prices = db.prepare(`
+      SELECT start_time, end_time, price FROM nordpool_prices
+      WHERE end_time >= ? AND start_time <= ?
+      ORDER BY start_time ASC
+    `).all(start - 3600000, end + 3600000);
+  } catch {}
+
+  let fallbackPrice = 50; // EUR/MWh
+  if (prices.length > 0) {
+    fallbackPrice = prices.reduce((acc, p) => acc + p.price, 0) / prices.length;
+  }
+
+  const SLOT_MS = 5 * 60 * 1000;
+  let curr = start;
+  let totalEnergyKwh = 0;
+  let totalCostEur = 0;
+
+  while (curr < end) {
+    const slotEnd = Math.min(curr + SLOT_MS, end);
+    const slotDurationHours = (slotEnd - curr) / (3600 * 1000);
+    const elapsedMinutes = (curr - start) / 60000;
+
+    const powerKw = elapsedMinutes < 45 ? 9.0 : 5.4;
+    const slotEnergyKwh = powerKw * slotDurationHours;
+
+    const priceObj = prices.find(p => curr >= p.start_time && curr < p.end_time);
+    const spotEurMwh = priceObj ? priceObj.price : fallbackPrice;
+    const spotCentsKwh = (spotEurMwh / 10) * vatMultiplier;
+    const transferCents = getTransferCents(curr);
+    const totalCentsKwh = Math.max(0, spotCentsKwh + marginCents + transferCents);
+
+    const slotCostEur = slotEnergyKwh * (totalCentsKwh / 100);
+
+    totalEnergyKwh += slotEnergyKwh;
+    totalCostEur += slotCostEur;
+    curr = slotEnd;
+  }
+
+  const avgPriceCents = totalEnergyKwh > 0 ? (totalCostEur / totalEnergyKwh) * 100 : 0;
+
+  return {
+    durationMinutes,
+    energyKwh: Number(totalEnergyKwh.toFixed(2)),
+    costEur: Number(totalCostEur.toFixed(2)),
+    avgPriceCents: Number(avgPriceCents.toFixed(2)),
+  };
+}
+
+function insertSaunaSession(session) {
+  const stmt = db.prepare(`
+    INSERT INTO sauna_sessions (
+      start_time, end_time, duration_minutes, peak_temp, energy_kwh, cost_eur, avg_price_cents, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const result = stmt.run(
+    session.start_time,
+    session.end_time || null,
+    session.duration_minutes || 0,
+    session.peak_temp != null ? session.peak_temp : null,
+    session.energy_kwh || 0,
+    session.cost_eur || 0,
+    session.avg_price_cents || 0,
+    session.status || 'completed'
+  );
+  return result.lastInsertRowid;
+}
+
+function updateSaunaSession(id, fields) {
+  const keys = Object.keys(fields);
+  if (keys.length === 0) return;
+  const setClauses = keys.map(k => `${k} = ?`).join(', ');
+  const values = keys.map(k => fields[k]);
+  values.push(id);
+  db.prepare(`UPDATE sauna_sessions SET ${setClauses} WHERE id = ?`).run(...values);
+}
+
+function getActiveSaunaSession() {
+  return db.prepare("SELECT * FROM sauna_sessions WHERE status = 'heating' ORDER BY start_time DESC LIMIT 1").get();
+}
+
+function getLatestSaunaSession() {
+  return db.prepare("SELECT * FROM sauna_sessions ORDER BY start_time DESC LIMIT 1").get();
+}
+
+function getSaunaSessions(limit = 50) {
+  return db.prepare("SELECT * FROM sauna_sessions ORDER BY start_time DESC LIMIT ?").all(limit);
+}
+
+function getSaunaStats(year = null) {
+  const targetYear = year || new Date().getFullYear();
+  const yearStart = new Date(targetYear, 0, 1, 0, 0, 0, 0).getTime();
+  const yearEnd = new Date(targetYear, 11, 31, 23, 59, 59, 999).getTime();
+
+  const sessions = db.prepare(`
+    SELECT * FROM sauna_sessions 
+    WHERE start_time >= ? AND start_time <= ?
+    ORDER BY start_time DESC
+  `).all(yearStart, yearEnd);
+
+  const count = sessions.length;
+  const totalKwh = sessions.reduce((acc, s) => acc + (s.energy_kwh || 0), 0);
+  const totalEur = sessions.reduce((acc, s) => acc + (s.cost_eur || 0), 0);
+  const totalDuration = sessions.reduce((acc, s) => acc + (s.duration_minutes || 0), 0);
+  const avgDuration = count > 0 ? Math.round(totalDuration / count) : 0;
+  const avgKwh = count > 0 ? Number((totalKwh / count).toFixed(1)) : 0;
+  const avgEur = count > 0 ? Number((totalEur / count).toFixed(2)) : 0;
+  const avgPriceCents = totalKwh > 0 ? Number(((totalEur / totalKwh) * 100).toFixed(1)) : 0;
+
+  return {
+    year: targetYear,
+    count,
+    totalKwh: Number(totalKwh.toFixed(1)),
+    totalEur: Number(totalEur.toFixed(2)),
+    avgDurationMinutes: avgDuration,
+    avgKwhPerSession: avgKwh,
+    avgEurPerSession: avgEur,
+    avgPriceCentsKwh: avgPriceCents,
+    sessions,
+  };
+}
+
+function backfillHistoricalSaunaSessions() {
+  try {
+    const existing = db.prepare("SELECT COUNT(*) as cnt FROM sauna_sessions").get();
+    if (existing && existing.cnt > 0) return;
+
+    // Detect sessions from temperature history
+    const tempRows = db.prepare("SELECT value, recorded_at FROM sensor_history WHERE topic = 'tuya/sauna/temperature' ORDER BY recorded_at ASC").all();
+    if (!tempRows || tempRows.length === 0) return;
+
+    let inSession = false;
+    let sStart = null;
+    let sEnd = null;
+    let sPeak = 0;
+
+    for (let i = 0; i < tempRows.length; i++) {
+      const r = tempRows[i];
+      if (r.value >= 26) {
+        if (!inSession) {
+          inSession = true;
+          sStart = r.recorded_at;
+          sEnd = r.recorded_at;
+          sPeak = r.value;
+        } else {
+          sEnd = r.recorded_at;
+          if (r.value > sPeak) sPeak = r.value;
+        }
+      } else {
+        if (inSession) {
+          if (sPeak >= 32 && (sEnd - sStart) >= 20 * 60 * 1000) {
+            const calc = calculateSaunaEnergyAndCost(sStart, sEnd);
+            insertSaunaSession({
+              start_time: sStart,
+              end_time: sEnd,
+              duration_minutes: calc.durationMinutes,
+              peak_temp: sPeak,
+              energy_kwh: calc.energyKwh,
+              cost_eur: calc.costEur,
+              avg_price_cents: calc.avgPriceCents,
+              status: 'completed',
+            });
+          }
+          inSession = false;
+        }
+      }
+    }
+    if (inSession && sPeak >= 32 && (sEnd - sStart) >= 20 * 60 * 1000) {
+      const calc = calculateSaunaEnergyAndCost(sStart, sEnd);
+      insertSaunaSession({
+        start_time: sStart,
+        end_time: sEnd,
+        duration_minutes: calc.durationMinutes,
+        peak_temp: sPeak,
+        energy_kwh: calc.energyKwh,
+        cost_eur: calc.costEur,
+        avg_price_cents: calc.avgPriceCents,
+        status: 'completed',
+      });
+    }
+  } catch (err) {
+    console.warn('[DB] Sauna sessions backfill failed:', err.message);
+  }
+}
+
+// Run backfill on load
+backfillHistoricalSaunaSessions();
+
 module.exports = {
   db,
   updateState,
@@ -1245,6 +1481,14 @@ module.exports = {
   getNotificationHistory,
   getOutdoorLightsSettings,
   updateOutdoorLightsSetting,
+  calculateSaunaEnergyAndCost,
+  insertSaunaSession,
+  updateSaunaSession,
+  getActiveSaunaSession,
+  getLatestSaunaSession,
+  getSaunaSessions,
+  getSaunaStats,
+  backfillHistoricalSaunaSessions,
 };
 
 
