@@ -62,6 +62,42 @@ class PanasonicDriver {
   }
 
   /**
+   * Calculate adaptive Smart Cycling limits based on outdoor temperature.
+   * Tailored for low-thermal-mass wooden joist subfloors (rossipohja).
+   */
+  getAdaptiveCyclingLimits(settings, outdoorTemp) {
+    const rawMinRest = settings.smart_cycling_min_rest_min ?? 60;
+    const rawRestSetback = settings.smart_cycling_rest_setback_c ?? -2.0;
+    const chargeBoost = settings.smart_cycling_charge_boost_c ?? 3.0;
+    const maxRunMin = settings.smart_cycling_max_run_min ?? 75;
+
+    if (outdoorTemp == null) {
+      return { minRestMin: rawMinRest, restSetback: rawRestSetback, chargeBoost, maxRunMin };
+    }
+
+    let minRestMin = rawMinRest;
+    let restSetback = rawRestSetback;
+
+    // Rossipohja / puurakenne (matala lämpökapasiteetti):
+    // Kylmällä säällä pitkät lepojaksot ja syvät pudotukset jäähdyttävät lattian liikaa.
+    if (outdoorTemp <= -3) {
+      // Pakkanen (<= -3°C): Ei lepopudotusta (0°C), erittäin lyhyt lepo (15 min)
+      minRestMin = Math.min(rawMinRest, 15);
+      restSetback = Math.max(rawRestSetback, 0.0);
+    } else if (outdoorTemp <= 3) {
+      // Nollakeli / viileä (-3...+3°C): Hyvin loiva pudotus (max -1°C), lepo max 25 min
+      minRestMin = Math.min(rawMinRest, 25);
+      restSetback = Math.max(rawRestSetback, -1.0);
+    } else if (outdoorTemp <= 7) {
+      // Syyssää / viileä (+3...+7°C): Maltillinen pudotus (max -2°C), lepo max 45 min
+      minRestMin = Math.min(rawMinRest, 45);
+      restSetback = Math.max(rawRestSetback, -2.0);
+    }
+
+    return { minRestMin, restSetback, chargeBoost, maxRunMin };
+  }
+
+  /**
    * Apply an APC directive to the heat pump
    * @param {string} directive - BOOST | NORMAL | SETBACK | DHW_CYCLE | ECO
    * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, compressorFreq, heatpumpState, threeWayValve, isDhwSlot }
@@ -133,17 +169,14 @@ class PanasonicDriver {
 
     if (isSmartCyclingEnabled && !isDhwActive) {
       const isCompressorRunning = (compressorFreq > 0) && (heatpumpState === 1);
-      const chargeBoost = settings.smart_cycling_charge_boost_c ?? 3.0;
-      const minRestMin = settings.smart_cycling_min_rest_min ?? 75;
-      const restSetback = settings.smart_cycling_rest_setback_c ?? -4.0;
-      const maxRunMin = settings.smart_cycling_max_run_min ?? 75;
+      const { minRestMin, restSetback, chargeBoost, maxRunMin } = this.getAdaptiveCyclingLimits(settings, outdoorTemp);
 
       // Transition 1: Compressor just started heating
       if (isCompressorRunning && !this.lastCompressorRunning) {
         this.cyclingPhase = 'CHARGING';
         this.chargeStartedAt = now;
         this.phaseStartedAt = now;
-        log(`Smart Cycling: Kompressori käynnistyi (${compressorFreq} Hz) -> CHARGING (+${chargeBoost}°C teholataus)`);
+        log(`Smart Cycling: Kompressori käynnistyi (${compressorFreq} Hz, ulko ${outdoorTemp}°C) -> CHARGING (+${chargeBoost}°C teholataus)`);
       }
       // Running state: in charging phase
       else if (isCompressorRunning) {
@@ -165,7 +198,7 @@ class PanasonicDriver {
         this.cyclingPhase = 'RESTING';
         this.restStartedAt = now;
         this.phaseStartedAt = now;
-        log(`Smart Cycling: Kompressori sammui (kävi ${this.lastCycleDurationMin ?? '?'} min) -> RESTING (${restSetback}°C, min. ${minRestMin} min lepoaika)`);
+        log(`Smart Cycling: Kompressori sammui (kävi ${this.lastCycleDurationMin ?? '?'} min, ulko ${outdoorTemp}°C) -> RESTING (${restSetback}°C, min. ${minRestMin} min lepoaika)`);
       }
       // Stopped state: resting or idle
       else if (!isCompressorRunning) {
