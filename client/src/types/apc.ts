@@ -46,6 +46,9 @@ export interface ApcSettings {
   smart_cycling_min_rest_min?: number;
   smart_cycling_rest_setback_c?: number;
   smart_cycling_max_run_min?: number;
+  indoor_feedback_enabled?: boolean;
+  indoor_target_temp_c?: number;
+  indoor_min_temp_c?: number;
 }
 
 export interface FloorPumpStatus {
@@ -138,6 +141,9 @@ export interface ApcStatus {
     bufferTemp: number | null;
     dhwTemp: number | null;
     outsideTemp: number | null;
+    indoorTemp?: number | null;
+    alakertaTemp?: number | null;
+    ylakertaTemp?: number | null;
   };
   settings: ApcSettings;
   overrideActive: boolean;

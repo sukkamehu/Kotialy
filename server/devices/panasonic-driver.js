@@ -62,36 +62,41 @@ class PanasonicDriver {
   }
 
   /**
-   * Calculate adaptive Smart Cycling limits based on outdoor temperature.
+   * Calculate adaptive Smart Cycling limits based on outdoor and indoor temperatures.
    * Tailored for low-thermal-mass wooden joist subfloors (rossipohja).
    */
-  getAdaptiveCyclingLimits(settings, outdoorTemp) {
+  getAdaptiveCyclingLimits(settings, outdoorTemp, indoorTemp) {
     const rawMinRest = settings.smart_cycling_min_rest_min ?? 60;
     const rawRestSetback = settings.smart_cycling_rest_setback_c ?? -2.0;
     const chargeBoost = settings.smart_cycling_charge_boost_c ?? 3.0;
     const maxRunMin = settings.smart_cycling_max_run_min ?? 75;
 
-    if (outdoorTemp == null) {
-      return { minRestMin: rawMinRest, restSetback: rawRestSetback, chargeBoost, maxRunMin };
-    }
-
     let minRestMin = rawMinRest;
     let restSetback = rawRestSetback;
 
-    // Rossipohja / puurakenne (matala lämpökapasiteetti):
-    // Kylmällä säällä pitkät lepojaksot ja syvät pudotukset jäähdyttävät lattian liikaa.
-    if (outdoorTemp <= -3) {
-      // Pakkanen (<= -3°C): Ei lepopudotusta (0°C), erittäin lyhyt lepo (15 min)
-      minRestMin = Math.min(rawMinRest, 15);
-      restSetback = Math.max(rawRestSetback, 0.0);
-    } else if (outdoorTemp <= 3) {
-      // Nollakeli / viileä (-3...+3°C): Hyvin loiva pudotus (max -1°C), lepo max 25 min
-      minRestMin = Math.min(rawMinRest, 25);
-      restSetback = Math.max(rawRestSetback, -1.0);
-    } else if (outdoorTemp <= 7) {
-      // Syyssää / viileä (+3...+7°C): Maltillinen pudotus (max -2°C), lepo max 45 min
-      minRestMin = Math.min(rawMinRest, 45);
-      restSetback = Math.max(rawRestSetback, -2.0);
+    if (outdoorTemp != null) {
+      // Rossipohja / puurakenne (matala lämpökapasiteetti):
+      // Kylmällä säällä pitkät lepojaksot ja syvät pudotukset jäähdyttävät lattian liikaa.
+      if (outdoorTemp <= -3) {
+        // Pakkanen (<= -3°C): Ei lepopudotusta (0°C), erittäin lyhyt lepo (15 min)
+        minRestMin = Math.min(rawMinRest, 15);
+        restSetback = Math.max(rawRestSetback, 0.0);
+      } else if (outdoorTemp <= 3) {
+        // Nollakeli / viileä (-3...+3°C): Hyvin loiva pudotus (max -1°C), lepo max 25 min
+        minRestMin = Math.min(rawMinRest, 25);
+        restSetback = Math.max(rawRestSetback, -1.0);
+      } else if (outdoorTemp <= 7) {
+        // Syyssää / viileä (+3...+7°C): Maltillinen pudotus (max -2°C), lepo max 45 min
+        minRestMin = Math.min(rawMinRest, 45);
+        restSetback = Math.max(rawRestSetback, -2.0);
+      }
+    }
+
+    // Jos sisälämpötila on tavoitetta matalampi (< 21.0°C), ei sallita negatiivista lepopudotusta lainkaan
+    const targetIndoor = settings.indoor_target_temp_c ?? 21.3;
+    if (settings.indoor_feedback_enabled !== false && indoorTemp != null && indoorTemp < targetIndoor - 0.3) {
+      restSetback = Math.max(0.0, restSetback);
+      minRestMin = Math.min(minRestMin, 20);
     }
 
     return { minRestMin, restSetback, chargeBoost, maxRunMin };
@@ -100,7 +105,7 @@ class PanasonicDriver {
   /**
    * Apply an APC directive to the heat pump
    * @param {string} directive - BOOST | NORMAL | SETBACK | DHW_CYCLE | ECO
-   * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, compressorFreq, heatpumpState, threeWayValve, isDhwSlot }
+   * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, compressorFreq, heatpumpState, threeWayValve, isDhwSlot, indoorTemp, alakertaTemp, ylakertaTemp }
    */
   async applyDirective(directive, context) {
     const {
@@ -113,6 +118,9 @@ class PanasonicDriver {
       heatpumpState = 1,
       threeWayValve = 0,
       isDhwSlot = false,
+      indoorTemp = null,
+      alakertaTemp = null,
+      ylakertaTemp = null,
     } = context;
     const now = Date.now();
 
@@ -163,20 +171,39 @@ class PanasonicDriver {
         break;
     }
 
+    // ─── Sisälämpötilakompensaatio (Huoneanturipalaute: Alakerta + Yläkerran työhuone) ───
+    let indoorTrim = 0;
+    if (settings.indoor_feedback_enabled !== false && indoorTemp != null) {
+      const targetIndoor = settings.indoor_target_temp_c ?? 21.3;
+      const indoorDelta = targetIndoor - indoorTemp;
+
+      if (indoorDelta >= 0.3) {
+        // Asunnossa kylmempää kuin tavoite: nostetaan menoveden pyyntiä (+1...+3°C)
+        indoorTrim = Math.min(3, Math.max(1, Math.round(indoorDelta * 1.5)));
+      } else if (indoorDelta <= -0.7) {
+        // Asunnossa selvästi tavoitetta lämpimämpää (aurinko/takka): lasketaan pyyntiä säästösyistä (-1...-2°C)
+        indoorTrim = Math.max(-2, Math.round(indoorDelta * 1.0));
+      }
+
+      if (indoorTrim !== 0) {
+        targetShift = targetShift + indoorTrim;
+      }
+    }
+
     // ─── Smart Buffer Cycling State Machine (Puskurin älykäs syklaus / pätkäkäynnin esto) ───
     const isSmartCyclingEnabled = settings.smart_cycling_enabled !== false;
     const isDhwActive = threeWayValve === 1 || isDhwSlot || directive === 'DHW_CYCLE';
 
     if (isSmartCyclingEnabled && !isDhwActive) {
       const isCompressorRunning = (compressorFreq > 0) && (heatpumpState === 1);
-      const { minRestMin, restSetback, chargeBoost, maxRunMin } = this.getAdaptiveCyclingLimits(settings, outdoorTemp);
+      const { minRestMin, restSetback, chargeBoost, maxRunMin } = this.getAdaptiveCyclingLimits(settings, outdoorTemp, indoorTemp);
 
       // Transition 1: Compressor just started heating
       if (isCompressorRunning && !this.lastCompressorRunning) {
         this.cyclingPhase = 'CHARGING';
         this.chargeStartedAt = now;
         this.phaseStartedAt = now;
-        log(`Smart Cycling: Kompressori käynnistyi (${compressorFreq} Hz, ulko ${outdoorTemp}°C) -> CHARGING (+${chargeBoost}°C teholataus)`);
+        log(`Smart Cycling: Kompressori käynnistyi (${compressorFreq} Hz, ulko ${outdoorTemp}°C, sisä ${indoorTemp ?? '-'}°C) -> CHARGING (+${chargeBoost}°C teholataus)`);
       }
       // Running state: in charging phase
       else if (isCompressorRunning) {
@@ -198,7 +225,7 @@ class PanasonicDriver {
         this.cyclingPhase = 'RESTING';
         this.restStartedAt = now;
         this.phaseStartedAt = now;
-        log(`Smart Cycling: Kompressori sammui (kävi ${this.lastCycleDurationMin ?? '?'} min, ulko ${outdoorTemp}°C) -> RESTING (${restSetback}°C, min. ${minRestMin} min lepoaika)`);
+        log(`Smart Cycling: Kompressori sammui (kävi ${this.lastCycleDurationMin ?? '?'} min, ulko ${outdoorTemp}°C, sisä ${indoorTemp ?? '-'}°C) -> RESTING (${restSetback}°C, min. ${minRestMin} min lepoaika)`);
       }
       // Stopped state: resting or idle
       else if (!isCompressorRunning) {

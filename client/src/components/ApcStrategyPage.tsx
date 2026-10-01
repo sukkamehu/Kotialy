@@ -108,6 +108,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [smartCyclingMinRest, setSmartCyclingMinRest] = useState<string>(String(status?.settings?.smart_cycling_min_rest_min ?? 60));
   const [smartCyclingRestSetback, setSmartCyclingRestSetback] = useState<string>(String(status?.settings?.smart_cycling_rest_setback_c ?? -2.0));
   const [smartCyclingMaxRun, setSmartCyclingMaxRun] = useState<string>(String(status?.settings?.smart_cycling_max_run_min ?? 75));
+  const [indoorFeedbackEnabled, setIndoorFeedbackEnabled] = useState<boolean>(status?.settings?.indoor_feedback_enabled !== false);
+  const [indoorTargetTemp, setIndoorTargetTemp] = useState<string>(String(status?.settings?.indoor_target_temp_c ?? 21.3));
+  const [indoorMinTemp, setIndoorMinTemp] = useState<string>(String(status?.settings?.indoor_min_temp_c ?? 20.5));
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Sähkösopimus & Siirtohinnat state
@@ -168,6 +171,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setSmartCyclingMinRest(String(status.settings.smart_cycling_min_rest_min ?? 60));
       setSmartCyclingRestSetback(String(status.settings.smart_cycling_rest_setback_c ?? -2.0));
       setSmartCyclingMaxRun(String(status.settings.smart_cycling_max_run_min ?? 75));
+      setIndoorFeedbackEnabled(status.settings.indoor_feedback_enabled !== false);
+      setIndoorTargetTemp(String(status.settings.indoor_target_temp_c ?? 21.3));
+      setIndoorMinTemp(String(status.settings.indoor_min_temp_c ?? 20.5));
     }
   }, [status?.settings]);
 
@@ -244,6 +250,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       smart_cycling_min_rest_min: parseInt(smartCyclingMinRest, 10) || 60,
       smart_cycling_rest_setback_c: parseFloat(smartCyclingRestSetback) || -2.0,
       smart_cycling_max_run_min: parseInt(smartCyclingMaxRun, 10) || 75,
+      indoor_feedback_enabled: Boolean(indoorFeedbackEnabled),
+      indoor_target_temp_c: parseFloat(indoorTargetTemp) || 21.3,
+      indoor_min_temp_c: parseFloat(indoorMinTemp) || 20.5,
     });
     if (ok) {
       setSaveSuccess(true);
@@ -1375,6 +1384,134 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     />
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
                       Turvaraja: palauttaa peruspyynnin {smartCyclingMaxRun} min jälkeen
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Column: Sisälämpötilaohjaus & Mukavuussuoja */}
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🏠</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Sisälämpötilaohjaus & Mukavuussuoja
+                  </span>
+                </div>
+                <span className="badge" style={{ fontSize: 10, padding: '2px 8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                  Alakerta + Yläkerta
+                </span>
+              </div>
+
+              {/* Live Indoor Temperatures Box */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.07)',
+                borderRadius: 10,
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Pääkiinteistön sisälämpötila:
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>
+                      {status?.sensors?.indoorTemp != null ? `${status.sensors.indoorTemp} °C` : '–'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(keskiarvo)</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 11, color: 'var(--text-secondary)', paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div>
+                    Alakerta: <strong style={{ color: 'var(--text-primary)' }}>{status?.sensors?.alakertaTemp != null ? `${status.sensors.alakertaTemp} °C` : '–'}</strong>
+                  </div>
+                  <div>
+                    Yläkerran työhuone: <strong style={{ color: 'var(--text-primary)' }}>{status?.sensors?.ylakertaTemp != null ? `${status.sensors.ylakertaTemp} °C` : '–'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={indoorFeedbackEnabled}
+                  onChange={(e) => setIndoorFeedbackEnabled(e.target.checked)}
+                  disabled={readOnly}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#10b981' }}
+                />
+                <span>
+                  <strong style={{ color: 'var(--text-primary)' }}>Automaattinen sisälämpötilakompensaatio</strong>: Korjaa menoveden lämpöpyyntiä (+1...+3 °C) kun sisälämpötila alittaa tavoitteen ({indoorTargetTemp} °C) ja suojaa rossipohjan kylmettymiseltä.
+                </span>
+              </label>
+
+              {indoorFeedbackEnabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#10b981', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Tavoitelämpötila (°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="18.0"
+                      max="25.0"
+                      value={indoorTargetTemp}
+                      onChange={(e) => setIndoorTargetTemp(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#10b981',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Tavoitelämpötila omakotitalossa
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: '#f59e0b', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Kylmyyssuojan alaraja (°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="17.0"
+                      max="22.0"
+                      value={indoorMinTemp}
+                      onChange={(e) => setIndoorMinTemp(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#f59e0b',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Estää hintapudotukset tämän alittuessa
                     </div>
                   </div>
                 </div>

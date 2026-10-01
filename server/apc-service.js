@@ -63,7 +63,23 @@ class ApcService {
     const compressorFreq = state['main/Compressor_Freq']?.value ? parseFloat(state['main/Compressor_Freq'].value) : 0;
     const heatpumpState = state['main/Heatpump_State']?.value !== undefined ? parseInt(state['main/Heatpump_State'].value, 10) : 1;
     const threeWayValve = state['main/ThreeWay_Valve_State']?.value !== undefined ? parseInt(state['main/ThreeWay_Valve_State'].value, 10) : 0;
-    return { bufferTemp, dhwTemp, outsideTemp, compressorFreq, heatpumpState, threeWayValve };
+
+    // Sisälämpötila-anturit (Pääkiinteistö: alakerta & yläkerran työhuone)
+    const alakertaTemp = state['tuya/alakerta/temperature']?.value ? parseFloat(state['tuya/alakerta/temperature'].value) : null;
+    const ylakertaTemp = (state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
+      ? parseFloat(state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
+      : null;
+
+    let indoorTemp = null;
+    if (alakertaTemp != null && ylakertaTemp != null) {
+      indoorTemp = Math.round(((alakertaTemp + ylakertaTemp) / 2) * 10) / 10;
+    } else if (alakertaTemp != null) {
+      indoorTemp = alakertaTemp;
+    } else if (ylakertaTemp != null) {
+      indoorTemp = ylakertaTemp;
+    }
+
+    return { bufferTemp, dhwTemp, outsideTemp, compressorFreq, heatpumpState, threeWayValve, alakertaTemp, ylakertaTemp, indoorTemp };
   }
 
   /**
@@ -73,7 +89,7 @@ class ApcService {
     try {
       const now = Date.now();
       const settings = db.getApcSettings();
-      const { bufferTemp, dhwTemp, outsideTemp, compressorFreq, heatpumpState, threeWayValve } = this.getCurrentSensors();
+      const { bufferTemp, dhwTemp, outsideTemp, compressorFreq, heatpumpState, threeWayValve, alakertaTemp, ylakertaTemp, indoorTemp } = this.getCurrentSensors();
 
       // Get 24-36h window of prices
       const startWindow = now - 60 * 60 * 1000; // include 1h past
@@ -133,6 +149,13 @@ class ApcService {
         }
       }
 
+      // Cold Comfort Guard: Estetään hintapudotus jos asunnon todellinen sisälämpötila on liian alhainen
+      const indoorMinLimit = settings.indoor_min_temp_c != null ? settings.indoor_min_temp_c : 20.5;
+      if (settings.indoor_feedback_enabled !== false && indoorTemp != null && indoorTemp <= indoorMinLimit && activeDirective === 'SETBACK') {
+        activeDirective = 'NORMAL';
+        reason = `Mukavuussuoja: Sisälämpötila (${indoorTemp}°C) alle minimirajan (${indoorMinLimit}°C) · Hintapudotus estetty`;
+      }
+
       const prevDirective = this.currentDirective;
       this.currentDirective = activeDirective;
       this.activeDhwSlot = isDhwSlot;
@@ -149,6 +172,9 @@ class ApcService {
         heatpumpState,
         threeWayValve,
         isDhwSlot,
+        indoorTemp,
+        alakertaTemp,
+        ylakertaTemp,
       };
 
       await deviceManager.dispatchDirective(activeDirective, context);
@@ -163,7 +189,7 @@ class ApcService {
           buffer_temp: bufferTemp,
           dhw_temp: dhwTemp,
           directive: activeDirective,
-          details: { isDhwSlot, override: settings.override_until > now },
+          details: { isDhwSlot, override: settings.override_until > now, indoorTemp },
         });
       }
 
@@ -296,7 +322,7 @@ class ApcService {
    */
   getStatus() {
     const settings = db.getApcSettings();
-    const { bufferTemp, dhwTemp, outsideTemp } = this.getCurrentSensors();
+    const { bufferTemp, dhwTemp, outsideTemp, indoorTemp, alakertaTemp, ylakertaTemp } = this.getCurrentSensors();
     const currentPriceObj = nordpool.getCurrentPrice();
 
     const prices = this.computedPlan.map(p => p.price);
@@ -314,7 +340,7 @@ class ApcService {
       activeDhwSlot: this.activeDhwSlot,
       lastEvaluatedAt: this.lastEvaluatedAt,
       currentPrice: currentPriceObj ? currentPriceObj.price / 10 : null,
-      sensors: { bufferTemp, dhwTemp, outsideTemp },
+      sensors: { bufferTemp, dhwTemp, outsideTemp, indoorTemp, alakertaTemp, ylakertaTemp },
       settings,
       overrideActive: settings.override_until > Date.now(),
       overrideUntil: settings.override_until,

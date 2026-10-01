@@ -582,6 +582,9 @@ function getApcSettings() {
     smart_cycling_min_rest_min: 60,
     smart_cycling_rest_setback_c: -2.0,
     smart_cycling_max_run_min: 75,
+    indoor_feedback_enabled: true,
+    indoor_target_temp_c: 21.3,
+    indoor_min_temp_c: 20.5,
   };
 
   for (const r of rows) {
@@ -595,6 +598,8 @@ function getApcSettings() {
       settings.quiet_mode_auto_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'smart_cycling_enabled') {
       settings.smart_cycling_enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'indoor_feedback_enabled') {
+      settings.indoor_feedback_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_anti_seize_enabled') {
       settings.floor_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_summer_pulse_enabled') {
