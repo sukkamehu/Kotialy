@@ -95,4 +95,19 @@ ssh juuso@192.168.68.54 "cd ~/Dev/kotialy && docker compose up -d --build"
   - 284 L käyttövesivaraaja laajalla latauskierukalla
   - Toisiopiirissä Sonoff-älyohjattu kiertovesipumppu (`lattialampopumppu`)
 
+---
+
+## 🌡️ Lämpötila-anturit ja niiden sijainnit
+
+- **Pääkiinteistön sisälämpötila (omakotitalo):**
+  - `tuya/alakerta/temperature` (**Alakerta**) — Edustaa alakerran sisälämpötilaa.
+  - `tuya/ylakerran_tyohuone/temperature` (**Yläkerran työhuone**) — Edustaa yläkerran sisälämpötilaa.
+  - *Näiden kahden anturin keskiarvo / lukemat kuvaavat asunnon todellista sisälämpötilaa (tavoite ~21,3 °C).*
+- **Muut tilat ja etäkohteet:**
+  - `tuya/naytollinen/temperature` (**Näytöllinen mittari**) — **Sijaitsee eri talossa (sijoitusasunnossa)**. Pidetään mukana UI:ssa/seurannassa, mutta **EI** edusta pääkiinteistön sisälämpötilaa.
+  - `tuya/autotalli/temperature` — Autotallin lämpötila.
+  - `tuya/sauna/temperature` — Saunan lämpötila.
+  - `tuya/ulko/temperature` ja `main/Outside_Temp` — Ulkolämpötila.
+
+
 
