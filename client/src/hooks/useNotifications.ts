@@ -8,6 +8,7 @@ export interface NotificationSettings {
   dhw_heater_alerts_enabled: string;
   appliance_alerts_enabled: string;
   sauna_alerts_enabled: string;
+  sauna_target_temp?: string;
   sauna_glow_enabled: string;
   door_alerts_enabled: string;
   door_left_open_minutes: string;

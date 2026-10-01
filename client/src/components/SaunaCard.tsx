@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTuya } from '../hooks/useTuya';
+import { useNotifications } from '../hooks/useNotifications';
 import { ConfirmModal } from './ConfirmModal';
 import { apiFetch } from '../lib/api';
 import type { SaunaSession } from '../types/tuya';
@@ -28,11 +29,13 @@ interface SaunaCardProps {
 
 export function SaunaCard({ readOnly = false }: SaunaCardProps) {
   const { sauna, setSaunaPower, scheduleSauna, cancelScheduledSauna, actionLoading, error } = useTuya();
+  const { settings: notifSettings, updateSettings: updateNotifSettings } = useNotifications();
   const [selectedDuration, setSelectedDuration] = useState<number>(90);
   const [selectedDelay, setSelectedDelay] = useState<number>(0);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [showStats, setShowStats] = useState<boolean>(false);
+  const [showNotifConfig, setShowNotifConfig] = useState<boolean>(false);
   const [sessionsList, setSessionsList] = useState<SaunaSession[]>([]);
   const [statsLoading, setStatsLoading] = useState<boolean>(false);
   const [historyPreset, setHistoryPreset] = useState<SaunaHistoryPreset>('today');
@@ -471,8 +474,48 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
               <button
                 type="button"
                 onClick={() => {
+                  setShowNotifConfig(!showNotifConfig);
+                  if (!showNotifConfig) {
+                    setShowHistory(false);
+                    setShowStats(false);
+                  }
+                }}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: showNotifConfig
+                    ? '1px solid #38bdf8'
+                    : notifSettings?.sauna_alerts_enabled === 'false'
+                    ? '1px solid rgba(255, 255, 255, 0.1)'
+                    : '1px solid rgba(56, 189, 248, 0.3)',
+                  background: showNotifConfig
+                    ? 'rgba(56, 189, 248, 0.2)'
+                    : notifSettings?.sauna_alerts_enabled === 'false'
+                    ? 'rgba(255, 255, 255, 0.04)'
+                    : 'rgba(56, 189, 248, 0.1)',
+                  color: notifSettings?.sauna_alerts_enabled === 'false' ? 'var(--text-muted)' : '#38bdf8',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Saunan valmis push-ilmoitus"
+              >
+                <span>🔔</span>
+                <span>{notifSettings?.sauna_alerts_enabled === 'false' ? 'Ilmoitus pois' : `${notifSettings?.sauna_target_temp || '40'} °C`}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   setShowStats(!showStats);
-                  if (!showStats) setShowHistory(false);
+                  if (!showStats) {
+                    setShowHistory(false);
+                    setShowNotifConfig(false);
+                  }
                 }}
                 style={{
                   padding: '4px 8px',
@@ -497,7 +540,10 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
                 type="button"
                 onClick={() => {
                   setShowHistory(!showHistory);
-                  if (!showHistory) setShowStats(false);
+                  if (!showHistory) {
+                    setShowStats(false);
+                    setShowNotifConfig(false);
+                  }
                 }}
                 style={{
                   padding: '4px 8px',
@@ -520,6 +566,132 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
             </div>
           </div>
         </div>
+
+        {/* Sauna Notification Settings Box */}
+        {showNotifConfig && (
+          <div
+            style={{
+              background: 'rgba(0, 0, 0, 0.35)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#fff' }}>
+                <span>🔔</span>
+                <span>Sauna valmis -ilmoitus</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const current = notifSettings?.sauna_alerts_enabled || 'true';
+                  updateNotifSettings({ sauna_alerts_enabled: current === 'true' ? 'false' : 'true' });
+                }}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  background: notifSettings?.sauna_alerts_enabled !== 'false' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                  color: notifSettings?.sauna_alerts_enabled !== 'false' ? '#34d399' : '#f87171',
+                }}
+              >
+                {notifSettings?.sauna_alerts_enabled !== 'false' ? 'Päällä' : 'Pois päältä'}
+              </button>
+            </div>
+
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              Saat push-ilmoituksen puhelimeen heti, kun kiuas on lämmittänyt saunan valitsemaasi lämpötilaan.
+            </div>
+
+            {notifSettings?.sauna_alerts_enabled !== 'false' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Ilmoita lämpötilassa:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const curr = parseInt(notifSettings?.sauna_target_temp || '40', 10);
+                        const next = Math.max(30, curr - 5);
+                        updateNotifSettings({ sauna_target_temp: String(next) });
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: '#fff',
+                        width: 26,
+                        height: 26,
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        fontSize: 13,
+                      }}
+                    >
+                      -
+                    </button>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#38bdf8', minWidth: 44, textAlign: 'center' }}>
+                      {notifSettings?.sauna_target_temp || '40'} °C
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const curr = parseInt(notifSettings?.sauna_target_temp || '40', 10);
+                        const next = Math.min(90, curr + 5);
+                        updateNotifSettings({ sauna_target_temp: String(next) });
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: '#fff',
+                        width: 26,
+                        height: 26,
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        fontSize: 13,
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {['35', '40', '45', '50', '55', '60', '70'].map((t) => {
+                    const active = (notifSettings?.sauna_target_temp || '40') === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => updateNotifSettings({ sauna_target_temp: t })}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: active ? 700 : 500,
+                          background: active ? '#0284c7' : 'rgba(255,255,255,0.06)',
+                          color: active ? '#fff' : 'var(--text-secondary)',
+                          border: active ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {t} °C
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Sauna Temperature & Humidity Chart */}
         {showHistory && (() => {

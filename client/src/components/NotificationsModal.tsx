@@ -296,11 +296,111 @@ export function NotificationsModal({ onClose }: NotificationsModalProps) {
 
             <AlertToggleRow
               icon="🧖"
-              title="Sauna lämmin"
-              description="Ilmoittaa puhelimeen, kun kiuas on lämmittänyt saunan tavoitelämpötilaan (60 °C)."
+              title="Sauna valmis -ilmoitus"
+              description={`Ilmoittaa puhelimeen ja selaimeen, kun sauna saavuttaa halutun lämpötilan (${settings?.sauna_target_temp || '40'} °C).`}
               enabled={settings?.sauna_alerts_enabled === 'true'}
               onToggle={() => handleToggleSetting('sauna_alerts_enabled', settings?.sauna_alerts_enabled || 'true')}
-            />
+            >
+              {settings?.sauna_alerts_enabled === 'true' && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    paddingTop: 10,
+                    borderTop: '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Tavoitelämpötila ilmoitukselle:
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const curr = parseInt(settings?.sauna_target_temp || '40', 10);
+                          const next = Math.max(30, curr - 5);
+                          updateSettings({ sauna_target_temp: String(next) });
+                        }}
+                        style={{
+                          background: 'rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          color: '#fff',
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: 14,
+                        }}
+                      >
+                        -
+                      </button>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: 'var(--heat-primary, #f97316)',
+                          minWidth: 48,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {settings?.sauna_target_temp || '40'} °C
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const curr = parseInt(settings?.sauna_target_temp || '40', 10);
+                          const next = Math.min(90, curr + 5);
+                          updateSettings({ sauna_target_temp: String(next) });
+                        }}
+                        style={{
+                          background: 'rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          color: '#fff',
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: 14,
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {['35', '40', '45', '50', '55', '60', '70'].map((temp) => {
+                      const isSelected = (settings?.sauna_target_temp || '40') === temp;
+                      return (
+                        <button
+                          key={temp}
+                          type="button"
+                          onClick={() => updateSettings({ sauna_target_temp: temp })}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: isSelected ? 700 : 500,
+                            background: isSelected ? 'var(--heat-primary, #f97316)' : 'rgba(255,255,255,0.06)',
+                            color: isSelected ? '#fff' : 'var(--text-secondary)',
+                            border: isSelected ? '1px solid #ea580c' : '1px solid rgba(255,255,255,0.1)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {temp} °C
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </AlertToggleRow>
 
             <AlertToggleRow
               icon="🧺"
@@ -484,16 +584,16 @@ interface AlertToggleRowProps {
   description: string;
   enabled: boolean;
   onToggle: () => void;
+  children?: React.ReactNode;
 }
 
-function AlertToggleRow({ icon, title, description, enabled, onToggle }: AlertToggleRowProps) {
+function AlertToggleRow({ icon, title, description, enabled, onToggle, children }: AlertToggleRowProps) {
   return (
     <div
       onClick={onToggle}
       style={{
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
         background: 'rgba(255,255,255,0.02)',
         border: '1px solid rgba(255,255,255,0.06)',
         borderRadius: 10,
@@ -502,37 +602,40 @@ function AlertToggleRow({ icon, title, description, enabled, onToggle }: AlertTo
         transition: 'all 0.15s ease',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 20 }}>{icon}</span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>{description}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 20 }}>{icon}</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>{description}</div>
+          </div>
         </div>
-      </div>
-      <div
-        style={{
-          width: 40,
-          height: 22,
-          borderRadius: 12,
-          background: enabled ? 'var(--heat-primary, #f97316)' : 'rgba(255,255,255,0.15)',
-          position: 'relative',
-          transition: 'background 0.2s ease',
-          flexShrink: 0,
-        }}
-      >
         <div
           style={{
-            width: 16,
-            height: 16,
-            borderRadius: '50%',
-            background: '#fff',
-            position: 'absolute',
-            top: 3,
-            left: enabled ? 21 : 3,
-            transition: 'left 0.2s ease',
+            width: 40,
+            height: 22,
+            borderRadius: 12,
+            background: enabled ? 'var(--heat-primary, #f97316)' : 'rgba(255,255,255,0.15)',
+            position: 'relative',
+            transition: 'background 0.2s ease',
+            flexShrink: 0,
           }}
-        />
+        >
+          <div
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              background: '#fff',
+              position: 'absolute',
+              top: 3,
+              left: enabled ? 21 : 3,
+              transition: 'left 0.2s ease',
+            }}
+          />
+        </div>
       </div>
+      {children}
     </div>
   );
 }

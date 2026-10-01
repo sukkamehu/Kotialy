@@ -1145,6 +1145,7 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   dhw_heater_alerts_enabled: 'true',
   appliance_alerts_enabled: 'true',
   sauna_alerts_enabled: 'true',
+  sauna_target_temp: '40',
   sauna_glow_enabled: 'true',
   door_alerts_enabled: 'true',
   door_left_open_minutes: '15',

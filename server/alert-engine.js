@@ -154,24 +154,34 @@ class AlertEngine {
   async checkSaunaReady(state, settings) {
     if (settings.sauna_alerts_enabled === 'false') return;
 
+    const targetTemp = parseFloat(settings.sauna_target_temp || '40') || 40;
     const saunaSwitch = state['tuya/sauna/switch_1']?.value === 'true' || state['tuya/sauna/switch']?.value === '1';
     const saunaTemp = parseFloat(state['tuya/sauna/temperature']?.value || '0');
 
-    if (saunaSwitch) {
-      // Trigger when temp reaches 60°C for the first time during session
-      if (saunaTemp >= 60 && !this.saunaNotified) {
+    if (saunaTemp <= 0) return;
+
+    // Reset notification when sauna cools down
+    if (this.saunaNotified) {
+      const resetThreshold = Math.min(targetTemp - 8, 28);
+      if (!saunaSwitch || saunaTemp <= resetThreshold) {
+        this.saunaNotified = false;
+      }
+    }
+
+    // Trigger when temperature reaches or exceeds user target temp
+    if (saunaTemp >= targetTemp && !this.saunaNotified) {
+      const key = 'sauna_ready';
+      if (!this.isCooldown(key, 45 * 60 * 1000)) {
+        this.setCooldown(key);
         this.saunaNotified = true;
         await notificationService.sendNotification({
-          title: `🧖 Sauna on lämmin! (${saunaTemp.toFixed(0)} °C)`,
-          body: `Kiuas on saavuttanut tavoitelämmön. Löylyt ovat valmiina!`,
+          title: `🧖 Sauna on valmis! (${saunaTemp.toFixed(0)} °C)`,
+          body: `Sauna on saavuttanut tavoitelämmön (${targetTemp.toFixed(0)} °C). Löylyt ovat valmiina!`,
           severity: 'info',
           type: 'sauna',
           url: '/',
         });
       }
-    } else {
-      // Reset notification flag when sauna is turned off
-      this.saunaNotified = false;
     }
   }
 
