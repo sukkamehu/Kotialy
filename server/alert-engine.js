@@ -160,18 +160,21 @@ class AlertEngine {
 
     if (saunaTemp <= 0) return;
 
-    // Reset notification when sauna cools down
-    if (this.saunaNotified) {
-      const resetThreshold = Math.min(targetTemp - 8, 28);
-      if (!saunaSwitch || saunaTemp <= resetThreshold) {
-        this.saunaNotified = false;
-      }
+    // Reset notification flag only when sauna has properly cooled down
+    const coolThreshold = Math.min(targetTemp - 8, 28);
+    if (!saunaSwitch && saunaTemp <= coolThreshold) {
+      this.saunaNotified = false;
     }
 
-    // Trigger when temperature reaches or exceeds user target temp
+    // NEVER trigger notification if sauna is already OFF
+    if (!saunaSwitch) {
+      return;
+    }
+
+    // Trigger when temperature reaches or exceeds user target temp for the first time in active session
     if (saunaTemp >= targetTemp && !this.saunaNotified) {
       const key = 'sauna_ready';
-      if (!this.isCooldown(key, 45 * 60 * 1000)) {
+      if (!this.isCooldown(key, 60 * 60 * 1000)) {
         this.setCooldown(key);
         this.saunaNotified = true;
         await notificationService.sendNotification({
