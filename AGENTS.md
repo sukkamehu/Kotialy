@@ -4,13 +4,25 @@ Tämä tiedosto ohjeistaa AI-agentteja järjestelmän reaaliaikaisen tilan tutki
 
 ---
 
-## 🚀 Pääsääntö: Reaaliaikaisen tilanteen ja datan tutkiminen
+## 🚀 Pääsääntö 1: Reaaliaikaisen tilanteen ja datan tutkiminen
 
 > **Kun tarvitsee selvittää järjestelmän reaaliaikaista toimintaa, vikatilanteita, trendejä, tietokannan dataa tai ajonaikaisia lokeja, mene AINA katsomaan tuotantopalvelimelta SSH-yhteydellä:**
 >
 > **SSH-osoite:** `juuso@192.168.68.54`  
 > **Projektipolku palvelimella:** `~/Dev/kotialy/`  
 > **SSH toimii suoraan avaimella:** `ssh juuso@192.168.68.54 "<komento>"`
+
+---
+
+## 📦 Pääsääntö 2: Kaikki koodimuutokset pitää AINA commitoida GitHubiin
+
+> **Kaikki tehdyt koodimuutokset ja korjaukset tulee AINA commitoida selkeällä viestillä ja pushata suoraan GitHubin main-haaraan (`git push origin main`), sekä päivittää/buildata tuotantopalvelimelle.**
+>
+> ```bash
+> git add . && git commit -m "kuvaus muutoksesta" && git push origin main
+> # Palvelimen päivitys:
+> ssh juuso@192.168.68.54 "cd ~/Dev/kotialy && git pull && docker compose build dashboard && docker compose up -d dashboard"
+> ```
 
 ---
 
