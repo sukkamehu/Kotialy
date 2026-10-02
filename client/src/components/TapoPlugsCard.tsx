@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTapo } from '../hooks/useTapo';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
+import { useTuya } from '../hooks/useTuya';
 import type { TapoDevice } from '../types/tapo';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
@@ -558,6 +559,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     totalTodayEnergyKwh,
   } = useTapo();
   const { priceCentsKWh } = useElectricityPrice();
+  const { devices: tuyaDevices } = useTuya();
 
   const [settingsDeviceId, setSettingsDeviceId] = useState<string | null>(null);
   const [overrideDeviceId, setOverrideDeviceId] = useState<string | null>(null);
@@ -1008,6 +1010,80 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                       />
                     </div>
                   </div>
+
+                  {/* Isovarasto / Storage Temperature & Humidity Sensor Block */}
+                  {isStorage && (() => {
+                    const storageSensor = tuyaDevices.find(
+                      (t) =>
+                        t.type === 'climate' &&
+                        (t.name.toLowerCase().includes('isovarasto') ||
+                          t.name.toLowerCase().includes('varasto') ||
+                          t.name.toLowerCase().includes(dev.id.toLowerCase()))
+                    );
+                    if (!storageSensor) return null;
+
+                    const curTemp = storageSensor.properties.temperature;
+                    const curHumid = storageSensor.properties.humidity;
+                    const minLimit = dev.min_temp_c ?? 10.0;
+                    const isBelowMin = curTemp != null && curTemp < minLimit;
+
+                    return (
+                      <div
+                        style={{
+                          background: isBelowMin
+                            ? 'rgba(239, 68, 68, 0.12)'
+                            : 'rgba(251, 146, 60, 0.08)',
+                          border: isBelowMin
+                            ? '1px solid rgba(239, 68, 68, 0.4)'
+                            : '1px solid rgba(251, 146, 60, 0.25)',
+                          borderRadius: '10px',
+                          padding: '10px 12px',
+                          marginBottom: '12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '1.25rem' }}>🌡️</span>
+                          <div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Varaston lämpömittari
+                            </div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fb923c' }}>
+                              {curTemp != null ? `${curTemp} °C` : '--'}
+                              {curHumid != null && (
+                                <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 500, marginLeft: '6px' }}>
+                                  💧 {curHumid} %
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: 'right' }}>
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              background: isBelowMin ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 197, 94, 0.15)',
+                              color: isBelowMin ? '#f87171' : '#4ade80',
+                              border: isBelowMin ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(34, 197, 94, 0.3)',
+                              display: 'inline-block',
+                            }}
+                          >
+                            {isBelowMin ? '🚨 Pakkasraja' : '✅ Lämpötila OK'}
+                          </span>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Min: {minLimit}°C · Max: {dev.max_temp_c ?? 22}°C
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Automation & Condition Status */}
                   <div

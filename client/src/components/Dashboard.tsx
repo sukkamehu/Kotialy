@@ -2,30 +2,19 @@ import { useState, useEffect } from 'react';
 import type { HeishamonState, MqttStatus } from '../types/heishamon';
 import type { ZigbeeRegistry } from '../types/zigbee';
 import { StatusBar } from './StatusBar';
-import { HeatpumpCard } from './HeatpumpCard';
-import { DHWCard } from './DHWCard';
-import { BufferTankCard } from './BufferTankCard';
-import { OutdoorCard } from './OutdoorCard';
-import { ThreeWayValveCard } from './ThreeWayValveCard';
-import { EnergyStatsCard } from './EnergyStatsCard';
-import { DailyCostsCard } from './DailyCostsCard';
-import { HerrforsAnalyticsCard } from './HerrforsAnalyticsCard';
-import { UnifiedForecastCard } from './UnifiedForecastCard';
-import { HistoryChart } from './HistoryChart';
-import { ZigbeePanel } from './ZigbeePanel';
-import { CameraCard } from './CameraCard';
+import { CategoryHub, type CategoryId } from './CategoryHub';
+import { HeatingPage } from './HeatingPage';
+import { SaunaPage } from './SaunaPage';
+import { LightingPage } from './LightingPage';
+import { PlugsPage } from './PlugsPage';
+import { TrendsAndEnergyPage } from './TrendsAndEnergyPage';
+import { TechnicalAndSettingsPage } from './TechnicalAndSettingsPage';
+import { ApcStrategyPage } from './ApcStrategyPage';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 import { OutdoorWeatherModal } from './OutdoorWeatherModal';
-import { PanasonicSettingsCard } from './PanasonicSettingsCard';
-import { ApcStrategyPage } from './ApcStrategyPage';
-import { TapoPlugsCard } from './TapoPlugsCard';
-import { HydraulicDiagramPage } from './HydraulicDiagramPage';
-import { SaunaCard } from './SaunaCard';
-import { OutdoorLightsCard } from './OutdoorLightsCard';
-import { SmartLifePanel } from './SmartLifePanel';
+import { NotificationsModal } from './NotificationsModal';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
-import { NotificationsModal } from './NotificationsModal';
 
 interface DashboardProps {
   state: HeishamonState;
@@ -43,28 +32,56 @@ interface DashboardProps {
   onLogout?: () => void;
 }
 
-export type DashboardTab = 'dashboard' | 'herrfors' | 'apc_strategy' | 'history' | 'smartlife' | 'hydraulics' | 'heatpump_guide';
+export type DashboardTab =
+  | 'hub'
+  | 'heating'
+  | 'sauna'
+  | 'lighting'
+  | 'plugs'
+  | 'trends'
+  | 'technical'
+  | 'apc';
 
-const VALID_TABS: DashboardTab[] = ['dashboard', 'herrfors', 'apc_strategy', 'history', 'smartlife', 'hydraulics', 'heatpump_guide'];
+const VALID_TABS: DashboardTab[] = [
+  'hub',
+  'heating',
+  'sauna',
+  'lighting',
+  'plugs',
+  'trends',
+  'technical',
+  'apc',
+];
+
+function normalizeTab(raw: string): DashboardTab {
+  if (VALID_TABS.includes(raw as DashboardTab)) {
+    return raw as DashboardTab;
+  }
+  // Backwards compatibility mappings
+  if (raw === 'dashboard') return 'heating';
+  if (raw === 'smartlife') return 'sauna';
+  if (raw === 'herrfors' || raw === 'history') return 'trends';
+  if (raw === 'hydraulics' || raw === 'heatpump_guide') return 'technical';
+  if (raw === 'apc_strategy') return 'apc';
+  return 'hub';
+}
 
 function getInitialTab(): DashboardTab {
-  // 1. Check URL hash first (e.g. #smartlife)
   if (typeof window !== 'undefined') {
     const hash = window.location.hash.replace(/^#/, '');
-    if (VALID_TABS.includes(hash as DashboardTab)) {
-      return hash as DashboardTab;
+    if (hash) {
+      return normalizeTab(hash);
     }
-    // 2. Check localStorage
     try {
       const saved = localStorage.getItem('kotialy_active_tab');
-      if (saved && VALID_TABS.includes(saved as DashboardTab)) {
-        return saved as DashboardTab;
+      if (saved) {
+        return normalizeTab(saved);
       }
     } catch {
       // ignore
     }
   }
-  return 'dashboard';
+  return 'hub';
 }
 
 export function Dashboard({
@@ -73,8 +90,6 @@ export function Dashboard({
   heishamonOnline,
   wsConnected,
   lastUpdate,
-  zigbeeDevices,
-  zigbeeConnected,
   refresh,
   isLocal,
   authenticated,
@@ -82,7 +97,6 @@ export function Dashboard({
   role,
   onLogout,
 }: DashboardProps) {
-  const hasAnyData = Object.keys(state).length > 0;
   const [activeTab, setActiveTab] = useState<DashboardTab>(getInitialTab);
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
@@ -97,28 +111,27 @@ export function Dashboard({
       // ignore
     }
     if (typeof window !== 'undefined') {
-      const targetHash = tab === 'dashboard' ? '' : `#${tab}`;
+      const targetHash = tab === 'hub' ? '' : `#${tab}`;
       const currentHash = window.location.hash;
       if (currentHash !== targetHash) {
-        window.history.replaceState(null, '', tab === 'dashboard' ? window.location.pathname + window.location.search : `#${tab}`);
+        window.history.replaceState(
+          null,
+          '',
+          tab === 'hub' ? window.location.pathname + window.location.search : `#${tab}`
+        );
       }
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Synchronize on browser forward / back or hash navigation
   useEffect(() => {
     const onHashChange = () => {
       const hash = window.location.hash.replace(/^#/, '');
-      if (VALID_TABS.includes(hash as DashboardTab)) {
-        setActiveTab(hash as DashboardTab);
-        try {
-          localStorage.setItem('kotialy_active_tab', hash);
-        } catch {}
-      } else if (!hash) {
-        setActiveTab('dashboard');
-        try {
-          localStorage.setItem('kotialy_active_tab', 'dashboard');
-        } catch {}
+      if (hash) {
+        setActiveTab(normalizeTab(hash));
+      } else {
+        setActiveTab('hub');
       }
     };
     window.addEventListener('hashchange', onHashChange);
@@ -129,8 +142,19 @@ export function Dashboard({
     };
   }, []);
 
+  const navItems: { id: DashboardTab; label: string; icon: string; activeColor: string; activeBg: string }[] = [
+    { id: 'hub', label: 'Koti (Hub)', icon: '🏠', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
+    { id: 'heating', label: 'Lämmitys', icon: '🔥', activeColor: '#f59e0b', activeBg: 'rgba(245, 158, 11, 0.2)' },
+    { id: 'sauna', label: 'Sauna', icon: '🧖‍♂️', activeColor: '#fb923c', activeBg: 'rgba(251, 146, 60, 0.2)' },
+    { id: 'lighting', label: 'Valaistus', icon: '💡', activeColor: '#facc15', activeBg: 'rgba(250, 204, 21, 0.2)' },
+    { id: 'plugs', label: 'Älypistorasiat', icon: '🔌', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
+    { id: 'trends', label: 'Trendit & Kulutus', icon: '📈', activeColor: '#c084fc', activeBg: 'rgba(192, 132, 252, 0.2)' },
+    { id: 'technical', label: 'Tekninen tila', icon: '🛠️', activeColor: '#22d3ee', activeBg: 'rgba(34, 211, 238, 0.2)' },
+    { id: 'apc', label: 'APC-Strategia', icon: '⚡', activeColor: '#10b981', activeBg: 'rgba(16, 185, 129, 0.2)' },
+  ];
+
   return (
-    <div className="app-bg" style={{ minHeight: '100vh' }}>
+    <div className="app-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <StatusBar
         state={state}
         mqtt={mqtt}
@@ -144,335 +168,126 @@ export function Dashboard({
         onLogout={onLogout}
         onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
-        onNavigateHome={() => {
-          handleTabChange('dashboard');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onNavigateHome={() => handleTabChange('hub')}
       />
 
       <PullToRefresh onRefresh={refresh || (() => window.location.reload())}>
-        <main className="dashboard-main">
-          {/* Top navigation tabs */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 20,
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            paddingBottom: 12,
-            gap: 12,
-            flexWrap: 'wrap',
-          }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => handleTabChange('dashboard')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: activeTab === 'dashboard' ? '1px solid var(--accent-primary, #3b82f6)' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab === 'dashboard' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === 'dashboard' ? '#60a5fa' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>📊</span> Kojelauta
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('smartlife')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: activeTab === 'smartlife' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab === 'smartlife' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === 'smartlife' ? '#fbbf24' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>🧖‍♂️</span> Sauna & SmartLife
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('herrfors')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: activeTab === 'herrfors' ? '1px solid #a855f7' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab === 'herrfors' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === 'herrfors' ? '#c084fc' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>🔌</span> Sähkönkulutus
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('apc_strategy')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: activeTab === 'apc_strategy' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab === 'apc_strategy' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === 'apc_strategy' ? '#fbbf24' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>⚡</span> APC-automaatio
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('history')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: activeTab === 'history' ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab === 'history' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === 'history' ? '#38bdf8' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>📈</span> Historia & Trendit
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('hydraulics')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: activeTab === 'hydraulics' ? '1px solid #06b6d4' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab === 'hydraulics' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === 'hydraulics' ? '#22d3ee' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>🛠️</span> Tekninen tila
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('heatpump_guide')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: activeTab === 'heatpump_guide' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab === 'heatpump_guide' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === 'heatpump_guide' ? '#6ee7b7' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>⚙️</span> Asetusmuistio
-              </button>
-            </div>
+        <main className="dashboard-main" style={{ flex: 1, paddingBottom: 60 }}>
+          {/* Top category navigation tabs / pills (Responsive Horizontal Scroll) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: 20,
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              paddingBottom: 12,
+              gap: 8,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleTabChange(item.id)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 12,
+                    fontSize: 13,
+                    fontWeight: isActive ? 700 : 500,
+                    border: isActive ? `1px solid ${item.activeColor}` : '1px solid rgba(255,255,255,0.08)',
+                    background: isActive ? item.activeBg : 'rgba(255,255,255,0.03)',
+                    color: isActive ? item.activeColor : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ fontSize: 15 }}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* TAB 1: Sähkönkulutus (Herrfors + Daily costs) */}
-          {activeTab === 'herrfors' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
-              <ErrorBoundary>
-                <HerrforsAnalyticsCard readOnly={readOnly} />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <DailyCostsCard readOnly={readOnly} />
-              </ErrorBoundary>
-            </div>
+          {/* VIEW: HUB (Category Launcher View) */}
+          {activeTab === 'hub' && (
+            <ErrorBoundary>
+              <CategoryHub
+                state={state}
+                onSelectCategory={(cat: CategoryId) => handleTabChange(cat)}
+              />
+            </ErrorBoundary>
           )}
 
-          {/* TAB 2: APC Automaatiostrategia & Ohjain */}
-          {activeTab === 'apc_strategy' && (
+          {/* VIEW 1: LÄMMITYS (Top 6 Widgets + Forecast) */}
+          {activeTab === 'heating' && (
+            <ErrorBoundary>
+              <HeatingPage
+                state={state}
+                onOpenTrend={setTrendTarget}
+                onOpenOutdoorWeather={() => setOutdoorModalOpen(true)}
+                onOpenApc={() => handleTabChange('apc')}
+                readOnly={readOnly}
+              />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 2: SAUNA (Heating Widget + Lighting + Climate Stats) */}
+          {activeTab === 'sauna' && (
+            <ErrorBoundary>
+              <SaunaPage readOnly={readOnly} />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 3: VALAISTUS (Outdoor & Indoor Lighting) */}
+          {activeTab === 'lighting' && (
+            <ErrorBoundary>
+              <LightingPage readOnly={readOnly} />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 4: ÄLYPISTORASIAT (Tapo Plugs & Isovarasto Temp Sensor) */}
+          {activeTab === 'plugs' && (
+            <ErrorBoundary>
+              <PlugsPage onOpenTrend={setTrendTarget} readOnly={readOnly} />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 5: TRENDIT & SÄHKÖNKULUTUS (History, Herrfors, Daily Costs, Energy Stats) */}
+          {activeTab === 'trends' && (
+            <ErrorBoundary>
+              <TrendsAndEnergyPage
+                state={state}
+                onOpenTrend={setTrendTarget}
+                readOnly={readOnly}
+              />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 6: TEKNINEN TILA & ASETUSMUISTIO (Hydraulics & Panasonic Settings) */}
+          {activeTab === 'technical' && (
+            <ErrorBoundary>
+              <TechnicalAndSettingsPage state={state} readOnly={readOnly} />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 7: APC-AUTOMAATIOSTRATEGIA */}
+          {activeTab === 'apc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
               <ErrorBoundary>
                 <ApcStrategyPage readOnly={readOnly} />
               </ErrorBoundary>
             </div>
-          )}
-
-          {/* TAB 3: Historia & Trendit & Sensorit */}
-          {activeTab === 'history' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
-              <ErrorBoundary>
-                <HistoryChart />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <EnergyStatsCard state={state} onOpenTrend={setTrendTarget} />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <ZigbeePanel devices={zigbeeDevices} connected={zigbeeConnected} />
-              </ErrorBoundary>
-            </div>
-          )}
-
-          {/* TAB 4: Smart Life & Sauna */}
-          {activeTab === 'smartlife' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
-              <ErrorBoundary>
-                <OutdoorLightsCard readOnly={readOnly} />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <SaunaCard readOnly={readOnly} />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <SmartLifePanel />
-              </ErrorBoundary>
-            </div>
-          )}
-
-          {/* TAB 5: Hydraulikaavio */}
-          {activeTab === 'hydraulics' && (
-            <div style={{ marginBottom: 32 }}>
-              <ErrorBoundary>
-                <HydraulicDiagramPage state={state} readOnly={readOnly} />
-              </ErrorBoundary>
-            </div>
-          )}
-
-          {/* TAB 6: Lämpöpumpun asetusmuistio */}
-          {activeTab === 'heatpump_guide' && (
-            <div style={{ marginBottom: 32 }}>
-              <ErrorBoundary>
-                <PanasonicSettingsCard />
-              </ErrorBoundary>
-            </div>
-          )}
-
-          {/* MAIN TAB: Kojelauta (Reaaliaikainen tila + APC-tilanne + Yhdistetty Sähkö & Sää) */}
-          {activeTab === 'dashboard' && (
-            <>
-              {!hasAnyData && (
-                <div style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  minHeight: 300, gap: 16, marginBottom: 32,
-                }}>
-                  <div style={{ fontSize: 48 }}>🌡️</div>
-                  <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Yhdistetään Heishamoniin...
-                  </div>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>
-                    Odotetaan MQTT-tietoja Kotiäly-välittäjältä
-                  </div>
-                  <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: wsConnected ? 'var(--online)' : 'var(--offline)', boxShadow: wsConnected ? '0 0 8px var(--online)' : undefined }} />
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        WebSocket: {wsConnected ? 'Yhdistetty' : 'Yhdistetään...'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: zigbeeConnected ? 'var(--online)' : 'var(--offline)', boxShadow: zigbeeConnected ? '0 0 8px var(--online)' : undefined }} />
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        Zigbee: {zigbeeConnected ? 'Yhdistetty' : 'Yhdistetään...'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {hasAnyData && (
-                <>
-                  {/* Row 1: Primary heat pump & tank status cards */}
-                  <div className="dashboard-grid dashboard-grid-main">
-                    <ErrorBoundary>
-                      <HeatpumpCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-                    </ErrorBoundary>
-                    <ErrorBoundary>
-                      <DHWCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-                    </ErrorBoundary>
-                    <ErrorBoundary>
-                      <BufferTankCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-                    </ErrorBoundary>
-                  </div>
-
-                  {/* Row 2: Outdoor + Valve + Camera */}
-                  <div className="dashboard-grid dashboard-grid-sub">
-                    <ErrorBoundary>
-                      <OutdoorCard
-                        state={state}
-                        onOpenTrend={setTrendTarget}
-                        onOpenOutdoorWeather={() => setOutdoorModalOpen(true)}
-                        readOnly={readOnly}
-                      />
-                    </ErrorBoundary>
-                    <ErrorBoundary>
-                      <ThreeWayValveCard state={state} onOpenTrend={setTrendTarget} readOnly={readOnly} />
-                    </ErrorBoundary>
-                    <ErrorBoundary>
-                      <CameraCard />
-                    </ErrorBoundary>
-                  </div>
-
-                  {/* Row 3: Sauna WiFi Control & Outdoor Lights */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
-                    <ErrorBoundary>
-                      <OutdoorLightsCard readOnly={readOnly} />
-                    </ErrorBoundary>
-                    <ErrorBoundary>
-                      <SaunaCard readOnly={readOnly} />
-                    </ErrorBoundary>
-                  </div>
-
-                  {/* Row 4: Tapo P115 Smart Plugs & Power Monitoring */}
-                  <div style={{ marginBottom: 24 }}>
-                    <ErrorBoundary>
-                      <TapoPlugsCard onOpenTrend={setTrendTarget} readOnly={readOnly} />
-                    </ErrorBoundary>
-                  </div>
-
-                  {/* UNIFIED FORECAST CARD with integrated real-time APC directive */}
-                  <div style={{ marginBottom: 24 }}>
-                    <ErrorBoundary>
-                      <UnifiedForecastCard onOpenApc={() => setActiveTab('apc_strategy')} />
-                    </ErrorBoundary>
-                  </div>
-                </>
-              )}
-            </>
           )}
         </main>
       </PullToRefresh>
@@ -494,4 +309,3 @@ export function Dashboard({
     </div>
   );
 }
-
