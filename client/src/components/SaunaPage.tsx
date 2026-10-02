@@ -29,7 +29,6 @@ export const SaunaPage: React.FC<SaunaPageProps> = ({ readOnly = false }) => {
   };
 
   const saunaLights = devices.filter((d) => d.type === 'light' && isSaunaLight(d));
-  const saunaClimate = devices.find((d) => d.name.toLowerCase().includes('sauna') && d.type === 'climate');
 
   const handleControlLight = async (deviceId: string | string[], params: Record<string, any>) => {
     if (readOnly) return;
@@ -71,35 +70,6 @@ export const SaunaPage: React.FC<SaunaPageProps> = ({ readOnly = false }) => {
             Kiukaan etäohjaus, turva-ajastin, saunan tunnelmavalaistus ja reaaliaikaiset mittaukset
           </div>
         </div>
-
-        {saunaClimate && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              background: 'rgba(251, 146, 60, 0.1)',
-              border: '1px solid rgba(251, 146, 60, 0.3)',
-              padding: '6px 14px',
-              borderRadius: 12,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>🌡️</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#fb923c' }}>
-                {saunaClimate.properties.temperature != null ? `${saunaClimate.properties.temperature} °C` : '--'}
-              </span>
-            </div>
-            {saunaClimate.properties.humidity != null && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 12, color: '#38bdf8' }}>💧</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#38bdf8' }}>
-                  {saunaClimate.properties.humidity} %
-                </span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 1. Main Sauna Heating Widget (SaunaCard) */}
