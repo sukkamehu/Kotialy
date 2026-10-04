@@ -17,6 +17,8 @@ interface StatusBarProps {
   onOpenOutdoorModal?: () => void;
   onNavigateHome?: () => void;
   onOpenNotifications?: () => void;
+  onOpenTrends?: () => void;
+  onOpenApc?: () => void;
 }
 
 function timeAgo(ts: number | null, now: number): string {
@@ -42,6 +44,8 @@ export function StatusBar({
   onOpenOutdoorModal,
   onNavigateHome,
   onOpenNotifications,
+  onOpenTrends,
+  onOpenApc,
 }: StatusBarProps) {
   // The clock and the "updated Xs ago" label are derived from Date.now(), so
   // they only advance if something re-renders. Tick once a second.
@@ -153,10 +157,19 @@ export function StatusBar({
           </div>
         )}
 
-        {/* Electricity Price (Now & Day Average) */}
+        {/* Electricity Price (Now & Day Average) - Clickable to open APC Strategy & Prices */}
         {priceCentsKWh !== null && (
           <div
-            className="badge"
+            className={`badge ${onOpenApc ? 'status-badge-clickable' : ''}`}
+            onClick={onOpenApc}
+            role={onOpenApc ? 'button' : undefined}
+            tabIndex={onOpenApc ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (onOpenApc && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onOpenApc();
+              }
+            }}
             style={{
               background: priceBg,
               border: `1px solid ${priceBorder}`,
@@ -168,7 +181,7 @@ export function StatusBar({
               gap: 5,
               padding: '4px 10px',
             }}
-            title={`Sähkön pörssihinta nyt: ${priceCentsKWh.toFixed(2)} snt/kWh\nPäivän keskiarvo: ${avgPriceCentsKWh !== null ? avgPriceCentsKWh.toFixed(2) + ' snt/kWh' : '—'}\nMin: ${minPriceCentsKWh !== null ? minPriceCentsKWh.toFixed(2) + ' snt' : '—'} | Max: ${maxPriceCentsKWh !== null ? maxPriceCentsKWh.toFixed(2) + ' snt' : '—'}`}
+            title={`Sähkön pörssihinta nyt: ${priceCentsKWh.toFixed(2)} snt/kWh\nPäivän keskiarvo: ${avgPriceCentsKWh !== null ? avgPriceCentsKWh.toFixed(2) + ' snt/kWh' : '—'}\nMin: ${minPriceCentsKWh !== null ? minPriceCentsKWh.toFixed(2) + ' snt' : '—'} | Max: ${maxPriceCentsKWh !== null ? maxPriceCentsKWh.toFixed(2) + ' snt' : '—'}${onOpenApc ? '\n\n👉 Klikkaa avataksesi pörssisähkön hintatiedot ja APC-ohjauksen' : ''}`}
           >
             <span>⚡</span>
             <span>{priceCentsKWh.toFixed(1)} <span style={{ fontSize: 10, opacity: 0.85 }}>snt/kWh</span></span>
@@ -180,10 +193,19 @@ export function StatusBar({
           </div>
         )}
 
-        {/* Estimated Daily Consumption Demand */}
+        {/* Estimated Daily Consumption Demand - Clickable to open Trends & Energy */}
         {estimatedDailyKwh !== null && (
           <div
-            className="badge status-hide-xs"
+            className={`badge status-hide-xs ${onOpenTrends ? 'status-badge-clickable' : ''}`}
+            onClick={onOpenTrends}
+            role={onOpenTrends ? 'button' : undefined}
+            tabIndex={onOpenTrends ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (onOpenTrends && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onOpenTrends();
+              }
+            }}
             style={{
               background: 'rgba(167, 139, 250, 0.12)',
               border: '1px solid rgba(167, 139, 250, 0.28)',
@@ -195,10 +217,10 @@ export function StatusBar({
               gap: 5,
               padding: '4px 9px',
             }}
-            title={`Laskennallinen arvio vuorokauden sähköntarpeesta nykyisellä ulkolämpötilalla (${outsideTempNum?.toFixed(1)}°C):\n• Lämmitys: ~${heatingKwh.toFixed(1)} kWh\n• Lämmin käyttövesi: ~${dhwKwh.toFixed(1)} kWh\n= Yhteensä ~${estimatedDailyKwh} kWh/pv\n\n(Arviomalli tarkentuu automaattisesti lämmityskauden aikana kertyvän historiadatan myötä)`}
+            title={`Laskennallinen VILP-sähkönkulutusarvio vuorokaudessa nykyisellä ulkolämpötilalla (${outsideTempNum?.toFixed(1)}°C):\n• Lämmitys: ~${heatingKwh.toFixed(1)} kWh sähköä (~${(heatingKwh * 5.0).toFixed(0)} kWh lämpöä)\n• Lämmin käyttövesi: ~${dhwKwh.toFixed(1)} kWh sähköä (~${(dhwKwh * 3.5).toFixed(0)} kWh lämpöä)\n= VILP sähkönkulutus ~${estimatedDailyKwh} kWh/pv (vastaa ~${(heatingKwh * 5.0 + dhwKwh * 3.5).toFixed(0)} kWh lämpöenergiaa)\n\n(Huom: Koko talon kokonaissähkönkulutus sisältää lisäksi taloussähkön/pohjakuorman ~15-20 kWh/pv)${onOpenTrends ? '\n\n👉 Klikkaa avataksesi kulutushistorian ja trendit' : ''}`}
           >
             <span>🔋</span>
-            <span>Arvio: ~{estimatedDailyKwh} <span style={{ fontSize: 10, opacity: 0.85 }}>kWh/pv</span></span>
+            <span>VILP-arvio: ~{estimatedDailyKwh} <span style={{ fontSize: 10, opacity: 0.85 }}>kWh/pv</span></span>
           </div>
         )}
 

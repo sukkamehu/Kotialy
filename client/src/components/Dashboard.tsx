@@ -169,6 +169,8 @@ export function Dashboard({
         onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onNavigateHome={() => handleTabChange('hub')}
+        onOpenTrends={() => handleTabChange('trends')}
+        onOpenApc={() => handleTabChange('apc')}
       />
 
       <PullToRefresh onRefresh={refresh || (() => window.location.reload())}>
