@@ -54,7 +54,7 @@ export const PlugsPage: React.FC<PlugsPageProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Yhteiskuorma nyt</span>
             <span style={{ fontSize: 16, fontWeight: 800, color: '#38bdf8' }}>
-              {totalPowerW.toFixed(0)} W
+              {totalPowerW > 0 ? totalPowerW.toFixed(1) : '0'} W
             </span>
           </div>
           <div style={{ width: 1, height: 24, background: 'rgba(255, 255, 255, 0.1)' }} />

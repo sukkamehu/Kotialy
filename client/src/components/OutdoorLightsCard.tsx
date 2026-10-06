@@ -504,7 +504,7 @@ export function OutdoorLightsCard({ readOnly = false }: OutdoorLightsCardProps) 
           <div>
             <div style={{ fontSize: '0.7rem', color: '#38bdf8', marginBottom: '2px' }}>⚡ Hetkellinen teho</div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {status.telemetry.power_w.toFixed(0)} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>W</span>
+              {status.telemetry.power_w.toFixed(1)} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>W</span>
             </div>
             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               Virta: {status.telemetry.current_a.toFixed(2)} A

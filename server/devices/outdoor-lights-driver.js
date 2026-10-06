@@ -297,9 +297,12 @@ class OutdoorLightsDriver {
     // Fetch live hardware telemetry from Tuya cache
     const dev = tuyaService.devicesById?.get(deviceId) || tuyaService.devices?.find(d => d.id === deviceId || d.category === 'dlq' || (d.name && d.name.toLowerCase().includes('wifi switch')));
 
-    const powerW = dev?.properties?.power ?? (dev?.raw_status?.cur_power != null ? Number(dev.raw_status.cur_power) : 0);
-    const voltageV = dev?.properties?.voltage ?? (dev?.raw_status?.cur_voltage != null ? Number(dev.raw_status.cur_voltage) / 10 : 230);
-    const currentA = dev?.properties?.current ?? (dev?.raw_status?.cur_current != null ? Number(dev.raw_status.cur_current) / 1000 : 0);
+    const rawPower = dev?.properties?.power ?? (dev?.raw_status?.cur_power != null ? Number(dev.raw_status.cur_power) / 10 : (dev?.raw_status?.power != null ? Number(dev.raw_status.power) : 0));
+    const powerW = Number(Number(rawPower).toFixed(1));
+    const rawVoltage = dev?.properties?.voltage ?? (dev?.raw_status?.cur_voltage != null ? Number(dev.raw_status.cur_voltage) / 10 : 230);
+    const voltageV = Number(Number(rawVoltage).toFixed(1));
+    const rawCurrent = dev?.properties?.current ?? (dev?.raw_status?.cur_current != null ? Number(dev.raw_status.cur_current) / 1000 : 0);
+    const currentA = Number(Number(rawCurrent).toFixed(3));
     const energyKwh = dev?.properties?.energy ?? (dev?.raw_status?.add_ele != null ? Number(dev.raw_status.add_ele) : 0);
     const deviceTemp = dev?.properties?.device_temp ?? dev?.raw_status?.temp_value ?? null;
 

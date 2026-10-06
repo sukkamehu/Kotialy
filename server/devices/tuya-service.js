@@ -253,8 +253,8 @@ class TuyaService {
     let type = 'unknown';
     const properties = {};
 
-    // 1. Sauna / 3-phase Circuit Breaker or Relay (category: kg or matching saunaDeviceId)
-    if (d.id === this.saunaDeviceId || category === 'kg') {
+    // 1. Sauna / 3-phase Circuit Breaker or Relay (category: kg only)
+    if (category === 'kg' && (!this.saunaDeviceId || d.id === this.saunaDeviceId)) {
       type = 'sauna_switch';
       properties.switch_1 = statusMap.switch_1 === true || statusMap.switch === true;
     } 
@@ -308,9 +308,16 @@ class TuyaService {
       type = 'meter_switch';
       properties.switch_1 = statusMap.switch_1 === true || statusMap.switch === true;
       properties.state = properties.switch_1;
-      properties.power = statusMap.cur_power != null ? (Number(statusMap.cur_power) / (category === 'cz' ? 10 : 1)) : 0;
-      properties.voltage = statusMap.cur_voltage != null ? (Number(statusMap.cur_voltage) / 10) : 0;
-      properties.current = statusMap.cur_current != null ? (Number(statusMap.cur_current) / 1000) : 0;
+      // In Tuya, dlq (1P-Mtrg) and cz report cur_power in deciwatts (0.1 W), e.g. 533 -> 53.3 W
+      if (statusMap.cur_power != null) {
+        properties.power = Number((Number(statusMap.cur_power) / 10).toFixed(1));
+      } else if (statusMap.power != null) {
+        properties.power = Number(Number(statusMap.power).toFixed(1));
+      } else {
+        properties.power = 0;
+      }
+      properties.voltage = statusMap.cur_voltage != null ? Number((Number(statusMap.cur_voltage) / 10).toFixed(1)) : 0;
+      properties.current = statusMap.cur_current != null ? Number((Number(statusMap.cur_current) / 1000).toFixed(3)) : 0;
       properties.energy = statusMap.add_ele != null ? Number(statusMap.add_ele) : 0;
       properties.device_temp = statusMap.temp_value != null ? Number(statusMap.temp_value) : null;
     }
