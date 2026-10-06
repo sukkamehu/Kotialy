@@ -212,6 +212,11 @@ try {
 } catch {
   // column already exists
 }
+try {
+  db.exec(`ALTER TABLE sauna_sessions ADD COLUMN notified_ready INTEGER DEFAULT 0;`);
+} catch {
+  // column already exists
+}
 
 // ─── Prepared Statements ─────────────────────────────────────────────────────
 // node:sqlite uses ? placeholders and positional arguments

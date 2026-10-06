@@ -6,7 +6,6 @@ class AlertEngine {
   constructor() {
     this.cooldowns = new Map(); // key -> lastSentTimestamp
     this.dhwHeaterStartTime = null;
-    this.saunaNotified = false;
     this.lastDailyReportDate = null;
     this.doorStates = new Map(); // topic -> boolean
     this.doorOpenTimes = new Map(); // topic -> timestamp
@@ -150,33 +149,50 @@ class AlertEngine {
 
   /**
    * 4. Sauna Ready Notification
+   * Triggers ONLY when there is an active heating session, temperature reaches target for the first time,
+   * and the heater has not been switched off.
    */
   async checkSaunaReady(state, settings) {
     if (settings.sauna_alerts_enabled === 'false') return;
 
+    // 1. Verify active heating session from DB
+    const activeSession = db.getActiveSaunaSession ? db.getActiveSaunaSession() : null;
+    const isSaunaSwitchOn = state['tuya/sauna/switch']?.value === '1' || state['tuya/sauna/switch_1']?.value === 'true';
+
+    // If there is NO active heating session or switch is explicitly OFF, do not alert
+    if (!activeSession || activeSession.status !== 'heating' || !isSaunaSwitchOn) {
+      return;
+    }
+
+    // 2. Prevent duplicate notifications for the same session across restarts
+    if (activeSession.notified_ready === 1) {
+      return;
+    }
+
     const targetTemp = parseFloat(settings.sauna_target_temp || '40') || 40;
-    const saunaSwitch = state['tuya/sauna/switch_1']?.value === 'true' || state['tuya/sauna/switch']?.value === '1';
     const saunaTemp = parseFloat(state['tuya/sauna/temperature']?.value || '0');
 
     if (saunaTemp <= 0) return;
 
-    // Reset notification flag only when sauna has properly cooled down
-    const coolThreshold = Math.min(targetTemp - 8, 28);
-    if (!saunaSwitch && saunaTemp <= coolThreshold) {
-      this.saunaNotified = false;
-    }
+    // 3. Ensure sauna is actively at or above target temperature
+    if (saunaTemp >= targetTemp) {
+      // If temperature has noticeably dropped from session peak (>2°C), kiuas is cooling down, don't alert
+      const peakTemp = activeSession.peak_temp || saunaTemp;
+      if (peakTemp - saunaTemp > 2.0) {
+        return;
+      }
 
-    // NEVER trigger notification if sauna is already OFF
-    if (!saunaSwitch) {
-      return;
-    }
-
-    // Trigger when temperature reaches or exceeds user target temp for the first time in active session
-    if (saunaTemp >= targetTemp && !this.saunaNotified) {
-      const key = 'sauna_ready';
-      if (!this.isCooldown(key, 60 * 60 * 1000)) {
+      const key = `sauna_ready_${activeSession.id}`;
+      if (!this.isCooldown(key, 2 * 60 * 60 * 1000)) {
         this.setCooldown(key);
-        this.saunaNotified = true;
+
+        // Mark session persistently as notified in DB
+        try {
+          db.updateSaunaSession(activeSession.id, { notified_ready: 1 });
+        } catch (err) {
+          console.warn('[AlertEngine] Failed to mark sauna session notified:', err.message);
+        }
+
         await notificationService.sendNotification({
           title: `🧖 Sauna on valmis! (${saunaTemp.toFixed(0)} °C)`,
           body: `Sauna on saavuttanut tavoitelämmön (${targetTemp.toFixed(0)} °C). Löylyt ovat valmiina!`,

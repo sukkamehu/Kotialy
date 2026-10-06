@@ -574,6 +574,7 @@ class TuyaService {
           cost_eur: calc.costEur,
           avg_price_cents: calc.avgPriceCents,
           status: 'completed',
+          notified_ready: 1,
         });
         console.log(`[TUYA] 📊 Saunasessio päätetty ja tallennettu: ${calc.durationMinutes} min · ${calc.energyKwh} kWh · ${calc.costEur} € (Huippu: ${peakTemp}°C)`);
       }
