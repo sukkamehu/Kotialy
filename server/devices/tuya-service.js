@@ -133,8 +133,24 @@ class TuyaService {
     this.isPolling = true;
 
     try {
-      const res = await this.request('/v1.0/iot-01/associated-users/devices', 'GET');
-      const rawList = res.result?.devices || res.result?.list || (Array.isArray(res.result) ? res.result : []);
+      // Tuya associated-users endpoint returns 20 items per page with cursor pagination (last_row_key)
+      const rawList = [];
+      let hasMore = true;
+      let lastRowKey = '';
+      let pageCount = 0;
+
+      while (hasMore && pageCount < 10) {
+        pageCount++;
+        const path = lastRowKey
+          ? `/v1.0/iot-01/associated-users/devices?last_row_key=${encodeURIComponent(lastRowKey)}`
+          : '/v1.0/iot-01/associated-users/devices';
+        const res = await this.request(path, 'GET');
+        const list = res.result?.devices || res.result?.list || (Array.isArray(res.result) ? res.result : []);
+        rawList.push(...list);
+
+        hasMore = Boolean(res.result?.has_more && res.result?.last_row_key && res.result.last_row_key !== lastRowKey);
+        lastRowKey = res.result?.last_row_key || '';
+      }
       
       const parsedDevices = [];
       let foundSaunaTemp = null;
@@ -392,7 +408,13 @@ class TuyaService {
     }
 
     // If device is the outdoor lights metering relay, also sync to tuya/ulkovalot/*
-    if (device.id === 'bfc6974c07151a07e7fa3g' || device.name.toLowerCase().includes('wifi switch')) {
+    let outdoorDeviceId = 'bf7a39a3a10e38a52engat';
+    try {
+      const outdoorSettings = db.getOutdoorLightsSettings ? db.getOutdoorLightsSettings() : null;
+      if (outdoorSettings?.device_id) outdoorDeviceId = outdoorSettings.device_id;
+    } catch {}
+
+    if (device.id === outdoorDeviceId || (device.name && device.name.toLowerCase().includes('wifi switch / 1p-mtrg 2'))) {
       for (const [prop, val] of Object.entries(device.properties)) {
         if (val === null || val === undefined) continue;
         db.updateState(`tuya/ulkovalot/${prop}`, String(val));

@@ -112,7 +112,7 @@ class OutdoorLightsDriver {
     this.lastEvaluatedAt = Date.now();
     try {
       const settings = db.getOutdoorLightsSettings();
-      const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bfc6974c07151a07e7fa3g';
+      const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
       const now = new Date();
       const nowMs = now.getTime();
 
@@ -231,7 +231,7 @@ class OutdoorLightsDriver {
    */
   async setOverride(state, durationMinutes = 120) {
     const settings = db.getOutdoorLightsSettings();
-    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bfc6974c07151a07e7fa3g';
+    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
 
     if (state === null || state === 'AUTO' || state === '') {
       log('Palautetaan automaattinen astronominen hämäräohjaus...');
@@ -285,7 +285,7 @@ class OutdoorLightsDriver {
    */
   getStatus() {
     const settings = db.getOutdoorLightsSettings();
-    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bfc6974c07151a07e7fa3g';
+    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
     const now = new Date();
     const sunTimes = calculateSunTimes(now);
 
@@ -295,7 +295,7 @@ class OutdoorLightsDriver {
     const overrideMinutesRemaining = isOverrideActive ? Math.ceil((overrideUntil - Date.now()) / 60000) : 0;
 
     // Fetch live hardware telemetry from Tuya cache
-    const dev = tuyaService.devicesById?.get(deviceId) || tuyaService.devices?.find(d => d.id === deviceId || d.category === 'dlq' || (d.name && d.name.toLowerCase().includes('wifi switch')));
+    const dev = tuyaService.devicesById?.get(deviceId) || tuyaService.devices?.find(d => d.id === deviceId || (d.name && d.name.toLowerCase().includes('wifi switch / 1p-mtrg 2')));
 
     const rawPower = dev?.properties?.power ?? (dev?.raw_status?.cur_power != null ? Number(dev.raw_status.cur_power) / 10 : (dev?.raw_status?.power != null ? Number(dev.raw_status.power) : 0));
     const powerW = Number(Number(rawPower).toFixed(1));
