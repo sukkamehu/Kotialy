@@ -458,7 +458,10 @@ class HerrforsClient {
     const tapoIsovarastoHistory = db.getTopicHistory('tapo/isovarasto/power', effectiveFrom - 3600000, effectiveTo);
     const tapoPikkuvarastoHistory = db.getTopicHistory('tapo/pikkuvarasto/power', effectiveFrom - 3600000, effectiveTo);
     const tapoPesukoneHistory = db.getTopicHistory('tapo/pesukone/power', effectiveFrom - 3600000, effectiveTo);
+    const tapoPesukoneHistory = db.getTopicHistory('tapo/pesukone/power', effectiveFrom - 3600000, effectiveTo);
     const tapoKuivausrumpuHistory = db.getTopicHistory('tapo/kuivausrumpu/power', effectiveFrom - 3600000, effectiveTo);
+
+    const saunaSessions = db.getSaunaSessionsInRange ? db.getSaunaSessionsInRange(effectiveFrom - 3600000, effectiveTo + 3600000) : [];
 
     const costSettings = db.getCostSettings();
     const vatMultiplier = 1 + (costSettings.vat_percent || 25.5) / 100;
@@ -492,12 +495,45 @@ class HerrforsClient {
       return 0;
     };
 
+    const helperSaunaEnergy = (sessions, start, end) => {
+      if (!sessions || sessions.length === 0) return 0;
+      let kwh = 0;
+      const now = Date.now();
+      for (const s of sessions) {
+        const sStart = s.start_time;
+        const sEnd = s.end_time || (s.status === 'heating' ? now : sStart);
+        if (!sStart || sEnd <= sStart) continue;
+
+        const overlapStart = Math.max(start, sStart);
+        const overlapEnd = Math.min(end, sEnd);
+        if (overlapEnd <= overlapStart) continue;
+
+        const phase1End = sStart + 45 * 60 * 1000;
+
+        // Phase 1 (0-45min): 9.0 kW heater
+        const p1Start = Math.max(overlapStart, sStart);
+        const p1End = Math.min(overlapEnd, phase1End);
+        if (p1End > p1Start) {
+          kwh += 9.0 * ((p1End - p1Start) / (3600 * 1000));
+        }
+
+        // Phase 2 (after 45min thermostat cycle): 5.4 kW (60% duty)
+        const p2Start = Math.max(overlapStart, phase1End);
+        const p2End = overlapEnd;
+        if (p2End > p2Start) {
+          kwh += 5.4 * ((p2End - p2Start) / (3600 * 1000));
+        }
+      }
+      return kwh;
+    };
+
     // Construct 15-min aligned series
     const series = [];
     let totalHouseKwh = 0;
     let totalHeatPumpKwh = 0;
     let totalHeatingKwh = 0;
     let totalDhwKwh = 0;
+    let totalSaunaKwh = 0;
     let totalTapoKwh = 0;
     let totalHouseholdOtherKwh = 0;
 
@@ -506,6 +542,7 @@ class HerrforsClient {
 
     let totalHouseCostEur = 0;
     let totalHeatPumpCostEur = 0;
+    let totalSaunaCostEur = 0;
     let totalTapoCostEur = 0;
     let totalHouseholdOtherCostEur = 0;
     let totalDirectElectricCostEur = 0;
@@ -541,12 +578,14 @@ class HerrforsClient {
           heatpump_kwh: null,
           heating_kwh: null,
           dhw_kwh: null,
+          sauna_kwh: null,
           tapo_kwh: null,
           other_kwh: null,
           price_cents: Number(priceWithVatCents.toFixed(2)),
           full_price_cents: Number(fullPriceCentsKwh.toFixed(2)),
           house_power_kw: null,
           heatpump_power_kw: null,
+          sauna_power_kw: null,
           tapo_power_kw: null,
           other_power_kw: null,
           temperature: h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null,
@@ -599,13 +638,25 @@ class HerrforsClient {
       const totalProdSlotKwh = heatProdSlotKwh + dhwProdSlotKwh;
 
       // Remaining house electricity after heat pump
-      const otherBeforeTapo = Math.max(0, houseKwh - hpTotalKwh);
+      const remAfterHp = Math.max(0, houseKwh - hpTotalKwh);
+
+      // Sauna consumption
+      const rawSaunaKwh = helperSaunaEnergy(saunaSessions, slotStart, slotEnd);
+      const saunaKwh = Math.min(remAfterHp, rawSaunaKwh);
+
+      // Remaining house electricity after heat pump & sauna
+      const remAfterSauna = Math.max(0, remAfterHp - saunaKwh);
+
+      // Tapo smart plugs consumption
       const rawTapoKwh = (tapoPowerW * durationHours) / 1000;
-      const tapoKwh = Math.min(otherBeforeTapo, rawTapoKwh);
-      const otherKwh = Math.max(0, otherBeforeTapo - tapoKwh);
+      const tapoKwh = Math.min(remAfterSauna, rawTapoKwh);
+
+      // Other household electricity
+      const otherKwh = Math.max(0, remAfterSauna - tapoKwh);
 
       const houseCostEur = houseKwh * (fullPriceCentsKwh / 100);
       const hpCostEur = hpTotalKwh * (fullPriceCentsKwh / 100);
+      const saunaCostEur = saunaKwh * (fullPriceCentsKwh / 100);
       const tapoCostEur = tapoKwh * (fullPriceCentsKwh / 100);
       const otherCostEur = otherKwh * (fullPriceCentsKwh / 100);
       const directElecCostEur = totalProdSlotKwh * (fullPriceCentsKwh / 100);
@@ -614,6 +665,7 @@ class HerrforsClient {
       totalHeatPumpKwh += hpTotalKwh;
       totalHeatingKwh += heatKwh;
       totalDhwKwh += dhwKwh;
+      totalSaunaKwh += saunaKwh;
       totalTapoKwh += tapoKwh;
       totalHouseholdOtherKwh += otherKwh;
 
@@ -622,6 +674,7 @@ class HerrforsClient {
 
       totalHouseCostEur += houseCostEur;
       totalHeatPumpCostEur += hpCostEur;
+      totalSaunaCostEur += saunaCostEur;
       totalTapoCostEur += tapoCostEur;
       totalHouseholdOtherCostEur += otherCostEur;
       totalDirectElectricCostEur += directElecCostEur;
@@ -634,12 +687,14 @@ class HerrforsClient {
         heatpump_kwh: Number(hpTotalKwh.toFixed(3)),
         heating_kwh: Number(heatKwh.toFixed(3)),
         dhw_kwh: Number(dhwKwh.toFixed(3)),
+        sauna_kwh: Number(saunaKwh.toFixed(3)),
         tapo_kwh: Number(tapoKwh.toFixed(3)),
         other_kwh: Number(otherKwh.toFixed(3)),
         price_cents: Number(priceWithVatCents.toFixed(2)),
         full_price_cents: Number(fullPriceCentsKwh.toFixed(2)),
         house_power_kw: Number(houseKw.toFixed(2)),
         heatpump_power_kw: Number(((hpTotalKwh * 4)).toFixed(2)),
+        sauna_power_kw: Number(((saunaKwh * 4)).toFixed(2)),
         tapo_power_kw: Number(((tapoKwh * 4)).toFixed(2)),
         other_power_kw: Number(((otherKwh * 4)).toFixed(2)),
         temperature: h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null,
@@ -649,11 +704,14 @@ class HerrforsClient {
     const heatingSharePercent = totalHouseKwh > 0
       ? Number(((totalHeatPumpKwh / totalHouseKwh) * 100).toFixed(1))
       : 0;
+    const saunaSharePercent = totalHouseKwh > 0
+      ? Number(((totalSaunaKwh / totalHouseKwh) * 100).toFixed(1))
+      : 0;
     const tapoSharePercent = totalHouseKwh > 0
       ? Number(((totalTapoKwh / totalHouseKwh) * 100).toFixed(1))
       : 0;
     const otherSharePercent = totalHouseKwh > 0
-      ? Number(Math.max(0, 100 - heatingSharePercent - tapoSharePercent).toFixed(1))
+      ? Number(Math.max(0, 100 - heatingSharePercent - saunaSharePercent - tapoSharePercent).toFixed(1))
       : 0;
 
     const totalProdKwh = totalHeatProdKwh + totalDhwProdKwh;
@@ -674,10 +732,12 @@ class HerrforsClient {
           heatpump_kwh: 0,
           heating_kwh: 0,
           dhw_kwh: 0,
+          sauna_kwh: 0,
           tapo_kwh: 0,
           other_kwh: 0,
           house_cost_eur: 0,
           heatpump_cost_eur: 0,
+          sauna_cost_eur: 0,
           tapo_cost_eur: 0,
           other_cost_eur: 0,
           settled_slots: 0,
@@ -691,10 +751,12 @@ class HerrforsClient {
         d.heatpump_kwh += pt.heatpump_kwh;
         d.heating_kwh += pt.heating_kwh;
         d.dhw_kwh += pt.dhw_kwh;
+        d.sauna_kwh += pt.sauna_kwh || 0;
         d.tapo_kwh += pt.tapo_kwh || 0;
         d.other_kwh += pt.other_kwh;
         d.house_cost_eur += pt.house_kwh * (pt.full_price_cents / 100);
         d.heatpump_cost_eur += pt.heatpump_kwh * (pt.full_price_cents / 100);
+        d.sauna_cost_eur += (pt.sauna_kwh || 0) * (pt.full_price_cents / 100);
         d.tapo_cost_eur += (pt.tapo_kwh || 0) * (pt.full_price_cents / 100);
         d.other_cost_eur += pt.other_kwh * (pt.full_price_cents / 100);
         d.settled_slots++;
@@ -711,8 +773,9 @@ class HerrforsClient {
       const minTemp = d.temps.length > 0 ? Number(Math.min(...d.temps).toFixed(1)) : null;
       const maxTemp = d.temps.length > 0 ? Number(Math.max(...d.temps).toFixed(1)) : null;
       const dHeatingShare = d.house_kwh > 0 ? Number(((d.heatpump_kwh / d.house_kwh) * 100).toFixed(1)) : 0;
+      const dSaunaShare = d.house_kwh > 0 ? Number(((d.sauna_kwh / d.house_kwh) * 100).toFixed(1)) : 0;
       const dTapoShare = d.house_kwh > 0 ? Number(((d.tapo_kwh / d.house_kwh) * 100).toFixed(1)) : 0;
-      const dOtherShare = d.house_kwh > 0 ? Number(Math.max(0, 100 - dHeatingShare - dTapoShare).toFixed(1)) : 0;
+      const dOtherShare = d.house_kwh > 0 ? Number(Math.max(0, 100 - dHeatingShare - dSaunaShare - dTapoShare).toFixed(1)) : 0;
       return {
         date: d.date,
         timestamp: d.timestamp,
@@ -720,13 +783,16 @@ class HerrforsClient {
         heatpump_kwh: Number(d.heatpump_kwh.toFixed(2)),
         heating_kwh: Number(d.heating_kwh.toFixed(2)),
         dhw_kwh: Number(d.dhw_kwh.toFixed(2)),
+        sauna_kwh: Number(d.sauna_kwh.toFixed(2)),
         tapo_kwh: Number(d.tapo_kwh.toFixed(2)),
         other_kwh: Number(d.other_kwh.toFixed(2)),
         house_cost_eur: Number(d.house_cost_eur.toFixed(2)),
         heatpump_cost_eur: Number(d.heatpump_cost_eur.toFixed(2)),
+        sauna_cost_eur: Number(d.sauna_cost_eur.toFixed(2)),
         tapo_cost_eur: Number(d.tapo_cost_eur.toFixed(2)),
         other_cost_eur: Number(d.other_cost_eur.toFixed(2)),
         heating_share_percent: dHeatingShare,
+        sauna_share_percent: dSaunaShare,
         tapo_share_percent: dTapoShare,
         other_share_percent: dOtherShare,
         slot_count: d.settled_slots + d.pending_slots,
@@ -750,13 +816,16 @@ class HerrforsClient {
         total_heatpump_kwh: Number(totalHeatPumpKwh.toFixed(2)),
         total_heating_kwh: Number(totalHeatingKwh.toFixed(2)),
         total_dhw_kwh: Number(totalDhwKwh.toFixed(2)),
+        total_sauna_kwh: Number(totalSaunaKwh.toFixed(2)),
         total_tapo_kwh: Number(totalTapoKwh.toFixed(2)),
         total_other_kwh: Number(totalHouseholdOtherKwh.toFixed(2)),
         heating_share_percent: heatingSharePercent,
+        sauna_share_percent: saunaSharePercent,
         tapo_share_percent: tapoSharePercent,
         other_share_percent: otherSharePercent,
         total_house_cost_eur: Number(totalHouseCostEur.toFixed(2)),
         total_heatpump_cost_eur: Number(totalHeatPumpCostEur.toFixed(2)),
+        total_sauna_cost_eur: Number(totalSaunaCostEur.toFixed(2)),
         total_tapo_cost_eur: Number(totalTapoCostEur.toFixed(2)),
         total_other_cost_eur: Number(totalHouseholdOtherCostEur.toFixed(2)),
         avg_realized_price_cents: avgRealizedPriceCents,

@@ -1348,6 +1348,14 @@ function getSaunaSessions(limit = 50) {
   return db.prepare("SELECT * FROM sauna_sessions ORDER BY start_time DESC LIMIT ?").all(limit);
 }
 
+function getSaunaSessionsInRange(fromMs, toMs) {
+  return db.prepare(`
+    SELECT * FROM sauna_sessions 
+    WHERE (end_time IS NULL OR end_time >= ?) AND start_time <= ?
+    ORDER BY start_time ASC
+  `).all(fromMs, toMs);
+}
+
 function getSaunaStats(year = null) {
   const targetYear = year || new Date().getFullYear();
   const yearStart = new Date(targetYear, 0, 1, 0, 0, 0, 0).getTime();
@@ -1493,6 +1501,7 @@ module.exports = {
   getActiveSaunaSession,
   getLatestSaunaSession,
   getSaunaSessions,
+  getSaunaSessionsInRange,
   getSaunaStats,
   backfillHistoricalSaunaSessions,
 };

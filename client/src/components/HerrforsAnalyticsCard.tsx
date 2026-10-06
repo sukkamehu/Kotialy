@@ -324,6 +324,12 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                 <span>{pt.dhw_kwh.toFixed(3)} kWh</span>
               </div>
             )}
+            {pt.sauna_kwh != null && pt.sauna_kwh > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fb923c', marginTop: 2 }}>
+                <span>🧖 Sauna:</span>
+                <strong>{`${pt.sauna_kwh.toFixed(3)} kWh (${pt.sauna_power_kw != null ? pt.sauna_power_kw : (pt.sauna_kwh * 4).toFixed(2)} kW)`}</strong>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#818cf8', marginTop: 2 }}>
               <span>🔌 Pistorasiat (Tapo):</span>
               <strong>{pt.tapo_kwh != null ? `${pt.tapo_kwh.toFixed(3)} kWh (${pt.tapo_power_kw} kW)` : '-'}</strong>
@@ -662,6 +668,29 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
                 <span>Kustannus:</span>
                 <span>{summary.total_heatpump_cost_eur.toFixed(2)} €</span>
+              </div>
+            </div>
+
+            {/* Sauna Electricity */}
+            <div style={{
+              background: 'rgba(249, 115, 22, 0.08)',
+              border: '1px solid rgba(249, 115, 22, 0.25)',
+              borderRadius: 12,
+              padding: 14,
+            }}>
+              <div style={{ fontSize: 12, color: '#fb923c', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🧖</span> Saunan osuus
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {(summary.total_sauna_kwh ?? 0).toFixed(1)} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>kWh</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Osuus talosta:</span>
+                <strong style={{ color: '#fb923c' }}>{(summary.sauna_share_percent ?? 0).toFixed(1)} %</strong>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Kustannus:</span>
+                <span>{(summary.total_sauna_cost_eur ?? 0).toFixed(2)} €</span>
               </div>
             </div>
 
@@ -1044,6 +1073,10 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                     <stop offset="5%" stopColor="#ef4444" stopOpacity={0.7}/>
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1}/>
                   </linearGradient>
+                  <linearGradient id="colorSauna" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.7}/>
+                    <stop offset="95%" stopColor="#f97316" stopOpacity={0.1}/>
+                  </linearGradient>
                   <linearGradient id="colorTapo" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#818cf8" stopOpacity={0.7}/>
                     <stop offset="95%" stopColor="#818cf8" stopOpacity={0.1}/>
@@ -1106,6 +1139,16 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                     <Area
                       yAxisId="left"
                       type="monotone"
+                      dataKey="sauna_kwh"
+                      name="Sauna (kWh)"
+                      stackId="1"
+                      stroke="#f97316"
+                      fill="url(#colorSauna)"
+                      hide={hiddenSeries['sauna_kwh']}
+                    />
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
                       dataKey="tapo_kwh"
                       name="Älypistorasiat (kWh)"
                       stackId="1"
@@ -1146,6 +1189,14 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                     />
                     <Bar
                       yAxisId="left"
+                      dataKey="sauna_kwh"
+                      name="Sauna (kWh)"
+                      fill="#f97316"
+                      radius={[3, 3, 0, 0]}
+                      hide={hiddenSeries['sauna_kwh']}
+                    />
+                    <Bar
+                      yAxisId="left"
                       dataKey="tapo_kwh"
                       name="Älypistorasiat (kWh)"
                       fill="#818cf8"
@@ -1175,6 +1226,16 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       strokeWidth={2}
                       dot={false}
                       hide={hiddenSeries['heatpump_power_kw']}
+                    />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="sauna_power_kw"
+                      name="Saunan teho (kW)"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                      dot={false}
+                      hide={hiddenSeries['sauna_power_kw']}
                     />
                     <Line
                       yAxisId="left"
@@ -1249,10 +1310,12 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   <th style={{ padding: '8px 10px' }}>Talon kokonais</th>
                   <th style={{ padding: '8px 10px' }}>Lämpöpumppu</th>
                   <th style={{ padding: '8px 10px' }}>Lämmityksen osuus</th>
+                  <th style={{ padding: '8px 10px' }}>Sauna</th>
                   <th style={{ padding: '8px 10px' }}>Älypistorasiat</th>
                   <th style={{ padding: '8px 10px' }}>Taloussähkö</th>
                   <th style={{ padding: '8px 10px' }}>Kokonaiskulu (€)</th>
                   <th style={{ padding: '8px 10px' }}>Lämpöpumpun kulu (€)</th>
+                  <th style={{ padding: '8px 10px' }}>Saunan kulu (€)</th>
                   <th style={{ padding: '8px 10px' }}>Pistorasioiden kulu (€)</th>
                 </tr>
               </thead>
@@ -1306,6 +1369,14 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                         </span>
                       )}
                     </td>
+                    <td style={{ padding: '8px 10px', color: '#fb923c' }}>
+                      {d.is_pending ? '-' : (d.sauna_kwh ? `${d.sauna_kwh.toFixed(1)} kWh` : '-')}
+                      {!d.is_pending && d.sauna_share_percent && d.sauna_kwh ? (
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>
+                          ({d.sauna_share_percent.toFixed(1)}%)
+                        </span>
+                      ) : null}
+                    </td>
                     <td style={{ padding: '8px 10px', color: '#818cf8' }}>
                       {d.is_pending ? '-' : (d.tapo_kwh ? `${d.tapo_kwh.toFixed(1)} kWh` : '-')}
                       {!d.is_pending && d.tapo_share_percent ? (
@@ -1322,6 +1393,9 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                     </td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
                       {d.is_pending ? '-' : `${d.heatpump_cost_eur.toFixed(2)} €`}
+                    </td>
+                    <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
+                      {d.is_pending ? '-' : (d.sauna_cost_eur ? `${d.sauna_cost_eur.toFixed(2)} €` : '0.00 €')}
                     </td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
                       {d.is_pending ? '-' : (d.tapo_cost_eur ? `${d.tapo_cost_eur.toFixed(2)} €` : '0.00 €')}
