@@ -724,21 +724,55 @@ export function ElectricityCalendarCard() {
                       const pt = payload[0].payload as HerrforsDataPoint & { timeLabel: string };
                       return (
                         <div style={{
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: 8,
-                          padding: '8px 12px',
-                          fontSize: '0.78rem',
-                          boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                          background: '#0b1329',
+                          border: '1px solid rgba(255, 255, 255, 0.25)',
+                          borderRadius: 10,
+                          padding: '10px 14px',
+                          fontSize: '0.8rem',
+                          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12)',
+                          minWidth: 210,
+                          color: '#f8fafc',
+                          zIndex: 1000,
                         }}>
-                          <div style={{ fontWeight: 700, marginBottom: 4 }}>Klo {label}</div>
-                          <div style={{ color: '#60a5fa' }}>Kokonaiskulutus: {pt.house_kwh?.toFixed(3) ?? 0} kWh</div>
-                          <div style={{ color: '#06b6d4' }}>• VILP lämpöpumppu: {pt.heatpump_kwh?.toFixed(3) ?? 0} kWh</div>
-                          <div style={{ color: '#ef4444' }}>• Sauna: {pt.sauna_kwh?.toFixed(3) ?? 0} kWh</div>
-                          <div style={{ color: '#a855f7' }}>• Älypistorasiat: {pt.tapo_kwh?.toFixed(3) ?? 0} kWh</div>
-                          <div style={{ color: '#10b981' }}>• Muu taloussähkö: {pt.other_kwh?.toFixed(3) ?? 0} kWh</div>
-                          <div style={{ color: '#f59e0b', marginTop: 4, fontWeight: 700 }}>
-                            Sähkön kokonaishinta: {pt.full_price_cents?.toFixed(2) ?? pt.price_cents?.toFixed(2)} c/kWh
+                          <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#f8fafc', marginBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.15)', paddingBottom: 4 }}>
+                            ⏰ Klo {label}
+                          </div>
+                          <div style={{ color: '#60a5fa', fontWeight: 800, fontSize: '0.85rem', marginBottom: 8 }}>
+                            Kokonaiskulutus: <span style={{ color: '#ffffff' }}>{(pt.house_kwh ?? 0).toFixed(3)} kWh</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.78rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#06b6d4', display: 'inline-block' }} />
+                                VILP lämpöpumppu:
+                              </span>
+                              <b style={{ color: '#ffffff', marginLeft: 8 }}>{(pt.heatpump_kwh ?? 0).toFixed(3)} kWh</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                                Sauna:
+                              </span>
+                              <b style={{ color: '#ffffff', marginLeft: 8 }}>{(pt.sauna_kwh ?? 0).toFixed(3)} kWh</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }} />
+                                Älypistorasiat:
+                              </span>
+                              <b style={{ color: '#ffffff', marginLeft: 8 }}>{(pt.tapo_kwh ?? 0).toFixed(3)} kWh</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                                Muu taloussähkö:
+                              </span>
+                              <b style={{ color: '#ffffff', marginLeft: 8 }}>{(pt.other_kwh ?? 0).toFixed(3)} kWh</b>
+                            </div>
+                          </div>
+                          <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255, 255, 255, 0.12)', color: '#fbbf24', fontSize: '0.78rem', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Sähkön kokonaishinta:</span>
+                            <b>{(pt.full_price_cents ?? pt.price_cents ?? 0).toFixed(2)} c/kWh</b>
                           </div>
                         </div>
                       );
@@ -812,21 +846,57 @@ export function ElectricityCalendarCard() {
                     const d = payload[0].payload as HerrforsDailyItem;
                     return (
                       <div style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 8,
-                        padding: '8px 12px',
-                        fontSize: '0.78rem',
-                        boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                        background: '#0b1329',
+                        border: '1px solid rgba(255, 255, 255, 0.25)',
+                        borderRadius: 10,
+                        padding: '10px 14px',
+                        fontSize: '0.8rem',
+                        boxShadow: '0 16px 36px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12)',
+                        minWidth: 210,
+                        color: '#f8fafc',
+                        zIndex: 1000,
                       }}>
-                        <div style={{ fontWeight: 700, marginBottom: 4 }}>Päivä: {d.date}</div>
-                        <div style={{ color: '#60a5fa', fontWeight: 700 }}>Kokonaissähkö: {d.house_kwh.toFixed(2)} kWh ({d.house_cost_eur.toFixed(2)} €)</div>
-                        <div style={{ color: '#06b6d4' }}>• VILP: {d.heatpump_kwh.toFixed(2)} kWh</div>
-                        <div style={{ color: '#ef4444' }}>• Sauna: {d.sauna_kwh?.toFixed(2) ?? 0} kWh</div>
-                        <div style={{ color: '#a855f7' }}>• Pistorasiat: {d.tapo_kwh?.toFixed(2) ?? 0} kWh</div>
-                        <div style={{ color: '#10b981' }}>• Muu sähkö: {d.other_kwh.toFixed(2)} kWh</div>
+                        <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#f8fafc', marginBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.15)', paddingBottom: 4 }}>
+                          📅 Päivä: {d.date}
+                        </div>
+                        <div style={{ color: '#60a5fa', fontWeight: 800, fontSize: '0.85rem', marginBottom: 8 }}>
+                          Kokonaissähkö: <span style={{ color: '#ffffff' }}>{d.house_kwh.toFixed(2)} kWh</span> <span style={{ color: '#fbbf24', fontWeight: 700 }}>({d.house_cost_eur.toFixed(2)} €)</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.78rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#06b6d4', display: 'inline-block' }} />
+                              VILP:
+                            </span>
+                            <b style={{ color: '#ffffff', marginLeft: 8 }}>{d.heatpump_kwh.toFixed(2)} kWh</b>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                              Sauna:
+                            </span>
+                            <b style={{ color: '#ffffff', marginLeft: 8 }}>{(d.sauna_kwh ?? 0).toFixed(2)} kWh</b>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }} />
+                              Pistorasiat:
+                            </span>
+                            <b style={{ color: '#ffffff', marginLeft: 8 }}>{(d.tapo_kwh ?? 0).toFixed(2)} kWh</b>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#cbd5e1' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                              Muu sähkö:
+                            </span>
+                            <b style={{ color: '#ffffff', marginLeft: 8 }}>{d.other_kwh.toFixed(2)} kWh</b>
+                          </div>
+                        </div>
                         {d.avg_temp != null && (
-                          <div style={{ color: '#93c5fd', marginTop: 4 }}>Keskilämpötila: {d.avg_temp.toFixed(1)} °C</div>
+                          <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255, 255, 255, 0.12)', color: '#93c5fd', fontSize: '0.75rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Keskilämpötila:</span>
+                            <b style={{ color: '#bfdbfe' }}>{d.avg_temp > 0 ? `+${d.avg_temp.toFixed(1)}` : d.avg_temp.toFixed(1)} °C</b>
+                          </div>
                         )}
                       </div>
                     );
