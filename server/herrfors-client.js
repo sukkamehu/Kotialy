@@ -458,7 +458,6 @@ class HerrforsClient {
     const tapoIsovarastoHistory = db.getTopicHistory('tapo/isovarasto/power', effectiveFrom - 3600000, effectiveTo);
     const tapoPikkuvarastoHistory = db.getTopicHistory('tapo/pikkuvarasto/power', effectiveFrom - 3600000, effectiveTo);
     const tapoPesukoneHistory = db.getTopicHistory('tapo/pesukone/power', effectiveFrom - 3600000, effectiveTo);
-    const tapoPesukoneHistory = db.getTopicHistory('tapo/pesukone/power', effectiveFrom - 3600000, effectiveTo);
     const tapoKuivausrumpuHistory = db.getTopicHistory('tapo/kuivausrumpu/power', effectiveFrom - 3600000, effectiveTo);
 
     const saunaSessions = db.getSaunaSessionsInRange ? db.getSaunaSessionsInRange(effectiveFrom - 3600000, effectiveTo + 3600000) : [];
