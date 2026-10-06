@@ -11,9 +11,16 @@ export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'pl
 interface CategoryHubProps {
   state: HeishamonState;
   onSelectCategory: (cat: CategoryId) => void;
+  onOpenPriceModal?: () => void;
+  onOpenOutdoorModal?: () => void;
 }
 
-export const CategoryHub: React.FC<CategoryHubProps> = ({ state, onSelectCategory }) => {
+export const CategoryHub: React.FC<CategoryHubProps> = ({
+  state,
+  onSelectCategory,
+  onOpenPriceModal,
+  onOpenOutdoorModal,
+}) => {
   const { priceCentsKWh, priceLevel } = useElectricityPrice();
   const { sauna, devices: tuyaDevices } = useTuya();
   const { status: outdoorLightsStatus } = useOutdoorLights();
@@ -297,11 +304,33 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({ state, onSelectCategor
           }}
         >
           <span style={{ fontSize: 13 }}>🏠</span>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          <span
+            onClick={onOpenOutdoorModal}
+            style={{
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              cursor: onOpenOutdoorModal ? 'pointer' : 'default',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            title={onOpenOutdoorModal ? 'Klikkaa avataksesi ulkolämpötilan ja sään ennustemodaali' : undefined}
+          >
             Ulkoilma: <strong style={{ color: 'var(--cool-primary)' }}>{outsideTemp !== null ? `${outsideTemp.toFixed(1)}°C` : '—'}</strong>
           </span>
           <span style={{ opacity: 0.3 }}>•</span>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          <span
+            onClick={onOpenPriceModal}
+            style={{
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              cursor: onOpenPriceModal ? 'pointer' : 'default',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            title={onOpenPriceModal ? 'Klikkaa avataksesi sähkön hinnankehitys- ja ennustemodaali' : undefined}
+          >
             Sähkö: <strong style={{ color: priceLevel === 'cheap' ? '#10b981' : priceLevel === 'expensive' ? '#f43f5e' : '#facc15' }}>
               {priceCentsKWh !== null ? `${priceCentsKWh.toFixed(1)} snt` : '—'}
             </strong>

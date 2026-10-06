@@ -15,6 +15,8 @@ interface StatusBarProps {
   role?: 'admin' | 'viewer';
   onLogout?: () => void;
   onOpenOutdoorModal?: () => void;
+  onOpenPriceModal?: () => void;
+  onOpenVilpModal?: () => void;
   onNavigateHome?: () => void;
   onOpenNotifications?: () => void;
   onOpenTrends?: () => void;
@@ -42,6 +44,8 @@ export function StatusBar({
   role = 'admin',
   onLogout,
   onOpenOutdoorModal,
+  onOpenPriceModal,
+  onOpenVilpModal,
   onNavigateHome,
   onOpenNotifications,
   onOpenTrends,
@@ -157,17 +161,18 @@ export function StatusBar({
           </div>
         )}
 
-        {/* Electricity Price (Now & Day Average) - Clickable to open APC Strategy & Prices */}
+        {/* Electricity Price (Now & Day Average) - Clickable to open Price Development Modal */}
         {priceCentsKWh !== null && (
           <div
-            className={`badge ${onOpenApc ? 'status-badge-clickable' : ''}`}
-            onClick={onOpenApc}
-            role={onOpenApc ? 'button' : undefined}
-            tabIndex={onOpenApc ? 0 : undefined}
+            className={`badge ${onOpenPriceModal || onOpenApc ? 'status-badge-clickable' : ''}`}
+            onClick={onOpenPriceModal || onOpenApc}
+            role={onOpenPriceModal || onOpenApc ? 'button' : undefined}
+            tabIndex={onOpenPriceModal || onOpenApc ? 0 : undefined}
             onKeyDown={(e) => {
-              if (onOpenApc && (e.key === 'Enter' || e.key === ' ')) {
+              if ((onOpenPriceModal || onOpenApc) && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
-                onOpenApc();
+                if (onOpenPriceModal) onOpenPriceModal();
+                else if (onOpenApc) onOpenApc();
               }
             }}
             style={{
@@ -181,7 +186,7 @@ export function StatusBar({
               gap: 5,
               padding: '4px 10px',
             }}
-            title={`Sähkön pörssihinta nyt: ${priceCentsKWh.toFixed(2)} snt/kWh\nPäivän keskiarvo: ${avgPriceCentsKWh !== null ? avgPriceCentsKWh.toFixed(2) + ' snt/kWh' : '—'}\nMin: ${minPriceCentsKWh !== null ? minPriceCentsKWh.toFixed(2) + ' snt' : '—'} | Max: ${maxPriceCentsKWh !== null ? maxPriceCentsKWh.toFixed(2) + ' snt' : '—'}${onOpenApc ? '\n\n👉 Klikkaa avataksesi pörssisähkön hintatiedot ja APC-ohjauksen' : ''}`}
+            title={`Sähkön pörssihinta nyt: ${priceCentsKWh.toFixed(2)} snt/kWh\nPäivän keskiarvo: ${avgPriceCentsKWh !== null ? avgPriceCentsKWh.toFixed(2) + ' snt/kWh' : '—'}\nMin: ${minPriceCentsKWh !== null ? minPriceCentsKWh.toFixed(2) + ' snt' : '—'} | Max: ${maxPriceCentsKWh !== null ? maxPriceCentsKWh.toFixed(2) + ' snt' : '—'}\n\n👉 Klikkaa avataksesi sähkön hinnankehitys- ja ennustemodaali`}
           >
             <span>⚡</span>
             <span>{priceCentsKWh.toFixed(1)} <span style={{ fontSize: 10, opacity: 0.85 }}>snt/kWh</span></span>
@@ -193,17 +198,18 @@ export function StatusBar({
           </div>
         )}
 
-        {/* Estimated Daily Consumption Demand - Clickable to open Trends & Energy */}
+        {/* Estimated Daily Consumption Demand - Clickable to open VILP Estimate Modal */}
         {estimatedDailyKwh !== null && (
           <div
-            className={`badge status-hide-xs ${onOpenTrends ? 'status-badge-clickable' : ''}`}
-            onClick={onOpenTrends}
-            role={onOpenTrends ? 'button' : undefined}
-            tabIndex={onOpenTrends ? 0 : undefined}
+            className={`badge status-hide-xs ${onOpenVilpModal || onOpenTrends ? 'status-badge-clickable' : ''}`}
+            onClick={onOpenVilpModal || onOpenTrends}
+            role={onOpenVilpModal || onOpenTrends ? 'button' : undefined}
+            tabIndex={onOpenVilpModal || onOpenTrends ? 0 : undefined}
             onKeyDown={(e) => {
-              if (onOpenTrends && (e.key === 'Enter' || e.key === ' ')) {
+              if ((onOpenVilpModal || onOpenTrends) && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
-                onOpenTrends();
+                if (onOpenVilpModal) onOpenVilpModal();
+                else if (onOpenTrends) onOpenTrends();
               }
             }}
             style={{
@@ -217,7 +223,7 @@ export function StatusBar({
               gap: 5,
               padding: '4px 9px',
             }}
-            title={`Laskennallinen VILP-sähkönkulutusarvio vuorokaudessa nykyisellä ulkolämpötilalla (${outsideTempNum?.toFixed(1)}°C):\n• Lämmitys: ~${heatingKwh.toFixed(1)} kWh sähköä (~${(heatingKwh * 5.0).toFixed(0)} kWh lämpöä)\n• Lämmin käyttövesi: ~${dhwKwh.toFixed(1)} kWh sähköä (~${(dhwKwh * 3.5).toFixed(0)} kWh lämpöä)\n= VILP sähkönkulutus ~${estimatedDailyKwh} kWh/pv (vastaa ~${(heatingKwh * 5.0 + dhwKwh * 3.5).toFixed(0)} kWh lämpöenergiaa)\n\n(Huom: Koko talon kokonaissähkönkulutus sisältää lisäksi taloussähkön/pohjakuorman ~15-20 kWh/pv)${onOpenTrends ? '\n\n👉 Klikkaa avataksesi kulutushistorian ja trendit' : ''}`}
+            title={`Laskennallinen VILP-sähkönkulutusarvio vuorokaudessa nykyisellä ulkolämpötilalla (${outsideTempNum?.toFixed(1)}°C):\n• Lämmitys: ~${heatingKwh.toFixed(1)} kWh sähköä (~${(heatingKwh * 5.0).toFixed(0)} kWh lämpöä)\n• Lämmin käyttövesi: ~${dhwKwh.toFixed(1)} kWh sähköä (~${(dhwKwh * 3.5).toFixed(0)} kWh lämpöä)\n= VILP sähkönkulutus ~${estimatedDailyKwh} kWh/pv (vastaa ~${(heatingKwh * 5.0 + dhwKwh * 3.5).toFixed(0)} kWh lämpöenergiaa)\n\n👉 Klikkaa avataksesi VILP-kulutusarvion ja lämmöntarpeen kehityksen`}
           >
             <span>🔋</span>
             <span>VILP-arvio: ~{estimatedDailyKwh} <span style={{ fontSize: 10, opacity: 0.85 }}>kWh/pv</span></span>

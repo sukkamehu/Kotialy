@@ -13,6 +13,8 @@ import { ApcStrategyPage } from './ApcStrategyPage';
 import { TemperaturesPage } from './TemperaturesPage';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 import { OutdoorWeatherModal } from './OutdoorWeatherModal';
+import { ElectricityPriceModal } from './ElectricityPriceModal';
+import { VilpEstimateModal } from './VilpEstimateModal';
 import { NotificationsModal } from './NotificationsModal';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -103,6 +105,8 @@ export function Dashboard({
   const [activeTab, setActiveTab] = useState<DashboardTab>(getInitialTab);
   const [trendTarget, setTrendTarget] = useState<TrendTopicTarget | null>(null);
   const [outdoorModalOpen, setOutdoorModalOpen] = useState(false);
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [vilpModalOpen, setVilpModalOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const readOnly = role === 'viewer';
 
@@ -171,6 +175,8 @@ export function Dashboard({
         role={role}
         onLogout={onLogout}
         onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
+        onOpenPriceModal={() => setPriceModalOpen(true)}
+        onOpenVilpModal={() => setVilpModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onNavigateHome={() => handleTabChange('hub')}
         onOpenTrends={() => handleTabChange('trends')}
@@ -231,6 +237,8 @@ export function Dashboard({
               <CategoryHub
                 state={state}
                 onSelectCategory={(cat: CategoryId) => handleTabChange(cat)}
+                onOpenPriceModal={() => setPriceModalOpen(true)}
+                onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
               />
             </ErrorBoundary>
           )}
@@ -262,21 +270,21 @@ export function Dashboard({
             </ErrorBoundary>
           )}
 
-          {/* VIEW 3: VALAISTUS (Outdoor & Indoor Lighting) */}
+          {/* VIEW 4: VALAISTUS (Outdoor & Indoor Lighting) */}
           {activeTab === 'lighting' && (
             <ErrorBoundary>
               <LightingPage readOnly={readOnly} />
             </ErrorBoundary>
           )}
 
-          {/* VIEW 4: ÄLYPISTORASIAT (Tapo Plugs & Isovarasto Temp Sensor) */}
+          {/* VIEW 5: ÄLYPISTORASIAT (Tapo Plugs & Isovarasto Temp Sensor) */}
           {activeTab === 'plugs' && (
             <ErrorBoundary>
               <PlugsPage onOpenTrend={setTrendTarget} readOnly={readOnly} />
             </ErrorBoundary>
           )}
 
-          {/* VIEW 5: TRENDIT & SÄHKÖNKULUTUS (History, Herrfors, Daily Costs, Energy Stats) */}
+          {/* VIEW 6: TRENDIT & SÄHKÖNKULUTUS (History, Herrfors, Daily Costs, Energy Stats) */}
           {activeTab === 'trends' && (
             <ErrorBoundary>
               <TrendsAndEnergyPage
@@ -287,14 +295,14 @@ export function Dashboard({
             </ErrorBoundary>
           )}
 
-          {/* VIEW 6: TEKNINEN TILA & ASETUSMUISTIO (Hydraulics & Panasonic Settings) */}
+          {/* VIEW 7: TEKNINEN TILA & ASETUSMUISTIO (Hydraulics & Panasonic Settings) */}
           {activeTab === 'technical' && (
             <ErrorBoundary>
               <TechnicalAndSettingsPage state={state} readOnly={readOnly} />
             </ErrorBoundary>
           )}
 
-          {/* VIEW 7: APC-AUTOMAATIOSTRATEGIA */}
+          {/* VIEW 8: APC-AUTOMAATIOSTRATEGIA */}
           {activeTab === 'apc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
               <ErrorBoundary>
@@ -313,6 +321,22 @@ export function Dashboard({
         isOpen={outdoorModalOpen}
         onClose={() => setOutdoorModalOpen(false)}
         state={state}
+      />
+
+      {/* Electricity Price Development & Forecast Modal */}
+      <ElectricityPriceModal
+        isOpen={priceModalOpen}
+        onClose={() => setPriceModalOpen(false)}
+        onOpenApc={() => handleTabChange('apc')}
+      />
+
+      {/* VILP Estimate & Heating Demand Development Modal */}
+      <VilpEstimateModal
+        isOpen={vilpModalOpen}
+        onClose={() => setVilpModalOpen(false)}
+        state={state}
+        onOpenTrends={() => handleTabChange('trends')}
+        onOpenApc={() => handleTabChange('apc')}
       />
 
       {/* Notifications & Push Alerts Modal */}
