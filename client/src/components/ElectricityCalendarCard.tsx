@@ -53,6 +53,7 @@ export function ElectricityCalendarCard() {
   const [currentYear, setCurrentYear] = useState<number>(() => today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(() => today.getMonth());
   const [data, setData] = useState<HerrforsAnalyticsResponse | null>(null);
+  const [saunaSessions, setSaunaSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDayStr, setSelectedDayStr] = useState<string | null>(null);
 
@@ -63,19 +64,25 @@ export function ElectricityCalendarCard() {
 
   const isCurrentMonth = currentYear === today.getFullYear() && currentMonth === today.getMonth();
 
-  // Fetch monthly analytics data
+  // Fetch monthly analytics data & sauna sessions
   useEffect(() => {
     let isCancelled = false;
     setLoading(true);
 
-    apiFetch(`/api/herrfors/analytics?from=${fromMs}&to=${toMs}`)
-      .then((res) => {
+    Promise.all([
+      apiFetch(`/api/herrfors/analytics?from=${fromMs}&to=${toMs}`).then((res) => {
         if (!res.ok) throw new Error('Virhe haettaessa kuukausidataa');
         return res.json();
-      })
-      .then((resData: HerrforsAnalyticsResponse) => {
+      }),
+      apiFetch('/api/sauna/sessions?limit=100').then((res) => {
+        if (!res.ok) return { sessions: [] };
+        return res.json();
+      }).catch(() => ({ sessions: [] })),
+    ])
+      .then(([resData, saunaData]) => {
         if (!isCancelled) {
           setData(resData);
+          setSaunaSessions(saunaData.sessions || []);
           setLoading(false);
 
           // Select today if in current month, otherwise last available day with data or 1st day
@@ -136,6 +143,22 @@ export function ElectricityCalendarCard() {
     return map;
   }, [data]);
 
+  // Sauna sessions lookup by date (YYYY-MM-DD)
+  const saunaSessionsByDate = useMemo(() => {
+    const map = new Map<string, any>();
+    if (saunaSessions && saunaSessions.length > 0) {
+      for (const s of saunaSessions) {
+        const time = s.start_time || s.startTime;
+        if (time) {
+          const d = new Date(time);
+          const dateStr = formatLocalDate(d.getFullYear(), d.getMonth(), d.getDate());
+          map.set(dateStr, s);
+        }
+      }
+    }
+    return map;
+  }, [saunaSessions]);
+
   // Monthly summary stats
   const summary = data?.summary;
 
@@ -152,6 +175,8 @@ export function ElectricityCalendarCard() {
       dateStr: string;
       isCurrentMonth: boolean;
       dailyData?: HerrforsDailyItem;
+      saunaSession?: any;
+      isSaunaDay?: boolean;
     }> = [];
 
     // Preceding empty/inactive cells
@@ -168,11 +193,16 @@ export function ElectricityCalendarCard() {
     // Days of current month
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = formatLocalDate(currentYear, currentMonth, d);
+      const dItem = dailyMap.get(dateStr);
+      const sSession = saunaSessionsByDate.get(dateStr);
+      const isSauna = Boolean(sSession || (dItem?.sauna_kwh && dItem.sauna_kwh > 0.5));
       cells.push({
         dayNumber: d,
         dateStr,
         isCurrentMonth: true,
-        dailyData: dailyMap.get(dateStr),
+        dailyData: dItem,
+        saunaSession: sSession,
+        isSaunaDay: isSauna,
       });
     }
 
@@ -191,7 +221,7 @@ export function ElectricityCalendarCard() {
     }
 
     return cells;
-  }, [currentYear, currentMonth, daysInMonth, dailyMap]);
+  }, [currentYear, currentMonth, daysInMonth, dailyMap, saunaSessionsByDate]);
 
   // Find max consumption for color scaling
   const maxDailyKwh = useMemo(() => {
@@ -228,6 +258,17 @@ export function ElectricityCalendarCard() {
         };
       });
   }, [data, selectedDayStr]);
+
+  // Sauna days count in current month
+  const saunaDaysCount = useMemo(() => {
+    return calendarCells.filter((c) => c.isCurrentMonth && c.isSaunaDay).length;
+  }, [calendarCells]);
+
+  // Selected cell helper
+  const selectedCell = useMemo(() => {
+    if (!selectedDayStr) return null;
+    return calendarCells.find((c) => c.dateStr === selectedDayStr) || null;
+  }, [selectedDayStr, calendarCells]);
 
   // Best / Worst consumption days
   const { maxDay, minDay, avgKwhPerDay } = useMemo(() => {
@@ -433,7 +474,7 @@ export function ElectricityCalendarCard() {
             {loading ? '…' : `${((summary?.total_sauna_kwh ?? 0) + (summary?.total_tapo_kwh ?? 0)).toFixed(1)} kWh`}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-            Sauna: {summary?.total_sauna_kwh?.toFixed(1) ?? 0} kWh · Tapo: {summary?.total_tapo_kwh?.toFixed(1) ?? 0} kWh
+            Sauna: {summary?.total_sauna_kwh?.toFixed(1) ?? 0} kWh {saunaDaysCount > 0 ? `(${saunaDaysCount} saunapäivää)` : ''} · Tapo: {summary?.total_tapo_kwh?.toFixed(1) ?? 0} kWh
           </div>
         </div>
 
@@ -458,12 +499,12 @@ export function ElectricityCalendarCard() {
 
       {/* 3. Interactive Monthly Calendar Heatmap Grid */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             Päiväkohtainen kulutuskalenteri (klikkaa päivää tutkiaksesi tuntijakaumaa)
           </div>
           {/* Heatmap Legend */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: '#10b981' }} /> &lt; 20 kWh
             </span>
@@ -475,6 +516,9 @@ export function ElectricityCalendarCard() {
             </span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: '#ef4444' }} /> &gt; 60 kWh
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(239, 68, 68, 0.12)', padding: '2px 6px', borderRadius: 6, border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontWeight: 600 }}>
+              <span>🧖</span> Saunapäivä
             </span>
           </div>
         </div>
@@ -551,15 +595,29 @@ export function ElectricityCalendarCard() {
                   position: 'relative',
                 }}
               >
-                {/* Top: Day number + Today indicator + Temp */}
+                {/* Top: Day number + Sauna icon + Temp */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{
-                    fontSize: '0.8rem',
-                    fontWeight: isToday || isSelected ? 800 : 600,
-                    color: isToday ? '#f59e0b' : isSelected ? '#60a5fa' : 'var(--text-primary)',
-                  }}>
-                    {cell.dayNumber}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{
+                      fontSize: '0.8rem',
+                      fontWeight: isToday || isSelected ? 800 : 600,
+                      color: isToday ? '#f59e0b' : isSelected ? '#60a5fa' : 'var(--text-primary)',
+                    }}>
+                      {cell.dayNumber}
+                    </span>
+                    {cell.isSaunaDay && (
+                      <span
+                        title={cell.saunaSession ? `Saunapäivä (${cell.saunaSession.duration_minutes || cell.saunaSession.durationMinutes || ''} min, max ${cell.saunaSession.peak_temp || cell.saunaSession.peakTemp || ''}°C)` : 'Saunapäivä'}
+                        style={{
+                          fontSize: '0.82rem',
+                          lineHeight: 1,
+                          filter: 'drop-shadow(0 0 3px rgba(239, 68, 68, 0.6))',
+                        }}
+                      >
+                        🧖
+                      </span>
+                    )}
+                  </div>
                   {dData?.avg_temp != null && (
                     <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
                       {dData.avg_temp > 0 ? `+${dData.avg_temp.toFixed(0)}°` : `${dData.avg_temp.toFixed(0)}°`}
@@ -617,7 +675,12 @@ export function ElectricityCalendarCard() {
             </div>
 
             {selectedDailyItem && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {selectedCell?.isSaunaDay && (
+                  <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    🧖 Saunapäivä {selectedDailyItem?.sauna_kwh && selectedDailyItem.sauna_kwh > 0 ? `(${selectedDailyItem.sauna_kwh.toFixed(1)} kWh)` : ''}
+                  </span>
+                )}
                 <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', fontWeight: 700 }}>
                   Yhteensä: {selectedDailyItem.house_kwh.toFixed(2)} kWh
                 </span>
