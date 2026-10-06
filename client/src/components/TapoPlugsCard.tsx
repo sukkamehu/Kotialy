@@ -554,7 +554,6 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     togglePower,
     setOverride,
     updateSettings,
-    pollNow,
     totalPowerW,
     totalTodayEnergyKwh,
   } = useTapo();
@@ -750,27 +749,6 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
               </div>
             </div>
           </div>
-
-          {!readOnly && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={pollNow}
-              title="Päivitä laitteiden teholukemat välittömästi"
-              style={{
-                borderRadius: '10px',
-                padding: '7px 12px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-              }}
-            >
-              🔄 <span className="hide-mobile">Päivitä</span>
-            </button>
-          )}
         </div>
       </div>
 
