@@ -10,7 +10,7 @@ interface LightingPageProps {
 }
 
 export const LightingPage: React.FC<LightingPageProps> = ({ readOnly = false }) => {
-  const { devices, loading, refreshing, refreshDevices } = useTuya();
+  const { devices, refreshDevices } = useTuya();
   const [showSaunaSub, setShowSaunaSub] = useState(false);
 
   const lightDevices = devices.filter((d) => d.type === 'light');
@@ -74,14 +74,6 @@ export const LightingPage: React.FC<LightingPageProps> = ({ readOnly = false }) 
     }
   };
 
-  const turnAllIndoorOff = async () => {
-    if (readOnly || lightDevices.length === 0) return;
-    const allIds = lightDevices.map((d) => d.id);
-    await handleControlLight(allIds, { power: false });
-  };
-
-  const activeCount = lightDevices.filter((d) => Boolean(d.properties.switch_led)).length;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 36 }}>
       {/* Category Header */}
@@ -93,53 +85,6 @@ export const LightingPage: React.FC<LightingPageProps> = ({ readOnly = false }) 
           <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
             Ulkovalojen automaattinen hämäräohjaus ja kiinteistön älykkäät sisävalot
           </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {activeCount > 0 && (
-            <button
-              type="button"
-              disabled={readOnly}
-              onClick={turnAllIndoorOff}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                color: '#f87171',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <span>⏹️</span> Sammuta kaikki sisävalot ({activeCount})
-            </button>
-          )}
-
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={refreshDevices}
-            disabled={refreshing || loading}
-            style={{
-              padding: '6px 12px',
-              fontSize: 12,
-              borderRadius: 8,
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              background: 'rgba(255, 255, 255, 0.04)',
-              color: 'var(--text-primary)',
-              cursor: refreshing ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span>{refreshing ? '⏳' : '🔄'}</span>
-            <span>{refreshing ? 'Päivitetään...' : 'Päivitä'}</span>
-          </button>
         </div>
       </div>
 

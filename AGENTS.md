@@ -11,6 +11,7 @@ Tämä tiedosto ohjeistaa AI-agentteja järjestelmän reaaliaikaisen tilan tutki
 > **SSH-osoite:** `juuso@192.168.68.54`  
 > **Projektipolku palvelimella:** `~/Dev/kotialy/`  
 > **SSH toimii suoraan avaimella:** `ssh juuso@192.168.68.54 "<komento>"`
+> **Poista vanhat DOCKER roskat aina.**
 
 ---
 
