@@ -487,6 +487,64 @@ export function OutdoorLightsCard({ readOnly = false }: OutdoorLightsCardProps) 
         </div>
       </div>
 
+      {/* Real-time Electricity Consumption & Hardware Telemetry */}
+      {status?.telemetry && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+            gap: '10px',
+            marginBottom: '16px',
+            background: 'rgba(56, 189, 248, 0.06)',
+            border: '1px solid rgba(56, 189, 248, 0.25)',
+            borderRadius: '10px',
+            padding: '10px 12px',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '0.7rem', color: '#38bdf8', marginBottom: '2px' }}>⚡ Hetkellinen teho</div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {status.telemetry.power_w.toFixed(0)} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>W</span>
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              Virta: {status.telemetry.current_a.toFixed(2)} A
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '0.7rem', color: '#38bdf8', marginBottom: '2px' }}>🔌 Jännite</div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {status.telemetry.voltage_v.toFixed(1)} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>V</span>
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              Verkkojännite
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '0.7rem', color: '#38bdf8', marginBottom: '2px' }}>📊 Kokonaisenergia</div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {status.telemetry.energy_kwh.toFixed(1)} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>kWh</span>
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              WiFi-rele (MTRG)
+            </div>
+          </div>
+
+          {status.telemetry.device_temp != null && (
+            <div>
+              <div style={{ fontSize: '0.7rem', color: '#38bdf8', marginBottom: '2px' }}>🌡️ Releen lämpö</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {status.telemetry.device_temp} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>°C</span>
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Elektroniikka
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Manual Override Bar / Actions */}
       {!readOnly && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>

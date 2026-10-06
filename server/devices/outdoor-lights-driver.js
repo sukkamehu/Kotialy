@@ -112,7 +112,7 @@ class OutdoorLightsDriver {
     this.lastEvaluatedAt = Date.now();
     try {
       const settings = db.getOutdoorLightsSettings();
-      const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+      const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bfc6974c07151a07e7fa3g';
       const now = new Date();
       const nowMs = now.getTime();
 
@@ -231,7 +231,7 @@ class OutdoorLightsDriver {
    */
   async setOverride(state, durationMinutes = 120) {
     const settings = db.getOutdoorLightsSettings();
-    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bfc6974c07151a07e7fa3g';
 
     if (state === null || state === 'AUTO' || state === '') {
       log('Palautetaan automaattinen astronominen hämäräohjaus...');
@@ -285,6 +285,7 @@ class OutdoorLightsDriver {
    */
   getStatus() {
     const settings = db.getOutdoorLightsSettings();
+    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bfc6974c07151a07e7fa3g';
     const now = new Date();
     const sunTimes = calculateSunTimes(now);
 
@@ -293,12 +294,30 @@ class OutdoorLightsDriver {
     const isOverrideActive = overrideUntil > Date.now() && (overrideState === 'ON' || overrideState === 'OFF');
     const overrideMinutesRemaining = isOverrideActive ? Math.ceil((overrideUntil - Date.now()) / 60000) : 0;
 
+    // Fetch live hardware telemetry from Tuya cache
+    const dev = tuyaService.devicesById?.get(deviceId) || tuyaService.devices?.find(d => d.id === deviceId || d.category === 'dlq' || (d.name && d.name.toLowerCase().includes('wifi switch')));
+
+    const powerW = dev?.properties?.power ?? (dev?.raw_status?.cur_power != null ? Number(dev.raw_status.cur_power) : 0);
+    const voltageV = dev?.properties?.voltage ?? (dev?.raw_status?.cur_voltage != null ? Number(dev.raw_status.cur_voltage) / 10 : 230);
+    const currentA = dev?.properties?.current ?? (dev?.raw_status?.cur_current != null ? Number(dev.raw_status.cur_current) / 1000 : 0);
+    const energyKwh = dev?.properties?.energy ?? (dev?.raw_status?.add_ele != null ? Number(dev.raw_status.add_ele) : 0);
+    const deviceTemp = dev?.properties?.device_temp ?? dev?.raw_status?.temp_value ?? null;
+
     return {
       state: this.lastAppliedState || 'OFF',
       isOn: this.lastAppliedState === 'ON',
       reason: this.lastAppliedReason,
       enabled: settings.enabled === 'true',
-      deviceId: settings.device_id,
+      deviceId,
+      deviceName: dev?.name || 'WiFi Switch (Ulkovalot)',
+      deviceOnline: dev?.online ?? true,
+      telemetry: {
+        power_w: powerW,
+        voltage_v: voltageV,
+        current_a: currentA,
+        energy_kwh: energyKwh,
+        device_temp: deviceTemp,
+      },
       settings,
       sunTimes: {
         sunrise: sunTimes.sunrise ? sunTimes.sunrise.toISOString() : null,

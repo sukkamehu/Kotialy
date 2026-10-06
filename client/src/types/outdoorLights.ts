@@ -1,9 +1,20 @@
+export interface OutdoorLightsTelemetry {
+  power_w: number;
+  voltage_v: number;
+  current_a: number;
+  energy_kwh: number;
+  device_temp?: number | null;
+}
+
 export interface OutdoorLightsStatus {
   state: 'ON' | 'OFF';
   isOn: boolean;
   reason: string;
   enabled: boolean;
   deviceId: string;
+  deviceName?: string;
+  deviceOnline?: boolean;
+  telemetry?: OutdoorLightsTelemetry;
   settings: {
     enabled: string;
     device_id: string;

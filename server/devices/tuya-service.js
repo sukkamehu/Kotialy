@@ -303,12 +303,23 @@ class TuyaService {
         } catch {}
       }
     }
-    // 6. Gateway (wg2)
+    // 6. Metering switch / Circuit Breaker / Outdoor lights WiFi switch (dlq, cz, or with cur_power/cur_voltage)
+    else if (category === 'dlq' || category === 'cz' || statusMap.cur_power !== undefined || statusMap.cur_voltage !== undefined) {
+      type = 'meter_switch';
+      properties.switch_1 = statusMap.switch_1 === true || statusMap.switch === true;
+      properties.state = properties.switch_1;
+      properties.power = statusMap.cur_power != null ? (Number(statusMap.cur_power) / (category === 'cz' ? 10 : 1)) : 0;
+      properties.voltage = statusMap.cur_voltage != null ? (Number(statusMap.cur_voltage) / 10) : 0;
+      properties.current = statusMap.cur_current != null ? (Number(statusMap.cur_current) / 1000) : 0;
+      properties.energy = statusMap.add_ele != null ? Number(statusMap.add_ele) : 0;
+      properties.device_temp = statusMap.temp_value != null ? Number(statusMap.temp_value) : null;
+    }
+    // 7. Gateway (wg2)
     else if (category === 'wg2') {
       type = 'gateway';
       properties.mode = statusMap.master_mode || 'online';
     } 
-    // 7. Generic switch
+    // 8. Generic switch
     else if (statusMap.switch !== undefined || statusMap.switch_1 !== undefined) {
       type = 'switch';
       properties.state = statusMap.switch_1 ?? statusMap.switch;
@@ -364,11 +375,22 @@ class TuyaService {
         db.updateState(`${legacyPrefix}${prop}`, String(val));
       }
 
-      // Append history for numeric properties (temperature, humidity, battery, etc.)
+      // Append history for numeric properties (temperature, humidity, battery, power, energy, etc.)
       if (typeof val === 'number') {
         db.maybeAppendHistory(topic, val, 60000);
         if (legacyPrefix !== prefix) {
           db.maybeAppendHistory(`${legacyPrefix}${prop}`, val, 60000);
+        }
+      }
+    }
+
+    // If device is the outdoor lights metering relay, also sync to tuya/ulkovalot/*
+    if (device.id === 'bfc6974c07151a07e7fa3g' || device.name.toLowerCase().includes('wifi switch')) {
+      for (const [prop, val] of Object.entries(device.properties)) {
+        if (val === null || val === undefined) continue;
+        db.updateState(`tuya/ulkovalot/${prop}`, String(val));
+        if (typeof val === 'number') {
+          db.maybeAppendHistory(`tuya/ulkovalot/${prop}`, val, 60000);
         }
       }
     }

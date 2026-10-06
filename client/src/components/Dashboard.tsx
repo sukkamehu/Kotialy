@@ -10,6 +10,7 @@ import { PlugsPage } from './PlugsPage';
 import { TrendsAndEnergyPage } from './TrendsAndEnergyPage';
 import { TechnicalAndSettingsPage } from './TechnicalAndSettingsPage';
 import { ApcStrategyPage } from './ApcStrategyPage';
+import { TemperaturesPage } from './TemperaturesPage';
 import { VariableTrendModal, type TrendTopicTarget } from './VariableTrendModal';
 import { OutdoorWeatherModal } from './OutdoorWeatherModal';
 import { NotificationsModal } from './NotificationsModal';
@@ -35,6 +36,7 @@ interface DashboardProps {
 export type DashboardTab =
   | 'hub'
   | 'heating'
+  | 'temperatures'
   | 'sauna'
   | 'lighting'
   | 'plugs'
@@ -45,6 +47,7 @@ export type DashboardTab =
 const VALID_TABS: DashboardTab[] = [
   'hub',
   'heating',
+  'temperatures',
   'sauna',
   'lighting',
   'plugs',
@@ -59,7 +62,7 @@ function normalizeTab(raw: string): DashboardTab {
   }
   // Backwards compatibility mappings
   if (raw === 'dashboard') return 'heating';
-  if (raw === 'smartlife') return 'sauna';
+  if (raw === 'smartlife' || raw === 'temperature' || raw === 'climate') return 'temperatures';
   if (raw === 'herrfors' || raw === 'history') return 'trends';
   if (raw === 'hydraulics' || raw === 'heatpump_guide') return 'technical';
   if (raw === 'apc_strategy') return 'apc';
@@ -145,6 +148,7 @@ export function Dashboard({
   const navItems: { id: DashboardTab; label: string; icon: string; activeColor: string; activeBg: string }[] = [
     { id: 'hub', label: 'Koti (Hub)', icon: '🏠', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
     { id: 'heating', label: 'Lämmitys', icon: '🔥', activeColor: '#f59e0b', activeBg: 'rgba(245, 158, 11, 0.2)' },
+    { id: 'temperatures', label: 'Lämpömittarit', icon: '🌡️', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
     { id: 'sauna', label: 'Sauna', icon: '🧖‍♂️', activeColor: '#fb923c', activeBg: 'rgba(251, 146, 60, 0.2)' },
     { id: 'lighting', label: 'Valaistus', icon: '💡', activeColor: '#facc15', activeBg: 'rgba(250, 204, 21, 0.2)' },
     { id: 'plugs', label: 'Älypistorasiat', icon: '🔌', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
@@ -244,7 +248,14 @@ export function Dashboard({
             </ErrorBoundary>
           )}
 
-          {/* VIEW 2: SAUNA (Heating Widget + Lighting + Climate Stats) */}
+          {/* VIEW 2: LÄMPÖMITTARIT & SISÄILMA */}
+          {activeTab === 'temperatures' && (
+            <ErrorBoundary>
+              <TemperaturesPage state={state} readOnly={readOnly} />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 3: SAUNA (Heating Widget + Lighting + Climate Stats) */}
           {activeTab === 'sauna' && (
             <ErrorBoundary>
               <SaunaPage readOnly={readOnly} />

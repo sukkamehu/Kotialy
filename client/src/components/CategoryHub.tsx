@@ -6,7 +6,7 @@ import { useTuya } from '../hooks/useTuya';
 import { useOutdoorLights } from '../hooks/useOutdoorLights';
 import { useTapo } from '../hooks/useTapo';
 
-export type CategoryId = 'heating' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'apc';
+export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'apc';
 
 interface CategoryHubProps {
   state: HeishamonState;
@@ -27,10 +27,21 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({ state, onSelectCategor
   const heatPumpState = state['main/Heatpump_State']?.value === '1';
   const flowRate = numVal(state, 'main/Pump_Flow');
 
+  // Climate info
+  const climateSensors = tuyaDevices.filter((d) => d.type === 'climate');
+  const alakertaClimate = climateSensors.find((d) => d.name.toLowerCase().includes('alakerta'));
+  const ylakertaClimate = climateSensors.find(
+    (d) => d.name.toLowerCase().includes('ylakerta') || d.name.toLowerCase().includes('tyohuone')
+  );
+  const houseTemps = [alakertaClimate?.properties.temperature, ylakertaClimate?.properties.temperature].filter(
+    (t): t is number => typeof t === 'number'
+  );
+  const houseAvgTemp = houseTemps.length > 0 ? houseTemps.reduce((a, b) => a + b, 0) / houseTemps.length : null;
+
   // Sauna info
   const isSaunaOn = sauna?.isOn ?? false;
-  const saunaClimate = tuyaDevices.find(
-    (d) => d.name.toLowerCase().includes('sauna') && d.type === 'climate'
+  const saunaClimate = climateSensors.find(
+    (d) => d.name.toLowerCase().includes('sauna')
   );
   const saunaTemp = saunaClimate?.properties.temperature ?? null;
 
@@ -41,12 +52,12 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({ state, onSelectCategor
 
   // Plugs & Isovarasto info
   const isovarastoPlug = tapoDevices.find((d) => d.id === 'isovarasto');
-  const isovarastoClimate = tuyaDevices.find(
-    (d) => (d.name.toLowerCase().includes('isovarasto') || d.name.toLowerCase().includes('varasto')) && d.type === 'climate'
+  const isovarastoClimate = climateSensors.find(
+    (d) => d.name.toLowerCase().includes('isovarasto') || d.name.toLowerCase().includes('varasto')
   );
   const isovarastoTemp = isovarastoClimate?.properties.temperature ?? null;
   const activePlugsCount = tapoDevices.filter((d) => d.state === 'ON').length;
-  const totalPlugPower = tapoDevices.reduce((sum, d) => sum + (d.power_w || 0), 0);
+  const totalPlugPower = tapoDevices.reduce((sum, d) => sum + (d.power_w || 0), 0) + (outdoorLightsStatus?.telemetry?.power_w || 0);
 
   const categories = [
     {
@@ -73,6 +84,31 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({ state, onSelectCategor
         },
       ],
       description: 'Lämpöpumpun tila, menovedet, puskurin lämmöt, kiertovesipumppu ja teknisen tilan kamera.',
+    },
+    {
+      id: 'temperatures' as CategoryId,
+      title: 'Lämpömittarit & Sisäilma',
+      subtitle: 'Päärakennus, Ulkoilma, Varastot & Sijoitusasunto',
+      icon: '🌡️',
+      color: '#38bdf8',
+      glow: 'rgba(56, 189, 248, 0.25)',
+      gradient: 'linear-gradient(145deg, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%)',
+      borderColor: 'rgba(56, 189, 248, 0.35)',
+      badges: [
+        {
+          label: 'Talo (keskiarvo)',
+          value: houseAvgTemp !== null ? `${houseAvgTemp.toFixed(1)} °C` : '--',
+          color: '#38bdf8',
+          bg: 'rgba(56, 189, 248, 0.15)',
+        },
+        {
+          label: 'Anturit',
+          value: `${climateSensors.length} kpl live`,
+          color: '#4ade80',
+          bg: 'rgba(34, 197, 94, 0.12)',
+        },
+      ],
+      description: 'Huonekohtaiset lämpötilat ja kosteudet, kattava mittaushistoria eri aikaväleillä ja turva-anturit.',
     },
     {
       id: 'sauna' as CategoryId,
