@@ -189,8 +189,10 @@ class CameraService {
       lastSnapshotAt: this.lastHDAt || this.lastSDAt,
       error: this.lastError,
       hasSnapshot: !!(this.cachedHD || this.cachedSD),
-      subRtspUrlDisplay: this.getSanitizedUrl(this.subRtspUrl),
-      mainRtspUrlDisplay: this.getSanitizedUrl(this.mainRtspUrl),
+      subRtspUrl: this.subRtspUrl,
+      mainRtspUrl: this.mainRtspUrl,
+      subRtspUrlDisplay: this.subRtspUrl,
+      mainRtspUrlDisplay: this.mainRtspUrl,
       resolution: '640x352 (Sub) / 1920x1080 (1080p Main HD)',
     };
   }

@@ -151,7 +151,7 @@ class TuyaService {
         hasMore = Boolean(res.result?.has_more && res.result?.last_row_key && res.result.last_row_key !== lastRowKey);
         lastRowKey = res.result?.last_row_key || '';
       }
-      
+
       const parsedDevices = [];
       let foundSaunaTemp = null;
       let foundSaunaHumidity = null;
@@ -273,7 +273,7 @@ class TuyaService {
     if (category === 'kg' && (!this.saunaDeviceId || d.id === this.saunaDeviceId)) {
       type = 'sauna_switch';
       properties.switch_1 = statusMap.switch_1 === true || statusMap.switch === true;
-    } 
+    }
     // 2. Temperature & Humidity sensor (wsdcg)
     else if (category === 'wsdcg') {
       type = 'climate';
@@ -291,7 +291,7 @@ class TuyaService {
       } else if (statusMap.battery_percentage != null) {
         properties.battery = Number(statusMap.battery_percentage);
       }
-    } 
+    }
     // 3. Water leak sensor (sj)
     else if (category === 'sj') {
       type = 'water_leak';
@@ -299,13 +299,13 @@ class TuyaService {
       const stateVal = String(statusMap.watersensor_state || '');
       properties.leak_detected = stateVal === '1' || statusMap.watersensor_state === 1 || statusMap.leak === true;
       properties.battery = statusMap.battery_percentage != null ? Number(statusMap.battery_percentage) : null;
-    } 
+    }
     // 4. Door / Window sensor (mcs)
     else if (category === 'mcs') {
       type = 'door';
       properties.is_open = statusMap.switch === true;
       properties.battery = statusMap.battery != null ? Number(statusMap.battery) : (statusMap.battery_percentage != null ? Number(statusMap.battery_percentage) : null);
-    } 
+    }
     // 5. Light / RGB Ceiling Light (dj, dd, dc or product_name contains light)
     else if (category === 'dj' || category === 'dd' || category === 'dc' || (d.product_name && d.product_name.toLowerCase().includes('light'))) {
       type = 'light';
@@ -316,7 +316,7 @@ class TuyaService {
       if (statusMap.colour_data_v2) {
         try {
           properties.colour_data = typeof statusMap.colour_data_v2 === 'string' ? JSON.parse(statusMap.colour_data_v2) : statusMap.colour_data_v2;
-        } catch {}
+        } catch { }
       }
     }
     // 6. Metering switch / Circuit Breaker / Outdoor lights WiFi switch (dlq, cz, or with cur_power/cur_voltage)
@@ -341,7 +341,7 @@ class TuyaService {
     else if (category === 'wg2') {
       type = 'gateway';
       properties.mode = statusMap.master_mode || 'online';
-    } 
+    }
     // 8. Generic switch
     else if (statusMap.switch !== undefined || statusMap.switch_1 !== undefined) {
       type = 'switch';
@@ -412,7 +412,7 @@ class TuyaService {
     try {
       const outdoorSettings = db.getOutdoorLightsSettings ? db.getOutdoorLightsSettings() : null;
       if (outdoorSettings?.device_id) outdoorDeviceId = outdoorSettings.device_id;
-    } catch {}
+    } catch { }
 
     if (device.id === outdoorDeviceId || (device.name && device.name.toLowerCase().includes('wifi switch / 1p-mtrg 2'))) {
       for (const [prop, val] of Object.entries(device.properties)) {
@@ -620,7 +620,7 @@ class TuyaService {
       if (active && (temp > (active.peak_temp || 0))) {
         db.updateSaunaSession(active.id, { peak_temp: temp });
       }
-    } catch {}
+    } catch { }
   }
 
   /**
@@ -675,7 +675,7 @@ class TuyaService {
     let yearlyStats = null;
     try {
       yearlyStats = db.getSaunaStats();
-    } catch {}
+    } catch { }
 
     return {
       ...this.saunaState,
@@ -736,7 +736,7 @@ class TuyaService {
       console.warn(`[TUYA] 🛡️ SAUNAN TURVAKATKAISU: Asetettu aikaraja (${this.saunaState.durationMinutes} min) saavutettu. Sammutetaan kiuas välittömästi!`);
       this.setSaunaPower(false).catch(err => {
         console.error('[TUYA] Turvasammutus epäonnistui, yritetään uudelleen:', err.message);
-        setTimeout(() => this.setSaunaPower(false).catch(() => {}), 2000);
+        setTimeout(() => this.setSaunaPower(false).catch(() => { }), 2000);
       });
       return;
     }
@@ -744,7 +744,7 @@ class TuyaService {
     // 3. Absolute hard ceiling: if started more than 3 hours ago regardless of state
     if (this.saunaState.startedAt && (now - this.saunaState.startedAt >= this.maxHours * 3600 * 1000)) {
       console.warn('[TUYA] 🛡️ SAUNAN MAKSIMIAIKAKATKAISU (3H): Kiuas sammutetaan varotoimena.');
-      this.setSaunaPower(false).catch(() => {});
+      this.setSaunaPower(false).catch(() => { });
     }
   }
 
@@ -778,7 +778,7 @@ class TuyaService {
       throw new Error(`Kytkimen ohjaus epäonnistui: ${res.msg || JSON.stringify(res)}`);
     }
 
-    setTimeout(() => this.fetchDevices().catch(() => {}), 500);
+    setTimeout(() => this.fetchDevices().catch(() => { }), 500);
     return { success: true, state: val };
   }
 
@@ -792,7 +792,7 @@ class TuyaService {
       throw new Error(`Komennon lähetys epäonnistui: ${res.msg || JSON.stringify(res)}`);
     }
     // Refresh device state
-    setTimeout(() => this.fetchDevices().catch(() => {}), 500);
+    setTimeout(() => this.fetchDevices().catch(() => { }), 500);
     return res.result;
   }
 
@@ -832,7 +832,7 @@ class TuyaService {
         } else if (now - schedStart < 5 * 60 * 1000) {
           // If scheduled start passed within the last 5 minutes during restart, trigger immediately
           console.log('[TUYA] Ajastettu aika saavutettiin palvelimen käynnistyksen aikana. Käynnistetään sauna nyt.');
-          this.setSaunaPower(true, schedDur).catch(() => {});
+          this.setSaunaPower(true, schedDur).catch(() => { });
         }
       }
 
@@ -856,12 +856,12 @@ class TuyaService {
     // Poll every 60 seconds for sensor updates (gentle background polling)
     const pollInterval = parseInt(process.env.TUYA_POLL_INTERVAL_MS) || 60000;
     this.pollTimer = setInterval(() => {
-      this.fetchDevices().catch(() => {});
+      this.fetchDevices().catch(() => { });
     }, pollInterval);
 
     // Safety timeout check every 5 seconds
     this.safetyTimer = setInterval(() => {
-      this.checkSafetyTimeout().catch(() => {});
+      this.checkSafetyTimeout().catch(() => { });
     }, 5000);
   }
 
@@ -924,13 +924,13 @@ class TuyaService {
         );
       };
 
-      let saunaLights = this.devices.filter(d => 
+      let saunaLights = this.devices.filter(d =>
         (d.category === 'dj' || d.type === 'light') && isSaunaLight(d)
       );
 
       // Fallback if named identically: take device IDs bf13f2d77b1ba3f1cfhv4h and bf40483433d60b29d5xfe5
       if (saunaLights.length === 0) {
-        saunaLights = this.devices.filter(d => 
+        saunaLights = this.devices.filter(d =>
           d.id === 'bf13f2d77b1ba3f1cfhv4h' || d.id === 'bf40483433d60b29d5xfe5'
         );
       }
@@ -985,7 +985,7 @@ class TuyaService {
         ];
 
         for (const light of saunaLights) {
-          this.sendCommand(light.id, glowCmd).catch(() => {});
+          this.sendCommand(light.id, glowCmd).catch(() => { });
         }
       } else {
         if (this.lastGlowOn) {
@@ -1001,7 +1001,7 @@ class TuyaService {
           ];
 
           for (const light of saunaLights) {
-            this.sendCommand(light.id, restoreCmd).catch(() => {});
+            this.sendCommand(light.id, restoreCmd).catch(() => { });
           }
         }
       }

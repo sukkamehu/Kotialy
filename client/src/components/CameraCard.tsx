@@ -166,7 +166,9 @@ export function CameraCard() {
 
   const copyToClipboard = async (text: string, label: string) => {
     let copied = false;
-    if (navigator.clipboard && window.isSecureContext) {
+
+    // Method 1: Modern navigator.clipboard API
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       try {
         await navigator.clipboard.writeText(text);
         copied = true;
@@ -175,16 +177,27 @@ export function CameraCard() {
       }
     }
 
+    // Method 2: DOM textarea selection + execCommand
     if (!copied) {
       try {
         const textArea = document.createElement('textarea');
         textArea.value = text;
         textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        textArea.style.top = '-9999px';
+        textArea.style.top = '0';
+        textArea.style.left = '0';
+        textArea.style.width = '2em';
+        textArea.style.height = '2em';
+        textArea.style.padding = '0';
+        textArea.style.border = 'none';
+        textArea.style.outline = 'none';
+        textArea.style.boxShadow = 'none';
+        textArea.style.background = 'transparent';
+        textArea.style.opacity = '0.01';
         textArea.setAttribute('readonly', '');
         document.body.appendChild(textArea);
+        textArea.focus();
         textArea.select();
+        textArea.setSelectionRange(0, 99999); // Mobile iOS / Android support
         copied = document.execCommand('copy');
         document.body.removeChild(textArea);
       } catch {
@@ -192,8 +205,18 @@ export function CameraCard() {
       }
     }
 
+    // Method 3: Fallback prompt if browser blocks both
+    if (!copied) {
+      window.prompt('Kopioi RTSP-osoite leikepöydälle painamalla Ctrl+C / Cmd+C:', text);
+      copied = true;
+    }
+
     setCopiedStream(label);
-    setTimeout(() => setCopiedStream(null), 3000);
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        setCopiedStream(null);
+      }
+    }, 2500);
   };
 
   const isActuallyOffline = consecutiveFailuresRef.current >= 4;
@@ -627,62 +650,120 @@ export function CameraCard() {
 
             {/* RTSP Stream Details & Direct Access Links */}
             <div style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>
-                🔗 Suoratoisto-osoite (RTSP over UDP)
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>🔗 Suoratoisto-osoitteet (RTSP over UDP)</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>Käyttäjätunnus & salasana mukana</span>
               </div>
 
-              {/* 1080p Main Stream */}
-              {(() => {
-                const streamUrl = status?.mainRtspUrlDisplay || 'rtsp://***:***@192.168.68.57:554/0/av0';
-                return (
-                  <div
-                    onClick={() => copyToClipboard(streamUrl, 'main')}
-                    style={{
-                      background: 'rgba(0,0,0,0.4)',
-                      padding: '12px 14px',
-                      borderRadius: 8,
-                      border: `1px solid ${copiedStream === 'main' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      cursor: 'pointer',
-                      transition: 'border-color 0.2s',
-                    }}
-                    title="Klikkaa kopioidaksesi osoite leikepöydälle"
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 11, color: 'var(--cool-primary)', fontWeight: 600 }}>
-                        Päävirta (1080p HD, 1920×1080 @ 15fps):
-                      </div>
-                      <code style={{ fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all', userSelect: 'all' }}>
-                        {streamUrl}
-                      </code>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(streamUrl, 'main');
-                      }}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* 1080p Main Stream */}
+                {(() => {
+                  const mainUrl = status?.mainRtspUrlDisplay || 'rtsp://admin:123456789@192.168.68.57:554/0/av0';
+                  return (
+                    <div
+                      onClick={() => copyToClipboard(mainUrl, 'main')}
                       style={{
-                        padding: '6px 14px',
-                        borderRadius: 6,
-                        background: copiedStream === 'main' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255,255,255,0.08)',
+                        background: 'rgba(0,0,0,0.4)',
+                        padding: '12px 14px',
+                        borderRadius: 8,
                         border: `1px solid ${copiedStream === 'main' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
-                        color: copiedStream === 'main' ? 'var(--online)' : 'var(--text-primary)',
-                        fontSize: 12,
-                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
                         cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.15s ease',
+                        transition: 'border-color 0.2s',
                       }}
+                      title="Klikkaa kopioidaksesi osoite leikepöydälle"
                     >
-                      {copiedStream === 'main' ? '✓ Kopioitu!' : 'Kopioi URL'}
-                    </button>
-                  </div>
-                );
-              })()}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11, color: 'var(--cool-primary)', fontWeight: 600, marginBottom: 2 }}>
+                          🌟 Päävirta (1080p Full HD, 1920×1080 @ 15fps):
+                        </div>
+                        <code style={{ fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all', userSelect: 'all' }}>
+                          {mainUrl}
+                        </code>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(mainUrl, 'main');
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: 6,
+                          background: copiedStream === 'main' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255,255,255,0.08)',
+                          border: `1px solid ${copiedStream === 'main' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
+                          color: copiedStream === 'main' ? 'var(--online)' : 'var(--text-primary)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {copiedStream === 'main' ? '✓ Kopioitu!' : 'Kopioi URL'}
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* Sub Stream */}
+                {(() => {
+                  const subUrl = status?.subRtspUrlDisplay || 'rtsp://admin:123456789@192.168.68.57:554/0/av1';
+                  return (
+                    <div
+                      onClick={() => copyToClipboard(subUrl, 'sub')}
+                      style={{
+                        background: 'rgba(0,0,0,0.4)',
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        border: `1px solid ${copiedStream === 'sub' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s',
+                      }}
+                      title="Klikkaa kopioidaksesi osoite leikepöydälle"
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 2 }}>
+                          ⚡ Alivirta (Sub stream, 640×352 @ 15fps):
+                        </div>
+                        <code style={{ fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all', userSelect: 'all' }}>
+                          {subUrl}
+                        </code>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(subUrl, 'sub');
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: 6,
+                          background: copiedStream === 'sub' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255,255,255,0.08)',
+                          border: `1px solid ${copiedStream === 'sub' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
+                          color: copiedStream === 'sub' ? 'var(--online)' : 'var(--text-primary)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {copiedStream === 'sub' ? '✓ Kopioitu!' : 'Kopioi URL'}
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
 
               <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
                 💡 <b>Vinkki:</b> Kameran RTSP-palvelin käyttää UDP-protokollaa. VLC:ssä: <i>Asetukset → Tulot / Koodekit → RTSP-protokolla: UDP</i>.
