@@ -237,8 +237,6 @@ export function Dashboard({
               <CategoryHub
                 state={state}
                 onSelectCategory={(cat: CategoryId) => handleTabChange(cat)}
-                onOpenPriceModal={() => setPriceModalOpen(true)}
-                onOpenOutdoorModal={() => setOutdoorModalOpen(true)}
               />
             </ErrorBoundary>
           )}
