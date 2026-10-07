@@ -120,7 +120,7 @@ class OutdoorLightsDriver {
       const sunrise = sunTimes.sunrise ? sunTimes.sunrise.getTime() : null;
       const sunset = sunTimes.sunset ? sunTimes.sunset.getTime() : null;
 
-      const duskOffsetMs = parseInt(settings.dusk_offset_minutes || '-15', 10) * 60 * 1000;
+      const duskOffsetMs = parseInt(settings.dusk_offset_minutes || '10', 10) * 60 * 1000;
       const dawnOffsetMs = parseInt(settings.dawn_offset_minutes || '15', 10) * 60 * 1000;
 
       // Desired ON window for today/tonight:

@@ -1205,7 +1205,7 @@ function getNotificationHistory(limit = 50) {
 const DEFAULT_OUTDOOR_LIGHTS_SETTINGS = {
   enabled: 'true',
   device_id: 'bf7a39a3a10e38a52engat',
-  dusk_offset_minutes: '-15',
+  dusk_offset_minutes: '10',
   dawn_offset_minutes: '15',
   night_off_enabled: 'true',
   night_off_start: '23:30',

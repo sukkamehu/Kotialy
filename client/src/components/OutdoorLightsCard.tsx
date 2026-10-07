@@ -20,7 +20,7 @@ const OutdoorLightsSettingsModal: React.FC<OutdoorLightsSettingsModalProps> = ({
   saving,
 }) => {
   const [duskOffset, setDuskOffset] = useState<string>(
-    status?.settings?.dusk_offset_minutes || '-15'
+    status?.settings?.dusk_offset_minutes || '10'
   );
   const [dawnOffset, setDawnOffset] = useState<string>(
     status?.settings?.dawn_offset_minutes || '15'
