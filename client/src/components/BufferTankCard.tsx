@@ -112,7 +112,12 @@ function BufferSvg({
 export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferTankCardProps) {
   const bufferTemp = numVal(state, 'main/Buffer_Temp');
   const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
+  const outletTemp = numVal(state, 'main/Main_Outlet_Temp');
+  const z1WaterTemp = numVal(state, 'main/Z1_Water_Temp');
+  const z1WaterTargetTemp = numVal(state, 'main/Z1_Water_Target_Temp');
   const mainTargetTemp = numVal(state, 'main/Main_Target_Temp');
+  const bufferDelta = numVal(state, 'main/Buffer_Tank_Delta');
+  const isBufferInstalled = state['main/Buffer_Installed']?.value === '1';
   const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
 
   // Power – prefer XTOP values, fallback to main topics
@@ -238,7 +243,25 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     }}>
       <div className="card-header">
         <span className="card-icon">🗄️</span>
-        <span className="card-title">Puskurivaraaja · 100L</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span className="card-title">Puskurivaraaja · 100L</span>
+          {isBufferInstalled && (
+            <span
+              className="badge"
+              title="Panasonic CZ-NS4P lisäkortti ja puskurianturi kytketty & aktivoitu"
+              style={{
+                fontSize: 10,
+                padding: '1px 6px',
+                background: 'rgba(167, 139, 250, 0.15)',
+                color: '#c084fc',
+                border: '1px solid rgba(167, 139, 250, 0.35)',
+                fontWeight: 600,
+              }}
+            >
+              Anturi aktiivinen
+            </span>
+          )}
+        </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           {heatHours !== null ? (
             <span
@@ -283,9 +306,10 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
         </div>
       </div>
       <div className="card-body">
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
+        {/* Main Buffer Temp + Svg */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 14 }}>
           <BufferSvg temp={bufferTemp} onOpenTrend={onOpenTrend} />
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div
               className="metric metric-clickable"
               title="Klikkaa nähdäksesi puskurisäiliön lämpötilatrendi"
@@ -299,23 +323,132 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                 })
               }
             >
-              <span className="metric-label">Puskurin lämpötila ↗</span>
-              <span className="metric-value" style={{ fontSize: 34, color: tempColor }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span className="metric-label">Puskurin anturi ↗</span>
+                {bufferDelta !== null && (
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    ΔT tavoite: {bufferDelta}°C
+                  </span>
+                )}
+              </div>
+              <span className="metric-value" style={{ fontSize: 32, color: tempColor, lineHeight: 1.1 }}>
                 {bufferTemp !== null ? bufferTemp.toFixed(1) : '—'}
                 <span className="metric-unit" style={{ fontSize: 16 }}>°C</span>
               </span>
             </div>
-            {delta !== null && (
-              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ΔT vs tulo:</span>
-                <span style={{
-                  fontSize: 13, fontWeight: 600,
-                  color: parseFloat(delta) > 0 ? 'var(--heat-primary)' : 'var(--cool-primary)',
-                }}>
-                  {parseFloat(delta) > 0 ? '+' : ''}{delta}°C
-                </span>
-              </div>
-            )}
+
+            {/* Quick status line */}
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 11 }}>
+              {delta !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>ΔT vs paluu:</span>
+                  <span style={{
+                    fontWeight: 700,
+                    color: parseFloat(delta) > 0 ? 'var(--heat-primary)' : 'var(--cool-primary)',
+                  }}>
+                    {parseFloat(delta) > 0 ? '+' : ''}{delta}°C
+                  </span>
+                </div>
+              )}
+              {mainTargetTemp !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>VILP pyynti:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    {mainTargetTemp.toFixed(1)}°C
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 4-Pipe Circuit Temperatures Breakdown */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+          gap: 8,
+          marginBottom: 14,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+        }}>
+          {/* Lattialämmitys Z1 meno */}
+          <div
+            className="metric-clickable"
+            title="Lattialämmityksen (toisiopiirin) menoveden lämpötila puskurilta. Klikkaa nähdäksesi trendi."
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Z1_Water_Temp',
+                label: 'Lattialämmityksen meno (Z1)',
+                unit: '°C',
+                color: '#60a5fa',
+                currentValue: z1WaterTemp,
+              })
+            }
+            style={{ padding: '4px 6px', borderRadius: 6 }}
+          >
+            <div style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>💧</span> Lattia (Z1) ↗
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+              {z1WaterTemp !== null ? `${z1WaterTemp.toFixed(1)}` : '—'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>°C</span>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+              Tavoite: {z1WaterTargetTemp !== null ? `${z1WaterTargetTemp.toFixed(1)}°C` : '—'}
+            </div>
+          </div>
+
+          {/* VILP Meno (Ensiöpiiri) */}
+          <div
+            className="metric-clickable"
+            title="VILPin ensiöpiirin menovesi puskurivaraajaan. Klikkaa nähdäksesi trendi."
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Main_Outlet_Temp',
+                label: 'VILP Menovesi (Outlet)',
+                unit: '°C',
+                color: '#f87171',
+                currentValue: outletTemp,
+              })
+            }
+            style={{ padding: '4px 6px', borderRadius: 6 }}
+          >
+            <div style={{ fontSize: 10, color: '#f87171', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>♨️</span> VILP Meno ↗
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+              {outletTemp !== null ? `${outletTemp.toFixed(1)}` : '—'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>°C</span>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+              Pyynti: {mainTargetTemp !== null ? `${mainTargetTemp.toFixed(1)}°C` : '—'}
+            </div>
+          </div>
+
+          {/* VILP Paluu (Ensiöpiiri) */}
+          <div
+            className="metric-clickable"
+            title="VILPin ensiöpiirin paluuvesi puskurivaraajasta. Klikkaa nähdäksesi trendi."
+            onClick={() =>
+              onOpenTrend?.({
+                topic: 'main/Main_Inlet_Temp',
+                label: 'VILP Paluuvesi (Inlet)',
+                unit: '°C',
+                color: '#38bdf8',
+                currentValue: inletTemp,
+              })
+            }
+            style={{ padding: '4px 6px', borderRadius: 6 }}
+          >
+            <div style={{ fontSize: 10, color: '#38bdf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>↩️</span> VILP Paluu ↗
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+              {inletTemp !== null ? `${inletTemp.toFixed(1)}` : '—'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>°C</span>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+              ΔT: {outletTemp !== null && inletTemp !== null ? `${(outletTemp - inletTemp > 0 ? '+' : '')}${(outletTemp - inletTemp).toFixed(1)}°C` : '—'}
+            </div>
           </div>
         </div>
 
