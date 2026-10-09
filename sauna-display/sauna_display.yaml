@@ -79,10 +79,16 @@ mqtt:
             bool on = (x == "1" || x == "ON" || x == "true");
             id(sauna_is_on) = on;
             if (on) {
+              id(screen_dimmed) = false;
+              auto bl = id(display_backlight).turn_on();
+              bl.set_brightness(1.0);
+              bl.perform();
+
               auto call = id(cyd_rgb_led).turn_on();
               call.set_rgb(1.0, 0.3, 0.0);
               call.perform();
             } else {
+              id(last_activity_ts) = millis();
               auto call = id(cyd_rgb_led).turn_on();
               if (id(spot_price) < 6.0) {
                 call.set_rgb(0.0, 0.8, 0.2);
@@ -97,10 +103,16 @@ mqtt:
             bool on = (x == "1" || x == "ON" || x == "true");
             id(sauna_is_on) = on;
             if (on) {
+              id(screen_dimmed) = false;
+              auto bl = id(display_backlight).turn_on();
+              bl.set_brightness(1.0);
+              bl.perform();
+
               auto call = id(cyd_rgb_led).turn_on();
               call.set_rgb(1.0, 0.3, 0.0);
               call.perform();
             } else {
+              id(last_activity_ts) = millis();
               auto call = id(cyd_rgb_led).turn_on();
               if (id(spot_price) < 6.0) {
                 call.set_rgb(0.0, 0.8, 0.2);
@@ -268,7 +280,18 @@ interval:
     then:
       - lambda: |-
           uint32_t now = millis();
-          // After 40 seconds of inactivity, smoothly dim the screen to 12%
+          // Always keep screen ON (100% brightness) while sauna is ON
+          if (id(sauna_is_on)) {
+            if (id(screen_dimmed)) {
+              id(screen_dimmed) = false;
+              auto call = id(display_backlight).turn_on();
+              call.set_brightness(1.0);
+              call.perform();
+            }
+            return;
+          }
+
+          // When sauna is OFF: after 40 seconds of inactivity, smoothly dim the screen to 12%
           if (!id(screen_dimmed) && (now - id(last_activity_ts) > 40000)) {
             id(screen_dimmed) = true;
             auto call = id(display_backlight).turn_on();
