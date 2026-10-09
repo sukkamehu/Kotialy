@@ -297,9 +297,10 @@ function init(wsBroadcast, onConnect) {
  * Publish a command to Heishamon or Tasmota/Sonoff.
  * setTopic: e.g. 'commands/SetForceDHW' or 'cmnd/lattialampopumppu/POWER'
  */
-function publish(setTopic, value) {
+function publish(setTopic, value, options = {}) {
   if (!client || !connected) {
-    throw new Error('MQTT not connected');
+    console.warn(`[MQTT] Cannot publish to ${setTopic}: not connected`);
+    return Promise.resolve(false);
   }
 
   // If it is a defrost cable command, publish to all possible Tasmota topic schemes
