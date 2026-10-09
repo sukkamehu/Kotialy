@@ -9,8 +9,8 @@ esp32:
     type: arduino
 
 wifi:
-  ssid: "SaariWiFi"
-  password: "randomPassword"
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
   fast_connect: true
   power_save_mode: none
   manual_ip:
@@ -37,8 +37,8 @@ mqtt:
   id: mqtt_client
   broker: 192.168.68.54
   port: 1883
-  username: kotialy
-  password: randomPassword
+  username: !secret mqtt_username
+  password: !secret mqtt_password
   keepalive: 30s
   discovery: false
   topic_prefix: sauna_display
@@ -81,20 +81,20 @@ mqtt:
 font:
   - file: "gfonts://Roboto"
     id: font_title
-    size: 15
-    glyphs: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!"
+    size: 14
+    glyphs: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!€()·'
   - file: "gfonts://Roboto"
     id: font_sm
-    size: 12
-    glyphs: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!"
+    size: 11
+    glyphs: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!€()·'
   - file: "gfonts://Roboto"
-    id: font_lg
-    size: 24
-    glyphs: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!"
+    id: font_btn
+    size: 18
+    glyphs: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!€()·'
   - file: "gfonts://Roboto"
     id: font_hero
-    size: 36
-    glyphs: "0123456789.-+°C"
+    size: 32
+    glyphs: '0123456789.-+°C€'
 
 # ─── Color Palette ──────────────────────────────────────────────────────────
 color:
@@ -216,14 +216,33 @@ globals:
     type: float
     restore_value: no
     initial_value: "21.5"
-  - id: remaining_minutes
-    type: int
-    restore_value: no
-    initial_value: "0"
   - id: last_touch_ts
     type: uint32_t
     restore_value: no
     initial_value: "0"
+  - id: last_activity_ts
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: screen_dimmed
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+# ─── Auto-Dimming Inactivity Timer ─────────────────────────────────────────
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          uint32_t now = millis();
+          // After 40 seconds of inactivity, smoothly dim the screen to 12%
+          if (!id(screen_dimmed) && (now - id(last_activity_ts) > 40000)) {
+            id(screen_dimmed) = true;
+            auto call = id(display_backlight).turn_on();
+            call.set_brightness(0.12);
+            call.set_transition_length(1500);
+            call.perform();
+          }
 
 # ─── Touchscreen (XPT2046) ────────────────────────────────────────────────
 touchscreen:
@@ -232,33 +251,42 @@ touchscreen:
     spi_id: touch_spi
     cs_pin: GPIO33
     interrupt_pin: GPIO36
+    threshold: 400
     calibration:
-      x_min: 300
-      x_max: 3850
-      y_min: 250
-      y_max: 3800
+      x_min: 280
+      x_max: 3860
+      y_min: 340
+      y_max: 3860
     transform:
       swap_xy: true
-      mirror_x: false
-      mirror_y: true
+      mirror_x: true
+      mirror_y: false
     on_touch:
       then:
         - lambda: |-
             uint32_t now = millis();
-            if (now - id(last_touch_ts) < 800) return; // Debounce 800ms
+            id(last_activity_ts) = now;
+
+            // If screen was dimmed, first touch wakes up screen to 100% without triggering button
+            if (id(screen_dimmed)) {
+              id(screen_dimmed) = false;
+              auto call = id(display_backlight).turn_on();
+              call.set_brightness(1.0);
+              call.set_transition_length(200);
+              call.perform();
+              return;
+            }
+
+            if (now - id(last_touch_ts) < 500) return;
             id(last_touch_ts) = now;
 
-            int tx = touch.x;
             int ty = touch.y;
-
-            // Touch Button Area: Bottom banner (x: 8..312, y: 170..238)
-            if (ty >= 170 && ty <= 238 && tx >= 8 && tx <= 312) {
+            // If user touched lower section (button area)
+            if (ty >= 140) {
               if (!id(sauna_is_on)) {
-                // Turn ON sauna (90 min)
                 id(mqtt_client).publish("cmnd/sauna/power", "ON");
                 id(sauna_is_on) = true;
               } else {
-                // Turn OFF sauna
                 id(mqtt_client).publish("cmnd/sauna/power", "OFF");
                 id(sauna_is_on) = false;
               }
@@ -266,17 +294,18 @@ touchscreen:
 
 # ─── ILI9341 Display & Graphical UI ───────────────────────────────────────
 display:
-  - platform: ili9xxx
+  - platform: mipi_spi
     id: cyd_display
     model: ILI9341
     spi_id: lcd_spi
     cs_pin: GPIO15
     dc_pin: GPIO2
-    invert_colors: false
     dimensions:
-      width: 320
-      height: 240
+      width: 240
+      height: 320
     rotation: 90
+    buffer_size: 25%
+    data_rate: 40MHz
     update_interval: 500ms
     lambda: |-
       // 1. Clear & Background
@@ -292,7 +321,7 @@ display:
       // Time & Status
       auto time = id(sntp_time).now();
       if (time.is_valid()) {
-        it.strftime(265, 5, id(font_title), id(col_text_main), "%H:%M", time);
+        it.strftime(270, 5, id(font_title), id(col_text_main), "%H:%M", time);
       } else {
         it.printf(265, 5, id(font_sm), id(col_text_muted), "WiFi OK");
       }
@@ -302,8 +331,8 @@ display:
       Color s_border = is_on ? id(col_accent_orange) : id(col_card_border);
       Color s_bg = is_on ? Color(35, 20, 15) : id(col_card_bg);
 
-      it.filled_rectangle(8, 32, 148, 132, s_bg);
-      it.rectangle(8, 32, 148, 132, s_border);
+      it.filled_rectangle(8, 32, 148, 130, s_bg);
+      it.rectangle(8, 32, 148, 130, s_border);
 
       it.printf(16, 38, id(font_sm), is_on ? id(col_accent_orange) : id(col_text_muted), "SAUNAN LÄMPÖTILA");
       
@@ -311,53 +340,55 @@ display:
       it.printf(16, 56, id(font_hero), is_on ? id(col_accent_orange) : id(col_text_main), "%.0f°C", id(sauna_temp));
 
       // Humidity & Target status
-      it.printf(16, 102, id(font_sm), id(col_text_muted), "Kosteus: %.0f %%", id(sauna_humidity));
+      it.printf(16, 100, id(font_sm), id(col_text_muted), "Kosteus: %.0f %%", id(sauna_humidity));
 
       if (is_on) {
-        it.printf(16, 122, id(font_title), id(col_accent_orange), "LÄMMITETÄÄN");
-        it.printf(16, 142, id(font_sm), id(col_accent_amber), "Tavoite ~70°C");
+        it.printf(16, 120, id(font_title), id(col_accent_orange), "LÄMMITETÄÄN");
+        it.printf(16, 138, id(font_sm), id(col_accent_amber), "Tavoite ~70°C");
       } else {
-        it.printf(16, 122, id(font_title), id(col_text_muted), "VALMIUSTILASSA");
-        it.printf(16, 142, id(font_sm), id(col_text_muted), "Kiuas vapaa");
+        it.printf(16, 120, id(font_title), id(col_text_muted), "VALMIUSTILASSA");
+        it.printf(16, 138, id(font_sm), id(col_text_muted), "Kiuas vapaa");
       }
 
       // ─── Right Card: Sähkön Hinta (x: 164..312, y: 32..164) ─────────────
       float price = id(spot_price);
       Color p_col = price < 6.0 ? id(col_accent_green) : (price < 15.0 ? id(col_accent_amber) : id(col_accent_red));
 
-      it.filled_rectangle(164, 32, 148, 132, id(col_card_bg));
-      it.rectangle(164, 32, 148, 132, id(col_card_border));
+      it.filled_rectangle(164, 32, 148, 130, id(col_card_bg));
+      it.rectangle(164, 32, 148, 130, id(col_card_border));
 
       it.printf(172, 38, id(font_sm), id(col_text_muted), "SÄHKÖN HINTA NYT");
       
       // Price value
       it.printf(172, 56, id(font_hero), p_col, "%.2f", price);
-      it.printf(274, 76, id(font_sm), p_col, "c/kWh");
+      it.printf(265, 72, id(font_sm), p_col, "c/kWh");
 
       // Sauna Running cost estimation (~6.8 kW kiuas)
       float cost_per_hour = (price * 6.8) / 100.0;
-      it.printf(172, 102, id(font_sm), id(col_text_muted), "Sauna: ~%.2f €/h", cost_per_hour);
+      it.printf(172, 100, id(font_sm), id(col_text_muted), "Sauna: ~%.2f €/h", cost_per_hour);
 
       if (price < 6.0) {
-        it.printf(172, 122, id(font_title), id(col_accent_green), "EDULLINEN HINTA");
-        it.printf(172, 142, id(font_sm), id(col_accent_green), "Hyvä hetki saunoa!");
+        it.printf(172, 120, id(font_title), id(col_accent_green), "EDULLINEN HINTA");
+        it.printf(172, 138, id(font_sm), id(col_accent_green), "Hyvä hetki saunoa!");
       } else if (price < 15.0) {
-        it.printf(172, 122, id(font_title), id(col_accent_amber), "NORMAALI HINTA");
-        it.printf(172, 142, id(font_sm), id(col_text_muted), "Ulko: %.1f°C · Sisä: %.1f°C", id(outdoor_temp), id(house_temp));
+        it.printf(172, 120, id(font_title), id(col_accent_amber), "NORMAALI HINTA");
+        it.printf(172, 138, id(font_sm), id(col_text_muted), "Ulko: %.1f°C · Sisä: %.1f°C", id(outdoor_temp), id(house_temp));
       } else {
-        it.printf(172, 122, id(font_title), id(col_accent_red), "KORKEA HINTA");
-        it.printf(172, 142, id(font_sm), id(col_accent_red), "Huipputunti!");
+        it.printf(172, 120, id(font_title), id(col_accent_red), "KORKEA HINTA");
+        it.printf(172, 138, id(font_sm), id(col_accent_red), "Huipputunti!");
       }
 
-      // ─── Bottom Banner: Big Touch Button (x: 8..312, y: 172..232) ────────
+      // ─── Bottom Banner: Big Touch Button (x: 8..312, y: 168..234) ────────
       if (!is_on) {
-        // Green / Amber Glow Start Button
-        it.filled_rectangle(8, 172, 304, 60, id(col_accent_green));
-        it.rectangle(8, 172, 304, 60, Color(255, 255, 255));
-        it.printf(40, 188, id(font_lg), Color(255, 255, 255), "KÄYNNISTÄ SAUNA (90m)");
+        // Green Start Button
+        it.filled_rectangle(8, 168, 304, 66, id(col_accent_green));
+        it.rectangle(8, 168, 304, 66, Color(255, 255, 255));
+        it.printf(160, 175, id(font_btn), TextAlign::TOP_CENTER, "KÄYNNISTÄ SAUNA");
+        it.printf(160, 203, id(font_sm), TextAlign::TOP_CENTER, "Ajastus: 90 min");
       } else {
-        // Red Emergency Stop Button
-        it.filled_rectangle(8, 172, 304, 60, id(col_accent_red));
-        it.rectangle(8, 172, 304, 60, Color(255, 255, 255));
-        it.printf(56, 188, id(font_lg), Color(255, 255, 255), "SAMMUTA KIUAS");
+        // Red Stop Button
+        it.filled_rectangle(8, 168, 304, 66, id(col_accent_red));
+        it.rectangle(8, 168, 304, 66, Color(255, 255, 255));
+        it.printf(160, 175, id(font_btn), TextAlign::TOP_CENTER, "SAMMUTA KIUAS");
+        it.printf(160, 203, id(font_sm), TextAlign::TOP_CENTER, "Lämmitys käynnissä");
       }

@@ -9,3 +9,8 @@ node_modules/
 *.ovpn
 openvpn/pki/
 memo.md
+secrets.yaml
+**/secrets.yaml
+sauna-display/secrets.yaml
+sauna-display/.esphome/
+sauna-display/*.bin

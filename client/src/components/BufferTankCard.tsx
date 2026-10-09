@@ -117,7 +117,6 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   const z1WaterTargetTemp = numVal(state, 'main/Z1_Water_Target_Temp');
   const mainTargetTemp = numVal(state, 'main/Main_Target_Temp');
   const bufferDelta = numVal(state, 'main/Buffer_Tank_Delta');
-  const isBufferInstalled = state['main/Buffer_Installed']?.value === '1';
   const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
 
   // Power – prefer XTOP values, fallback to main topics
@@ -185,9 +184,6 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     ? (bufferTemp - inletTemp).toFixed(1)
     : null;
 
-  const heatHours = numVal(state, 'main/Heat_Hours');
-  const opHours = numVal(state, 'main/Operations_Hours');
-
   const tempColor = bufferTemp !== null && bufferTemp > 45
     ? 'var(--heat-primary)'
     : 'var(--buffer-primary)';
@@ -243,61 +239,8 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     }}>
       <div className="card-header">
         <span className="card-icon">🗄️</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span className="card-title">Puskurivaraaja · 100L</span>
-          {isBufferInstalled && (
-            <span
-              className="badge"
-              title="Panasonic CZ-NS4P lisäkortti ja puskurianturi kytketty & aktivoitu"
-              style={{
-                fontSize: 10,
-                padding: '1px 6px',
-                background: 'rgba(167, 139, 250, 0.15)',
-                color: '#c084fc',
-                border: '1px solid rgba(167, 139, 250, 0.35)',
-                fontWeight: 600,
-              }}
-            >
-              Anturi aktiivinen
-            </span>
-          )}
-        </div>
+        <span className="card-title">Puskurivaraaja · 100L</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {heatHours !== null ? (
-            <span
-              className="metric-clickable"
-              title="Klikkaa nähdäksesi lämmitystuntien trendi"
-              onClick={() =>
-                onOpenTrend?.({
-                  topic: 'main/Heat_Hours',
-                  label: 'Lämmitystunnit',
-                  unit: 'h',
-                  color: 'var(--buffer-primary)',
-                  currentValue: heatHours,
-                })
-              }
-              style={{ fontSize: 11, color: 'var(--text-muted)' }}
-            >
-              ⏱ {Math.round(heatHours)} h
-            </span>
-          ) : opHours !== null ? (
-            <span
-              className="metric-clickable"
-              title="Klikkaa nähdäksesi käyttötuntien trendi"
-              onClick={() =>
-                onOpenTrend?.({
-                  topic: 'main/Operations_Hours',
-                  label: 'Käyttötunnit',
-                  unit: 'h',
-                  color: 'var(--buffer-primary)',
-                  currentValue: opHours,
-                })
-              }
-              style={{ fontSize: 11, color: 'var(--text-muted)' }}
-            >
-              ⏱ {Math.round(opHours)} h
-            </span>
-          ) : null}
           {bufferTemp !== null && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {bufferTemp > 45 ? '🔥 Lämmin' : bufferTemp > 35 ? '🌡 Haalea' : '❄️ Viileä'}
