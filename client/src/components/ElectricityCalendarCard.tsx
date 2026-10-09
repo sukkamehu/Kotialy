@@ -458,6 +458,9 @@ export function ElectricityCalendarCard() {
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>
             Osuus: {loading ? '…' : `${summary?.heating_share_percent ?? 0} % (${summary?.total_heatpump_cost_eur.toFixed(2) ?? 0} €)`}
           </div>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>
+            Lämmitys: {summary?.total_heating_kwh?.toFixed(1) ?? 0} kWh · LKV: {summary?.total_dhw_kwh?.toFixed(1) ?? 0} kWh
+          </div>
         </div>
 
         {/* Sauna & Plugs */}
@@ -474,6 +477,9 @@ export function ElectricityCalendarCard() {
             {loading ? '…' : `${((summary?.total_sauna_kwh ?? 0) + (summary?.total_tapo_kwh ?? 0)).toFixed(1)} kWh`}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+            Osuus: {loading ? '…' : `${(summary?.total_house_kwh && summary.total_house_kwh > 0 ? (((summary.total_sauna_kwh ?? 0) + (summary.total_tapo_kwh ?? 0)) / summary.total_house_kwh * 100) : ((summary?.sauna_share_percent ?? 0) + (summary?.tapo_share_percent ?? 0))).toFixed(1)} % (${((summary?.total_sauna_cost_eur ?? 0) + (summary?.total_tapo_cost_eur ?? 0)).toFixed(2)} €)`}
+          </div>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>
             Sauna: {summary?.total_sauna_kwh?.toFixed(1) ?? 0} kWh {saunaDaysCount > 0 ? `(${saunaDaysCount} saunapäivää)` : ''} · Tapo: {summary?.total_tapo_kwh?.toFixed(1) ?? 0} kWh
           </div>
         </div>
@@ -493,6 +499,9 @@ export function ElectricityCalendarCard() {
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>
             Osuus: {loading ? '…' : `${summary?.other_share_percent ?? 0} % (${summary?.total_other_cost_eur.toFixed(2) ?? 0} €)`}
+          </div>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>
+            Valot, kodinkoneet, IV & elektroniikka
           </div>
         </div>
       </div>
