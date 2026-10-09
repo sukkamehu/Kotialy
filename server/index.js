@@ -225,8 +225,8 @@ function publishMqttLiveStates() {
     }
   }
 }
-setInterval(publishMqttLiveStates, 15_000);
-setTimeout(publishMqttLiveStates, 3_000);
+setInterval(publishMqttLiveStates, 2_000);
+setTimeout(publishMqttLiveStates, 1_000);
 
 // Daily database maintenance (prune records older than 30 days & truncate WAL)
 const { pruneOldHistory, vacuumDatabase } = require('./db');

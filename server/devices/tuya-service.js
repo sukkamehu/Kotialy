@@ -246,6 +246,9 @@ class TuyaService {
       // Trigger sauna glow update for bathroom lights
       this.updateSaunaGlow(this.saunaState.temperature, this.saunaState.isOn);
 
+      // Instant MQTT state broadcast
+      this.publishSaunaMqtt();
+
       return this.devices;
     } catch (err) {
       console.error('[TUYA] Failed to fetch devices:', err.message);
@@ -509,13 +512,21 @@ class TuyaService {
     this.updateSaunaGlow(this.saunaState.temperature, Boolean(turnOn));
 
     // Immediate MQTT sync for ESP32 display & external clients
+    this.publishSaunaMqtt();
+
+    return this.getSaunaStatus();
+  }
+
+  /**
+   * Instantly publish full sauna state to MQTT with retain flag
+   */
+  publishSaunaMqtt() {
     try {
       const mqttClient = require('../mqtt-client');
       if (mqttClient && mqttClient.isConnected()) {
-        mqttClient.publish('tuya/sauna/switch', turnOn ? '1' : '0', { retain: true });
-        if (this.saunaState.autoOffAt) {
-          mqttClient.publish('tuya/sauna/auto_off_at', String(this.saunaState.autoOffAt), { retain: true });
-        }
+        const isSwitchOn = this.saunaState.isOn ? '1' : '0';
+        mqttClient.publish('tuya/sauna/switch', isSwitchOn, { retain: true });
+        mqttClient.publish('tuya/sauna/auto_off_at', this.saunaState.autoOffAt ? String(this.saunaState.autoOffAt) : '0', { retain: true });
         if (this.saunaState.temperature != null) {
           mqttClient.publish('tuya/sauna/temperature', String(this.saunaState.temperature), { retain: true });
         }
@@ -526,8 +537,6 @@ class TuyaService {
     } catch (e) {
       // Ignore
     }
-
-    return this.getSaunaStatus();
   }
 
   /**
