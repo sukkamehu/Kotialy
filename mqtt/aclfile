@@ -11,10 +11,11 @@ topic readwrite tele/#
 # explicit Heishamon commands. $SYS/broker/version read is needed by the
 # container healthcheck.
 user kotialy
-topic read panasonic_heat_pump/#
-topic write panasonic_heat_pump/commands/#
-topic readwrite panasonic_heat_pump/lattialampopumppu/#
-topic readwrite panasonic_heat_pump/sulanapito/#
+topic readwrite panasonic_heat_pump/#
+topic readwrite tuya/#
+topic readwrite nordpool/#
+topic readwrite sauna/#
+topic readwrite tapo/#
 topic readwrite lattialampopumppu/#
 topic readwrite sulanapito/#
 topic readwrite cmnd/#
