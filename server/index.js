@@ -201,10 +201,11 @@ alertEngine.start();
 function publishMqttLiveStates() {
   if (!mqttClient || !mqttClient.isConnected()) return;
 
-  // 1. Nordpool electricity spot price
+  // 1. Nordpool electricity spot price (converted EUR/MWh -> snt/kWh)
   const np = nordpoolClient.getCurrentPrice();
   if (np && np.price != null) {
-    mqttClient.publish('nordpool/current_price', String(np.price.toFixed(2)), { retain: true });
+    const priceCentsKWh = (np.price / 10).toFixed(2);
+    mqttClient.publish('nordpool/current_price', String(priceCentsKWh), { retain: true });
   }
 
   // 2. Sauna state
