@@ -197,6 +197,37 @@ const alertEngine = require('./alert-engine');
 notificationService.setWsClients(wsClients);
 alertEngine.start();
 
+// Periodic MQTT State Broadcaster (for ESP32 displays & IoT clients)
+function publishMqttLiveStates() {
+  if (!mqttClient || !mqttClient.isConnected()) return;
+
+  // 1. Nordpool electricity spot price
+  const np = nordpoolClient.getCurrentPrice();
+  if (np && np.price != null) {
+    mqttClient.publish('nordpool/current_price', String(np.price.toFixed(2)), { retain: true });
+  }
+
+  // 2. Sauna state
+  const sauna = tuyaService.getSaunaStatus();
+  if (sauna) {
+    mqttClient.publish('tuya/sauna/switch', sauna.isOn ? '1' : '0', { retain: true });
+    if (sauna.temperature != null) {
+      mqttClient.publish('tuya/sauna/temperature', String(sauna.temperature), { retain: true });
+    }
+    if (sauna.humidity != null) {
+      mqttClient.publish('tuya/sauna/humidity', String(sauna.humidity), { retain: true });
+    }
+    if (sauna.autoOffAt) {
+      mqttClient.publish('tuya/sauna/auto_off_at', String(sauna.autoOffAt), { retain: true });
+    }
+    if (sauna.durationMinutes) {
+      mqttClient.publish('tuya/sauna/duration', String(sauna.durationMinutes), { retain: true });
+    }
+  }
+}
+setInterval(publishMqttLiveStates, 15_000);
+setTimeout(publishMqttLiveStates, 3_000);
+
 // Daily database maintenance (prune records older than 30 days & truncate WAL)
 const { pruneOldHistory, vacuumDatabase } = require('./db');
 setTimeout(() => pruneOldHistory(30), 60_000);

@@ -27,6 +27,10 @@ const SUBSCRIBE_PATTERNS = [
   `tele/sulanapito/#`,
   `cmnd/lattialampopumppu/#`,
   `cmnd/sulanapito/#`,
+  `cmnd/sauna/#`,
+  `sauna/#`,
+  `tuya/#`,
+  `nordpool/#`,
   `stat/#`,
   `tele/#`,
   `tapo/#`,
@@ -218,6 +222,23 @@ function init(wsBroadcast, onConnect) {
         category: 'outdoor',
         displayValue: pVal === 'ON' ? 'Päällä' : 'Pois päältä',
         ts: Date.now(),
+      });
+      return;
+    }
+
+    // Handle Sauna commands from MQTT (e.g. ESP32 Sauna Display)
+    if (
+      topic === 'cmnd/sauna/power' ||
+      topic === 'cmnd/sauna/switch' ||
+      fullTopic === 'cmnd/sauna/power' ||
+      fullTopic === 'cmnd/sauna/switch'
+    ) {
+      const tuyaService = require('./devices/tuya-service');
+      const turnOn = rawValue.toUpperCase() === 'ON' || rawValue === '1' || rawValue.toUpperCase() === 'TRUE';
+      const duration = parseInt(rawValue) > 1 ? parseInt(rawValue) : 90;
+      console.log(`[MQTT] Received sauna command: power=${turnOn}, duration=${duration}m`);
+      tuyaService.setSaunaPower(turnOn, duration).catch((err) => {
+        console.error('[MQTT] Sauna power command error:', err.message);
       });
       return;
     }

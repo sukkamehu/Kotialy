@@ -1,0 +1,363 @@
+esphome:
+  name: sauna-display
+  friendly_name: "Sauna Ohjauskeskus"
+  comment: "CYD ESP32-2432S028R Kosketusnäyttö Saunalle"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+wifi:
+  ssid: "SaariWiFi"
+  password: "randomPassword"
+  fast_connect: true
+  power_save_mode: none
+  manual_ip:
+    static_ip: 192.168.68.80
+    gateway: 192.168.68.1
+    subnet: 255.255.252.0
+    dns1: 193.210.18.18
+    dns2: 193.210.19.19
+
+api: {}
+
+ota:
+  platform: esphome
+
+logger:
+  level: INFO
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: "EET-2EEST,M3.5.0/3,M10.5.0/4"
+
+mqtt:
+  id: mqtt_client
+  broker: 192.168.68.54
+  port: 1883
+  username: kotialy
+  password: randomPassword
+  keepalive: 30s
+  discovery: false
+  topic_prefix: sauna_display
+  on_message:
+    - topic: tuya/sauna/temperature
+      then:
+        - lambda: 'id(sauna_temp) = parse_number<float>(x).value_or(id(sauna_temp));'
+    - topic: tuya/sauna/humidity
+      then:
+        - lambda: 'id(sauna_humidity) = parse_number<float>(x).value_or(id(sauna_humidity));'
+    - topic: nordpool/current_price
+      then:
+        - lambda: 'id(spot_price) = parse_number<float>(x).value_or(id(spot_price));'
+    - topic: main/Outside_Temp
+      then:
+        - lambda: 'id(outdoor_temp) = parse_number<float>(x).value_or(id(outdoor_temp));'
+    - topic: tuya/alakerta/temperature
+      then:
+        - lambda: 'id(house_temp) = parse_number<float>(x).value_or(id(house_temp));'
+    - topic: tuya/sauna/switch
+      then:
+        - lambda: |-
+            bool on = (x == "1" || x == "ON" || x == "true");
+            id(sauna_is_on) = on;
+            if (on) {
+              auto call = id(cyd_rgb_led).turn_on();
+              call.set_rgb(1.0, 0.3, 0.0);
+              call.perform();
+            } else {
+              auto call = id(cyd_rgb_led).turn_on();
+              if (id(spot_price) < 6.0) {
+                call.set_rgb(0.0, 0.8, 0.2);
+              } else {
+                call.set_rgb(0.0, 0.2, 0.8);
+              }
+              call.perform();
+            }
+
+# ─── Fonts ──────────────────────────────────────────────────────────────────
+font:
+  - file: "gfonts://Roboto"
+    id: font_title
+    size: 15
+    glyphs: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!"
+  - file: "gfonts://Roboto"
+    id: font_sm
+    size: 12
+    glyphs: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!"
+  - file: "gfonts://Roboto"
+    id: font_lg
+    size: 24
+    glyphs: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖabcdefghijklmnopqrstuvwxyzåäö:., -_°/%+~!"
+  - file: "gfonts://Roboto"
+    id: font_hero
+    size: 36
+    glyphs: "0123456789.-+°C"
+
+# ─── Color Palette ──────────────────────────────────────────────────────────
+color:
+  - id: col_bg
+    red: 8%
+    green: 11%
+    blue: 19%
+  - id: col_card_bg
+    red: 15%
+    green: 20%
+    blue: 32%
+  - id: col_card_border
+    red: 30%
+    green: 38%
+    blue: 55%
+  - id: col_text_main
+    red: 96%
+    green: 98%
+    blue: 100%
+  - id: col_text_muted
+    red: 60%
+    green: 68%
+    blue: 80%
+  - id: col_accent_orange
+    red: 98%
+    green: 57%
+    blue: 24%
+  - id: col_accent_amber
+    red: 96%
+    green: 62%
+    blue: 4%
+  - id: col_accent_green
+    red: 13%
+    green: 77%
+    blue: 36%
+  - id: col_accent_red
+    red: 94%
+    green: 27%
+    blue: 27%
+  - id: col_accent_blue
+    red: 23%
+    green: 51%
+    blue: 96%
+
+# ─── Hardware SPI Buses ────────────────────────────────────────────────────
+# HSPI for ILI9341 LCD
+spi:
+  - id: lcd_spi
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+
+# VSPI / Touch SPI for XPT2046
+  - id: touch_spi
+    clk_pin: GPIO25
+    mosi_pin: GPIO32
+    miso_pin: GPIO39
+
+# ─── Hardware Outputs (Backlight & RGB LED) ─────────────────────────────────
+output:
+  - platform: ledc
+    id: backlight_output
+    pin: GPIO21
+    frequency: 1000Hz
+  - platform: ledc
+    id: led_red
+    pin:
+      number: GPIO4
+      inverted: true
+  - platform: ledc
+    id: led_green
+    pin:
+      number: GPIO16
+      inverted: true
+  - platform: ledc
+    id: led_blue
+    pin:
+      number: GPIO17
+      inverted: true
+
+light:
+  - platform: monochromatic
+    id: display_backlight
+    name: "Näytön Taustavalo"
+    output: backlight_output
+    restore_mode: ALWAYS_ON
+
+  - platform: rgb
+    id: cyd_rgb_led
+    name: "CYD Tila-LED"
+    red: led_red
+    green: led_green
+    blue: led_blue
+    restore_mode: ALWAYS_ON
+
+# ─── Global State Variables ────────────────────────────────────────────────
+globals:
+  - id: sauna_is_on
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: sauna_temp
+    type: float
+    restore_value: no
+    initial_value: "22.0"
+  - id: sauna_humidity
+    type: float
+    restore_value: no
+    initial_value: "35.0"
+  - id: spot_price
+    type: float
+    restore_value: no
+    initial_value: "6.50"
+  - id: outdoor_temp
+    type: float
+    restore_value: no
+    initial_value: "9.0"
+  - id: house_temp
+    type: float
+    restore_value: no
+    initial_value: "21.5"
+  - id: remaining_minutes
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: last_touch_ts
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+# ─── Touchscreen (XPT2046) ────────────────────────────────────────────────
+touchscreen:
+  - platform: xpt2046
+    id: touch_cyd
+    spi_id: touch_spi
+    cs_pin: GPIO33
+    interrupt_pin: GPIO36
+    calibration:
+      x_min: 300
+      x_max: 3850
+      y_min: 250
+      y_max: 3800
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: true
+    on_touch:
+      then:
+        - lambda: |-
+            uint32_t now = millis();
+            if (now - id(last_touch_ts) < 800) return; // Debounce 800ms
+            id(last_touch_ts) = now;
+
+            int tx = touch.x;
+            int ty = touch.y;
+
+            // Touch Button Area: Bottom banner (x: 8..312, y: 170..238)
+            if (ty >= 170 && ty <= 238 && tx >= 8 && tx <= 312) {
+              if (!id(sauna_is_on)) {
+                // Turn ON sauna (90 min)
+                id(mqtt_client).publish("cmnd/sauna/power", "ON");
+                id(sauna_is_on) = true;
+              } else {
+                // Turn OFF sauna
+                id(mqtt_client).publish("cmnd/sauna/power", "OFF");
+                id(sauna_is_on) = false;
+              }
+            }
+
+# ─── ILI9341 Display & Graphical UI ───────────────────────────────────────
+display:
+  - platform: ili9xxx
+    id: cyd_display
+    model: ILI9341
+    spi_id: lcd_spi
+    cs_pin: GPIO15
+    dc_pin: GPIO2
+    invert_colors: false
+    dimensions:
+      width: 320
+      height: 240
+    rotation: 90
+    update_interval: 500ms
+    lambda: |-
+      // 1. Clear & Background
+      it.fill(id(col_bg));
+
+      // ─── Header (0 .. 28 px) ────────────────────────────────────────────
+      it.filled_rectangle(0, 0, 320, 26, id(col_card_bg));
+      it.line(0, 26, 320, 26, id(col_card_border));
+      
+      // Title
+      it.printf(8, 5, id(font_title), id(col_accent_amber), "SAUNA OHJAUSKESKUS");
+
+      // Time & Status
+      auto time = id(sntp_time).now();
+      if (time.is_valid()) {
+        it.strftime(265, 5, id(font_title), id(col_text_main), "%H:%M", time);
+      } else {
+        it.printf(265, 5, id(font_sm), id(col_text_muted), "WiFi OK");
+      }
+
+      // ─── Left Card: Sauna Lämpö & Tila (x: 8..156, y: 32..164) ───────────
+      bool is_on = id(sauna_is_on);
+      Color s_border = is_on ? id(col_accent_orange) : id(col_card_border);
+      Color s_bg = is_on ? Color(35, 20, 15) : id(col_card_bg);
+
+      it.filled_rectangle(8, 32, 148, 132, s_bg);
+      it.rectangle(8, 32, 148, 132, s_border);
+
+      it.printf(16, 38, id(font_sm), is_on ? id(col_accent_orange) : id(col_text_muted), "SAUNAN LÄMPÖTILA");
+      
+      // Hero Temperature
+      it.printf(16, 56, id(font_hero), is_on ? id(col_accent_orange) : id(col_text_main), "%.0f°C", id(sauna_temp));
+
+      // Humidity & Target status
+      it.printf(16, 102, id(font_sm), id(col_text_muted), "Kosteus: %.0f %%", id(sauna_humidity));
+
+      if (is_on) {
+        it.printf(16, 122, id(font_title), id(col_accent_orange), "LÄMMITETÄÄN");
+        it.printf(16, 142, id(font_sm), id(col_accent_amber), "Tavoite ~70°C");
+      } else {
+        it.printf(16, 122, id(font_title), id(col_text_muted), "VALMIUSTILASSA");
+        it.printf(16, 142, id(font_sm), id(col_text_muted), "Kiuas vapaa");
+      }
+
+      // ─── Right Card: Sähkön Hinta (x: 164..312, y: 32..164) ─────────────
+      float price = id(spot_price);
+      Color p_col = price < 6.0 ? id(col_accent_green) : (price < 15.0 ? id(col_accent_amber) : id(col_accent_red));
+
+      it.filled_rectangle(164, 32, 148, 132, id(col_card_bg));
+      it.rectangle(164, 32, 148, 132, id(col_card_border));
+
+      it.printf(172, 38, id(font_sm), id(col_text_muted), "SÄHKÖN HINTA NYT");
+      
+      // Price value
+      it.printf(172, 56, id(font_hero), p_col, "%.2f", price);
+      it.printf(274, 76, id(font_sm), p_col, "c/kWh");
+
+      // Sauna Running cost estimation (~6.8 kW kiuas)
+      float cost_per_hour = (price * 6.8) / 100.0;
+      it.printf(172, 102, id(font_sm), id(col_text_muted), "Sauna: ~%.2f €/h", cost_per_hour);
+
+      if (price < 6.0) {
+        it.printf(172, 122, id(font_title), id(col_accent_green), "EDULLINEN HINTA");
+        it.printf(172, 142, id(font_sm), id(col_accent_green), "Hyvä hetki saunoa!");
+      } else if (price < 15.0) {
+        it.printf(172, 122, id(font_title), id(col_accent_amber), "NORMAALI HINTA");
+        it.printf(172, 142, id(font_sm), id(col_text_muted), "Ulko: %.1f°C · Sisä: %.1f°C", id(outdoor_temp), id(house_temp));
+      } else {
+        it.printf(172, 122, id(font_title), id(col_accent_red), "KORKEA HINTA");
+        it.printf(172, 142, id(font_sm), id(col_accent_red), "Huipputunti!");
+      }
+
+      // ─── Bottom Banner: Big Touch Button (x: 8..312, y: 172..232) ────────
+      if (!is_on) {
+        // Green / Amber Glow Start Button
+        it.filled_rectangle(8, 172, 304, 60, id(col_accent_green));
+        it.rectangle(8, 172, 304, 60, Color(255, 255, 255));
+        it.printf(40, 188, id(font_lg), Color(255, 255, 255), "KÄYNNISTÄ SAUNA (90m)");
+      } else {
+        // Red Emergency Stop Button
+        it.filled_rectangle(8, 172, 304, 60, id(col_accent_red));
+        it.rectangle(8, 172, 304, 60, Color(255, 255, 255));
+        it.printf(56, 188, id(font_lg), Color(255, 255, 255), "SAMMUTA KIUAS");
+      }
