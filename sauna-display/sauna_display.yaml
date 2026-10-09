@@ -46,19 +46,52 @@ mqtt:
     - topic: tuya/sauna/temperature
       then:
         - lambda: 'id(sauna_temp) = parse_number<float>(x).value_or(id(sauna_temp));'
+    - topic: panasonic_heat_pump/tuya/sauna/temperature
+      then:
+        - lambda: 'id(sauna_temp) = parse_number<float>(x).value_or(id(sauna_temp));'
     - topic: tuya/sauna/humidity
+      then:
+        - lambda: 'id(sauna_humidity) = parse_number<float>(x).value_or(id(sauna_humidity));'
+    - topic: panasonic_heat_pump/tuya/sauna/humidity
       then:
         - lambda: 'id(sauna_humidity) = parse_number<float>(x).value_or(id(sauna_humidity));'
     - topic: nordpool/current_price
       then:
         - lambda: 'id(spot_price) = parse_number<float>(x).value_or(id(spot_price));'
+    - topic: panasonic_heat_pump/nordpool/current_price
+      then:
+        - lambda: 'id(spot_price) = parse_number<float>(x).value_or(id(spot_price));'
     - topic: main/Outside_Temp
+      then:
+        - lambda: 'id(outdoor_temp) = parse_number<float>(x).value_or(id(outdoor_temp));'
+    - topic: panasonic_heat_pump/main/Outside_Temp
       then:
         - lambda: 'id(outdoor_temp) = parse_number<float>(x).value_or(id(outdoor_temp));'
     - topic: tuya/alakerta/temperature
       then:
         - lambda: 'id(house_temp) = parse_number<float>(x).value_or(id(house_temp));'
+    - topic: panasonic_heat_pump/tuya/alakerta/temperature
+      then:
+        - lambda: 'id(house_temp) = parse_number<float>(x).value_or(id(house_temp));'
     - topic: tuya/sauna/switch
+      then:
+        - lambda: |-
+            bool on = (x == "1" || x == "ON" || x == "true");
+            id(sauna_is_on) = on;
+            if (on) {
+              auto call = id(cyd_rgb_led).turn_on();
+              call.set_rgb(1.0, 0.3, 0.0);
+              call.perform();
+            } else {
+              auto call = id(cyd_rgb_led).turn_on();
+              if (id(spot_price) < 6.0) {
+                call.set_rgb(0.0, 0.8, 0.2);
+              } else {
+                call.set_rgb(0.0, 0.2, 0.8);
+              }
+              call.perform();
+            }
+    - topic: panasonic_heat_pump/tuya/sauna/switch
       then:
         - lambda: |-
             bool on = (x == "1" || x == "ON" || x == "true");

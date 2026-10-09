@@ -346,9 +346,25 @@ function publish(setTopic, value) {
     });
   }
 
-  const fullTopic = `${BASE_TOPIC}/${setTopic}`;
+  const qos = options?.qos ?? 1;
+  const retain = Boolean(options?.retain);
+
+  // If topic is already root-scoped (tuya/..., nordpool/..., cmnd/..., etc.)
+  if (setTopic.startsWith('tuya/') || setTopic.startsWith('nordpool/') || setTopic.startsWith('cmnd/') || setTopic.startsWith('stat/') || setTopic.startsWith('tele/')) {
+    const topics = [setTopic, `${BASE_TOPIC}/${setTopic}`];
+    return new Promise((resolve) => {
+      topics.forEach((t) => {
+        client.publish(t, String(value), { qos, retain }, (err) => {
+          if (err) console.error(`[MQTT] Publish error to ${t}:`, err);
+        });
+      });
+      resolve(true);
+    });
+  }
+
+  const fullTopic = setTopic.startsWith(`${BASE_TOPIC}/`) ? setTopic : `${BASE_TOPIC}/${setTopic}`;
   return new Promise((resolve, reject) => {
-    client.publish(fullTopic, String(value), { qos: 1 }, (err) => {
+    client.publish(fullTopic, String(value), { qos, retain }, (err) => {
       if (err) {
         console.error(`[MQTT] Publish error to ${fullTopic}:`, err);
         reject(err);

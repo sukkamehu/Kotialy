@@ -508,6 +508,25 @@ class TuyaService {
     // Trigger sauna glow update immediately
     this.updateSaunaGlow(this.saunaState.temperature, Boolean(turnOn));
 
+    // Immediate MQTT sync for ESP32 display & external clients
+    try {
+      const mqttClient = require('../mqtt-client');
+      if (mqttClient && mqttClient.isConnected()) {
+        mqttClient.publish('tuya/sauna/switch', turnOn ? '1' : '0', { retain: true });
+        if (this.saunaState.autoOffAt) {
+          mqttClient.publish('tuya/sauna/auto_off_at', String(this.saunaState.autoOffAt), { retain: true });
+        }
+        if (this.saunaState.temperature != null) {
+          mqttClient.publish('tuya/sauna/temperature', String(this.saunaState.temperature), { retain: true });
+        }
+        if (this.saunaState.humidity != null) {
+          mqttClient.publish('tuya/sauna/humidity', String(this.saunaState.humidity), { retain: true });
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+
     return this.getSaunaStatus();
   }
 
