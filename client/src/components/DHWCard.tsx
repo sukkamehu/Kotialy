@@ -129,11 +129,6 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   const baseDhwTarget = apcStatus?.settings?.dhw_target_c ?? 55;
   const activeDhwSlot = apcStatus?.activeDhwSlot ?? false;
 
-  function toggleForceDHW() {
-    send('commands/SetForceDHW', forceDHW ? 0 : 1,
-      forceDHW ? 'Pikakäyttövesi pois päältä' : 'Pikakäyttövesi pakotettu päälle');
-  }
-
   function toggleForceHeater() {
     send('commands/SetForceHeater', forceHeater ? 0 : 1,
       forceHeater ? 'Varavastus pois' : 'Varavastus pakotettu päälle');
@@ -585,18 +580,6 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
             idPrefix="btn-dhw-sterilization-toggle"
             onLabel="🧼 Käynnissä"
             offLabel="⚡ Aja nyt"
-          />
-
-          <ToggleRow
-            label="⚡ Pikakäyttövesi (Force DHW)"
-            description="Kääntää venttiilin heti käyttövedelle ja lämmittää veden"
-            on={forceDHW}
-            onToggle={toggleForceDHW}
-            pending={pending}
-            disabled={readOnly}
-            idPrefix="btn-dhw-force-dhw"
-            onLabel="⚡ Päällä"
-            offLabel="○ Pois"
           />
 
           <ToggleRow
