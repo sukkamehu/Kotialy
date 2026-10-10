@@ -410,7 +410,6 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
             offLabel="○ Pois"
             danger={true}
           />
-        </div>
 
           <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 11, color: internalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
