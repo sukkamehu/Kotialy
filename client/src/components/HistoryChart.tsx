@@ -188,8 +188,25 @@ function interpolateTimeline(
   for (const topic of selectedTopics) {
     if (topic === 'electricity_price' || topic === 'herrfors_power' || topic === 'weather_temp') continue;
     const rows = sensorsData[topic] || [];
+    const isHumidity = topic.toLowerCase().includes('humidity') || topic.toLowerCase().includes('kosteus');
+    const isSauna = topic.toLowerCase().includes('sauna');
+    const isIndoorTemp = (topic.toLowerCase().includes('temperature') || topic.toLowerCase().includes('lampotila')) && !isSauna && !topic.includes('Outside') && !topic.includes('ulko') && !topic.includes('device_temp') && !topic.includes('Inlet') && !topic.includes('Outlet') && !topic.includes('DHW') && !topic.includes('Buffer');
+
     const sortedRows = rows
-      .map((r) => ({ time: Number(r.recorded_at), value: Number(r.value) }))
+      .map((r) => {
+        let v = Number(r.value);
+        if (isNaN(v) || !isFinite(v)) return null;
+        if (isHumidity) {
+          if (v > 100 && v <= 1000) v = v / 10;
+          if (v > 100 && v <= 102) v = 100;
+          if (v < 0 || v > 100) return null;
+        } else if (isIndoorTemp) {
+          if (v > 100 && v <= 1000) v = v / 10;
+          if (v < -20 || v > 45) return null;
+        }
+        return { time: Number(r.recorded_at), value: v };
+      })
+      .filter((r): r is { time: number; value: number } => r !== null)
       .sort((a, b) => a.time - b.time);
 
     seriesMap.set(topic, sortedRows);

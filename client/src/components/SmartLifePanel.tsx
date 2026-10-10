@@ -210,27 +210,71 @@ export function SmartLifePanel() {
         const tempRows = (dataMap[tempTopic] || dataMap[legacyTempTopic] || []);
         const humidRows = (dataMap[humidTopic] || dataMap[legacyHumidTopic] || []);
 
+        const isSauna = selectedSensor.name.toLowerCase().includes('sauna');
         const timeMap = new Map<number, { temperature?: number; humidity?: number }>();
 
         for (const r of tempRows) {
+          let v = Number(r.value);
+          if (isNaN(v) || !isFinite(v)) continue;
+          if (v > 100 && v <= 1000) v = v / 10;
+          if (isSauna) {
+            if (v < -20 || v > 130) continue;
+          } else {
+            if (v < -30 || v > 45) continue;
+          }
           const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
           const curr = timeMap.get(t) || {};
-          curr.temperature = Number(r.value);
+          curr.temperature = Math.round(v * 10) / 10;
           timeMap.set(t, curr);
         }
 
         for (const r of humidRows) {
+          let v = Number(r.value);
+          if (isNaN(v) || !isFinite(v)) continue;
+          if (v > 100 && v <= 1000) v = v / 10;
+          if (v > 100 && v <= 102) v = 100;
+          if (v < 0 || v > 100) continue;
           const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
           const curr = timeMap.get(t) || {};
-          curr.humidity = Number(r.value);
+          curr.humidity = Math.round(v);
           timeMap.set(t, curr);
         }
 
-        const points: SensorHistoryPoint[] = Array.from(timeMap.entries())
+        let rawPoints: SensorHistoryPoint[] = Array.from(timeMap.entries())
           .map(([time, vals]) => ({ time, ...vals }))
           .sort((a, b) => a.time - b.time);
 
-        setHistoryData(points);
+        // Outlier spike filter on sequential series
+        if (!isSauna && rawPoints.length > 2) {
+          rawPoints = rawPoints.map((pt, idx, arr) => {
+            let temp = pt.temperature;
+            let humid = pt.humidity;
+            if (idx > 0 && idx < arr.length - 1) {
+              const prev = arr[idx - 1];
+              const next = arr[idx + 1];
+              if (temp != null && prev.temperature != null && next.temperature != null) {
+                const prevDiff = Math.abs(temp - prev.temperature);
+                const nextDiff = Math.abs(temp - next.temperature);
+                const baselineDiff = Math.abs(prev.temperature - next.temperature);
+                // Isolated spike
+                if (prevDiff >= 8 && nextDiff >= 8 && baselineDiff < 4) {
+                  temp = Math.round(((prev.temperature + next.temperature) / 2) * 10) / 10;
+                }
+              }
+              if (humid != null && prev.humidity != null && next.humidity != null) {
+                const prevDiff = Math.abs(humid - prev.humidity);
+                const nextDiff = Math.abs(humid - next.humidity);
+                const baselineDiff = Math.abs(prev.humidity - next.humidity);
+                if (prevDiff >= 30 && nextDiff >= 30 && baselineDiff < 15) {
+                  humid = Math.round((prev.humidity + next.humidity) / 2);
+                }
+              }
+            }
+            return { ...pt, temperature: temp, humidity: humid };
+          });
+        }
+
+        setHistoryData(rawPoints);
       })
       .catch((err) => {
         console.error('Failed to load sensor history:', err);

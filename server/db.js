@@ -361,6 +361,149 @@ const stmtGetHerrforsLatestReading = db.prepare(`
 
 const stmtGetHerrforsCount = db.prepare(`SELECT COUNT(*) as count FROM herrfors_readings`);
 
+// In-memory cache of recent sensor readings for spike detection: topic -> { value, ts }
+const recentNumericReadings = new Map();
+
+/**
+ * Validates, normalizes, and sanitizes sensor values before persisting.
+ * Filters out physical impossibilities (humidity > 100%, 45°C indoor spikes, etc.)
+ */
+function sanitizeSensorValue(topic, value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  const numVal = parseFloat(value);
+  if (isNaN(numVal) || !isFinite(numVal)) {
+    // Non-numeric state (e.g. 'ON', 'OFF', 'IDLE', JSON strings, etc.)
+    return { isNumeric: false, value: String(value) };
+  }
+
+  const lower = topic.toLowerCase();
+  let val = numVal;
+
+  // 1. Relative Humidity (% RH) — strictly 0% to 100%
+  if (lower.includes('humidity') || lower.includes('kosteus')) {
+    // Some Tuya sensors report 0.1% resolution (e.g. 450 -> 45.0%, 1000 -> 100%)
+    if (val > 100 && val <= 1000) {
+      val = val / 10;
+    }
+    // Small boundary margin clamping (e.g. 100.1 -> 100)
+    if (val > 100 && val <= 102) {
+      val = 100;
+    }
+    if (val < 0 || val > 100) {
+      return null; // Reject corrupted humidity packet
+    }
+    val = Math.round(val * 10) / 10;
+    return { isNumeric: true, value: val };
+  }
+
+  // 2. Battery percentage (%) — 0% to 100%
+  if (lower.includes('battery') || lower.includes('paristo')) {
+    if (val < 0 || val > 100) return null;
+    return { isNumeric: true, value: Math.round(val) };
+  }
+
+  // 3. Temperatures (°C)
+  if (
+    lower.includes('temp') ||
+    lower.includes('temperature') ||
+    lower.includes('lampotila') ||
+    lower.includes('lampo') ||
+    lower.includes('l_mp_')
+  ) {
+    // 3a. Sauna sensor: can legitimately reach up to 125 °C
+    if (lower.includes('sauna')) {
+      if (val < -20 || val > 130) return null;
+      val = Math.round(val * 10) / 10;
+      return { isNumeric: true, value: val };
+    }
+
+    // 3b. Electronic / relay device internal temperature (device_temp)
+    if (lower.includes('device_temp')) {
+      if (val < -20 || val > 95) return null;
+      val = Math.round(val * 10) / 10;
+      return { isNumeric: true, value: val };
+    }
+
+    // 3c. Water / Heat pump piping & refrigeration circuit
+    if (
+      lower.includes('dhw') ||
+      lower.includes('buffer') ||
+      lower.includes('inlet') ||
+      lower.includes('outlet') ||
+      lower.includes('discharge') ||
+      lower.includes('pipe') ||
+      lower.includes('z1') ||
+      lower.includes('z2') ||
+      lower.includes('water') ||
+      lower.includes('curve')
+    ) {
+      if (val < -30 || val > 95) return null;
+      val = Math.round(val * 10) / 10;
+      return { isNumeric: true, value: val };
+    }
+
+    // 3d. Outdoor ambient temperature
+    if (lower.includes('outside') || lower.includes('ulko') || lower.includes('weather')) {
+      if (val < -50 || val > 50) return null;
+      val = Math.round(val * 10) / 10;
+      return { isNumeric: true, value: val };
+    }
+
+    // 3e. Indoor room temperatures (Alakerta, Työhuone, Näytöllinen, Autotalli, Varasto, etc.)
+    // Handle Tuya unscaled deci-celsius (e.g. 215 -> 21.5)
+    if (val > 100 && val <= 1000) {
+      val = val / 10;
+    }
+
+    // Indoor rooms should strictly be within physical bounds [-10, 42] °C
+    if (val < -10 || val > 42) {
+      return null; // Corrupt packet / anomalous spike rejected
+    }
+
+    // Spike filter: If sensor jumps by >= 10 °C in < 3 minutes compared to recent reading, reject glitch
+    const now = Date.now();
+    const prev = recentNumericReadings.get(topic);
+    if (prev && now - prev.ts < 3 * 60 * 1000) {
+      const delta = Math.abs(val - prev.value);
+      if (delta >= 10.0) {
+        console.warn(`[DB] Spike rejected for ${topic}: ${val}°C (prev ${prev.value}°C, Δ=${delta.toFixed(1)}°C)`);
+        return null;
+      }
+    }
+
+    val = Math.round(val * 10) / 10;
+    recentNumericReadings.set(topic, { value: val, ts: now });
+    return { isNumeric: true, value: val };
+  }
+
+  // 4. Power (W or kW)
+  if (lower.includes('power') || lower.includes('teho')) {
+    if (val < -3000 || val > 50000) return null;
+    return { isNumeric: true, value: val };
+  }
+
+  // 5. Voltage (V)
+  if (lower.includes('voltage') || lower.includes('jannite')) {
+    if (val < 0 || val > 300) return null;
+    return { isNumeric: true, value: Math.round(val * 10) / 10 };
+  }
+
+  // 6. Current (A)
+  if (lower.includes('current') || lower.includes('virta')) {
+    if (val < 0 || val > 100) return null;
+    return { isNumeric: true, value: Math.round(val * 1000) / 1000 };
+  }
+
+  // 7. COP (Coefficient of performance)
+  if (lower === 'cop' || lower.endsWith('/cop')) {
+    if (val < 0 || val > 15) return null;
+    return { isNumeric: true, value: Math.round(val * 100) / 100 };
+  }
+
+  return { isNumeric: true, value: numVal };
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
@@ -368,7 +511,13 @@ const stmtGetHerrforsCount = db.prepare(`SELECT COUNT(*) as count FROM herrfors_
  */
 function updateState(topic, value) {
   try {
-    stmtUpsertState.run(topic, String(value), Date.now());
+    const sanitized = sanitizeSensorValue(topic, value);
+    if (sanitized === null) {
+      // Outlier / invalid value rejected
+      return;
+    }
+    const finalVal = sanitized.isNumeric ? String(sanitized.value) : String(value);
+    stmtUpsertState.run(topic, finalVal, Date.now());
   } catch (err) {
     console.error(`[DB] updateState failed for ${topic}:`, err.message);
   }
@@ -378,10 +527,10 @@ function updateState(topic, value) {
  * Append a history record for numeric topics.
  */
 function appendHistory(topic, value) {
-  const numVal = parseFloat(value);
-  if (isNaN(numVal)) return;
+  const sanitized = sanitizeSensorValue(topic, value);
+  if (!sanitized || !sanitized.isNumeric) return;
   try {
-    stmtInsertHistory.run(topic, numVal, Date.now());
+    stmtInsertHistory.run(topic, sanitized.value, Date.now());
   } catch (err) {
     console.error(`[DB] appendHistory failed for ${topic}:`, err.message);
   }
@@ -392,9 +541,12 @@ function appendHistory(topic, value) {
  */
 function maybeAppendHistory(topic, value, intervalMs) {
   try {
+    const sanitized = sanitizeSensorValue(topic, value);
+    if (!sanitized || !sanitized.isNumeric) return false;
+
     const last = stmtGetLatestHistory.get(topic);
     if (!last || Date.now() - Number(last.recorded_at) >= intervalMs) {
-      appendHistory(topic, value);
+      appendHistory(topic, sanitized.value);
       return true;
     }
   } catch (err) {
@@ -1469,6 +1621,7 @@ backfillHistoricalSaunaSessions();
 
 module.exports = {
   db,
+  sanitizeSensorValue,
   updateState,
   getState,
   appendHistory,

@@ -281,18 +281,29 @@ class TuyaService {
     else if (category === 'wsdcg') {
       type = 'climate';
       // Temperature normalization
-      if (statusMap.va_temperature != null) {
-        let t = Number(statusMap.va_temperature);
-        if (t > 100) t = t / 10; // e.g. 211 -> 21.1 C
-        properties.temperature = Number(t.toFixed(1));
+      const rawTemp = statusMap.va_temperature ?? statusMap.temp_current;
+      if (rawTemp != null) {
+        let t = Number(rawTemp);
+        if (t > 100 && t <= 1000) t = t / 10; // e.g. 211 -> 21.1 C
+        if (t >= -40 && t <= 80) {
+          properties.temperature = Number(t.toFixed(1));
+        }
       }
-      if (statusMap.va_humidity != null) {
-        properties.humidity = Number(statusMap.va_humidity);
+      const rawHumid = statusMap.va_humidity ?? statusMap.humidity_value;
+      if (rawHumid != null) {
+        let h = Number(rawHumid);
+        if (h > 100 && h <= 1000) h = h / 10; // e.g. 450 -> 45.0%
+        if (h > 100 && h <= 102) h = 100;
+        if (h >= 0 && h <= 100) {
+          properties.humidity = Math.round(h);
+        }
       }
-      if (statusMap.va_battery != null) {
-        properties.battery = Number(statusMap.va_battery);
-      } else if (statusMap.battery_percentage != null) {
-        properties.battery = Number(statusMap.battery_percentage);
+      const rawBat = statusMap.va_battery ?? statusMap.battery_percentage;
+      if (rawBat != null) {
+        let b = Number(rawBat);
+        if (b >= 0 && b <= 100) {
+          properties.battery = Math.round(b);
+        }
       }
     }
     // 3. Water leak sensor (sj)
