@@ -18,6 +18,7 @@ const {
   getNotificationHistory,
   getSaunaSessions,
   getSaunaStats,
+  updateApcSetting,
 } = require('../db');
 const notificationService = require('../notification-service');
 const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
@@ -32,6 +33,7 @@ const s3Service = require('../s3-service');
 const herrforsClient = require('../herrfors-client');
 const outdoorLightsDriver = require('../devices/outdoor-lights-driver');
 const tuyaService = require('../devices/tuya-service');
+const sterilizationService = require('../services/sterilization-service');
 
 
 const {
@@ -704,6 +706,62 @@ router.post('/apc/defrost-cable/settings', requireAdmin, express.json(), async (
     const status = await defrostCableDriver.updateSettings(req.body || {});
     apcService.evaluate();
     res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── DHW Smart Sterilization Endpoints ──────────────────────────────────────
+
+/**
+ * GET /api/dhw/sterilization/status
+ */
+router.get(['/dhw/sterilization/status', '/sterilization/status'], (req, res) => {
+  res.json(sterilizationService.getStatus());
+});
+
+/**
+ * POST /api/dhw/sterilization/start
+ * Body: { reason }
+ */
+router.post(['/dhw/sterilization/start', '/sterilization/start'], requireAdmin, express.json(), async (req, res) => {
+  try {
+    const reason = (req.body && req.body.reason) ? req.body.reason : 'Käyttäjän manuaalinen käynnistys';
+    const status = await sterilizationService.startSterilization(reason, true);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/dhw/sterilization/cancel
+ * Body: { reason }
+ */
+router.post(['/dhw/sterilization/cancel', '/sterilization/cancel'], requireAdmin, express.json(), async (req, res) => {
+  try {
+    const reason = (req.body && req.body.reason) ? req.body.reason : 'Käyttäjä keskeytti steriloinnin';
+    const status = await sterilizationService.cancelSterilization(reason);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/dhw/sterilization/settings
+ * Body: { enabled, min_days, max_days, target_temp, hold_minutes }
+ */
+router.post(['/dhw/sterilization/settings', '/sterilization/settings'], requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { enabled, min_days, max_days, target_temp, hold_minutes } = req.body || {};
+    if (enabled !== undefined) updateApcSetting('smart_sterilization_enabled', enabled ? '1' : '0');
+    if (min_days !== undefined) updateApcSetting('sterilization_min_days', min_days);
+    if (max_days !== undefined) updateApcSetting('sterilization_max_days', max_days);
+    if (target_temp !== undefined) updateApcSetting('sterilization_target_c', target_temp);
+    if (hold_minutes !== undefined) updateApcSetting('sterilization_hold_min', hold_minutes);
+    sterilizationService.broadcastStatus();
+    res.json({ ok: true, settings: sterilizationService.getSettings() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

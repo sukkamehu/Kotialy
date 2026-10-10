@@ -590,11 +590,18 @@ function getApcSettings() {
     indoor_feedback_enabled: true,
     indoor_target_temp_c: 21.3,
     indoor_min_temp_c: 20.5,
+    smart_sterilization_enabled: true,
+    sterilization_min_days: 7,
+    sterilization_max_days: 14,
+    sterilization_target_c: 65,
+    sterilization_hold_min: 10,
   };
 
   for (const r of rows) {
     if (r.key === 'enabled') {
       settings.enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'smart_sterilization_enabled') {
+      settings.smart_sterilization_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'dhw_boost_on_cheap') {
       settings.dhw_boost_on_cheap = r.value === '1' || r.value === 'true';
     } else if (r.key === 'prevent_curve_shift_above_cutoff') {

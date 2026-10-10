@@ -18,6 +18,7 @@ const herrforsClient = require('./herrfors-client');
 const tapoService = require('./devices/tapo-service');
 const tuyaService = require('./devices/tuya-service');
 const outdoorLightsDriver = require('./devices/outdoor-lights-driver');
+const sterilizationService = require('./services/sterilization-service');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -190,6 +191,9 @@ tapoService.start();
 // ─── Outdoor Lights Driver (Astronomical Dusk / Dawn) ──────────────────────
 outdoorLightsDriver.setWsBroadcast(wsBroadcast);
 outdoorLightsDriver.start();
+
+// ─── Smart Sterilization Service (Legionella Protection) ───────────────────
+sterilizationService.init(wsBroadcast);
 
 // ─── Notification & Alert Engine ───────────────────────────────────────────
 const notificationService = require('./notification-service');

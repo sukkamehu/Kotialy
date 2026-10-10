@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
 import { useApc } from '../hooks/useApc';
+import { useSterilization } from '../hooks/useSterilization';
 import { SetpointControl } from './SetpointControl';
 import { ToggleRow } from './SegmentedControl';
 
@@ -111,6 +113,16 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   const { send, pending, error, success } = useCommand();
   const { calcCostPerHour } = useElectricityPrice();
   const { status: apcStatus, updateSettings: updateApcSettings } = useApc();
+  const {
+    status: sterStatus,
+    actionPending: sterPending,
+    startSterilization,
+    cancelSterilization,
+    updateSettings: updateSterSettings,
+  } = useSterilization();
+
+  const [showSterDetails, setShowSterDetails] = useState(false);
+
   const cost = calcCostPerHour(dhwCons);
 
   const apcEnabled = apcStatus?.enabled ?? false;
@@ -135,26 +147,43 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
     }
   }
 
-  const isSterilization = state['main/Sterilization_State']?.value === '1';
-  const sterilizationTemp = state['main/Sterilization_Temp']?.value;
+  const isPanasonicSterilization = state['main/Sterilization_State']?.value === '1';
+  const isKotiSterilization = sterStatus?.isActive ?? false;
+  const isSterilization = isPanasonicSterilization || isKotiSterilization;
+  const sterilizationTemp = state['main/Sterilization_Temp']?.value || sterStatus?.targetTemp;
   const dhwPumpState = state['main/DHW_Pump_State']?.value === '1';
   const dhwHours = numVal(state, 'main/DHW_Hours');
 
   const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
     temp !== null && temp > 45 ? 'var(--heat-secondary)' : 'var(--cool-primary)';
 
+  const daysSinceLastSter = sterStatus?.settings?.days_since_last ?? 0;
+  const lastSterDateStr = sterStatus?.settings?.last_completed_at
+    ? new Date(sterStatus.settings.last_completed_at).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })
+    : null;
+
   return (
     <div className="card" style={{
-      borderColor: isSterilization ? 'rgba(236,72,153,0.5)' : forceDHW ? 'rgba(245,158,11,0.4)' : 'var(--border)',
-      boxShadow: isSterilization ? '0 0 20px rgba(236,72,153,0.15)' : forceDHW ? '0 0 20px rgba(245,158,11,0.1)' : undefined,
+      borderColor: isSterilization ? 'rgba(236,72,153,0.6)' : forceDHW ? 'rgba(245,158,11,0.4)' : 'var(--border)',
+      boxShadow: isSterilization ? '0 0 24px rgba(236,72,153,0.2)' : forceDHW ? '0 0 20px rgba(245,158,11,0.1)' : undefined,
     }}>
       <div className="card-header">
         <span className="card-icon">🚿</span>
         <span className="card-title">Käyttövesivaraaja</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           {isSterilization && (
-            <div className="badge" style={{ background: 'rgba(236,72,153,0.18)', color: '#f472b6', border: '1px solid rgba(236,72,153,0.45)', fontWeight: 700 }}>
-              🧼 Sterilointi {sterilizationTemp ? `(${sterilizationTemp}°C)` : ''}
+            <div className="badge" style={{
+              background: 'linear-gradient(135deg, rgba(236,72,153,0.25), rgba(168,85,247,0.25))',
+              color: '#f472b6',
+              border: '1px solid rgba(236,72,153,0.5)',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              animation: 'pulse 2s infinite',
+            }}>
+              <span>🧼 Sterilointi</span>
+              <span>{sterilizationTemp ? `(${sterilizationTemp}°C)` : ''}</span>
             </div>
           )}
           {dhwHours !== null && (
@@ -175,7 +204,7 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
               ⏱ {Math.round(dhwHours)} h
             </span>
           )}
-          {forceDHW && (
+          {forceDHW && !isSterilization && (
             <div className="badge badge-heat">⚡ Tehostus</div>
           )}
         </div>
@@ -213,6 +242,53 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
             )}
           </div>
         </div>
+
+        {/* ─── ACTIVE STERILIZATION BANNER (WHEN RUNNING) ─── */}
+        {isKotiSterilization && sterStatus && (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(168, 85, 247, 0.12))',
+              border: '1px solid rgba(236, 72, 153, 0.35)',
+              borderRadius: 10,
+              padding: '12px 14px',
+              marginBottom: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 14 }}>🧼</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#f472b6' }}>
+                  {sterStatus.phase === 'PREHEATING' && 'Vaihe 1/3: Kompressorin esilämmitys'}
+                  {sterStatus.phase === 'BOOSTING' && 'Vaihe 2/3: Sähkövastus-loppunousu (65°C)'}
+                  {sterStatus.phase === 'HOLDING' && 'Vaihe 3/3: Desinfiointipitoaika'}
+                  {sterStatus.phase === 'COMPLETED' && 'Sterilointi valmis!'}
+                </span>
+              </div>
+              <button
+                className="btn btn-sm btn-danger"
+                onClick={() => cancelSterilization('Käyttäjä keskeytti UI:sta')}
+                disabled={sterPending || readOnly}
+                style={{ fontSize: 10, padding: '2px 8px' }}
+              >
+                {sterPending ? '…' : '⏹ Keskeytä'}
+              </button>
+            </div>
+
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
+              {sterStatus.reason}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+              <span>Kesto: {sterStatus.totalElapsedMinutes} min</span>
+              {sterStatus.phase === 'HOLDING' && (
+                <span style={{ color: '#ec4899', fontWeight: 700 }}>
+                  ⏳ Pitoaikaa jäljellä: {Math.floor(sterStatus.holdRemainingSeconds / 60)}m {sterStatus.holdRemainingSeconds % 60}s
+                </span>
+              )}
+              <span>Tavoite: {sterStatus.targetTemp} °C</span>
+            </div>
+          </div>
+        )}
 
         {/* DHW Upstairs Circulation Loop (LKV-kierto) */}
         <div
@@ -354,6 +430,116 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
 
         <div className="divider" style={{ marginTop: 16 }} />
 
+        {/* ─── SMART STERILIZATION CONTROL SECTION ─── */}
+        <div
+          style={{
+            background: 'rgba(236, 72, 153, 0.03)',
+            border: '1px solid rgba(236, 72, 153, 0.15)',
+            borderRadius: 10,
+            padding: '12px 14px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14 }}>🧼</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Älykäs legionellasterilointi
+              </span>
+            </div>
+            <span style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: daysSinceLastSter >= 7 ? '#f59e0b' : 'var(--text-muted)',
+              background: daysSinceLastSter >= 7 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+              border: `1px solid ${daysSinceLastSter >= 7 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
+              padding: '2px 6px',
+              borderRadius: 6,
+            }}>
+              {lastSterDateStr ? `Edellinen: ${lastSterDateStr} (${Math.floor(daysSinceLastSter)} pv)` : 'Ei suoritettu'}
+            </span>
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
+            Kuumennus 65 °C asti (10 min pito). Käynnistyy automaattisesti negatiivisella pörssihinnalla (≥7 pv välein) tai säännöllisesti 14 pv välein halvimmalla tunnilla.
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                if (isKotiSterilization) {
+                  cancelSterilization();
+                } else {
+                  startSterilization('Käyttäjän manuaalinen käynnistys UI:sta');
+                }
+              }}
+              disabled={sterPending || readOnly}
+              style={{
+                background: isKotiSterilization ? 'rgba(239,68,68,0.2)' : 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 600,
+                padding: '6px 12px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: isKotiSterilization ? undefined : '0 2px 8px rgba(236,72,153,0.3)',
+              }}
+            >
+              {sterPending ? '…' : isKotiSterilization ? '⏹ Keskeytä sterilointi' : '⚡ Aja sterilointi nyt (65°C)'}
+            </button>
+
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => setShowSterDetails(!showSterDetails)}
+              style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}
+            >
+              {showSterDetails ? '▲ Piilota asetukset' : '⚙ Asetukset ▼'}
+            </button>
+          </div>
+
+          {showSterDetails && sterStatus && (
+            <div style={{
+              marginTop: 12,
+              paddingTop: 10,
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Automaattinen pörssisterilointi</span>
+                <button
+                  className={`btn btn-sm ${sterStatus.settings.enabled ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: 11, padding: '2px 8px' }}
+                  onClick={() => updateSterSettings({ enabled: !sterStatus.settings.enabled })}
+                  disabled={sterPending || readOnly}
+                >
+                  {sterStatus.settings.enabled ? '● Päällä' : '○ Pois'}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                <span>Minimiaika negatiivisen hinnan ajolle:</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>≥ {sterStatus.settings.min_interval_days} päivää</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                <span>Maksimiaika (pakkoajo halvimmalla tunnilla):</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{sterStatus.settings.max_interval_days} päivää</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                <span>Desinfiointilämpö & pitoaika:</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{sterStatus.settings.target_temp_c} °C ({sterStatus.settings.hold_duration_minutes} min)</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Power & Cost */}
         <div className="metrics-grid metrics-grid-4" style={{ marginTop: 12 }}>
           <div className="metric metric-sm">
@@ -433,4 +619,5 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
     </div>
   );
 }
+
 
