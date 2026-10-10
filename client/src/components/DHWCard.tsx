@@ -117,9 +117,14 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   const baseDhwTarget = apcStatus?.settings?.dhw_target_c ?? 55;
   const activeDhwSlot = apcStatus?.activeDhwSlot ?? false;
 
+  function toggleForceDHW() {
+    send('commands/SetForceDHW', forceDHW ? 0 : 1,
+      forceDHW ? 'Pikakäyttövesi pois päältä' : 'Pikakäyttövesi pakotettu päälle');
+  }
+
   function toggleForceHeater() {
     send('commands/SetForceHeater', forceHeater ? 0 : 1,
-      forceHeater ? 'Lisävastus pois' : 'Lisävastus pakotettu päälle');
+      forceHeater ? 'Varavastus pois' : 'Varavastus pakotettu päälle');
   }
 
   function setDHWTarget(v: number) {
@@ -380,10 +385,22 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
         <div className="divider" />
 
         {/* Controls */}
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <ToggleRow
-            label="🔥 Pakota lisävastus (Force Heater)"
-            description="Käynnistää sähköisen varavastuksen"
+            label="⚡ Pikakäyttövesi (Force DHW)"
+            description="Kääntää venttiilin heti käyttövedelle ja lämmittää veden"
+            on={forceDHW}
+            onToggle={toggleForceDHW}
+            pending={pending}
+            disabled={readOnly}
+            idPrefix="btn-dhw-force-dhw"
+            onLabel="⚡ Päällä"
+            offLabel="○ Pois"
+          />
+
+          <ToggleRow
+            label="🔥 Pakota varavastus (Force Heater)"
+            description="Sähköinen hätävaralämmitys (kun kompressori ei riitä/vika)"
             on={forceHeater}
             onToggle={toggleForceHeater}
             pending={pending}
@@ -393,6 +410,7 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
             offLabel="○ Pois"
             danger={true}
           />
+        </div>
 
           <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 11, color: internalHeater ? 'var(--warning)' : 'var(--text-muted)' }}>
