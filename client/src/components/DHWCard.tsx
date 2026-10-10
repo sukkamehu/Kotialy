@@ -573,6 +573,21 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
         {/* Controls */}
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <ToggleRow
+            label="🧼 Legionellasterilointi (65°C)"
+            description="3-vaiheinen kuumennus: Kompressori 52°C + Vastus 65°C (10 min pito)"
+            on={isKotiSterilization}
+            onToggle={() => {
+              if (isKotiSterilization) cancelSterilization();
+              else startSterilization('Käyttäjän manuaalinen käynnistys');
+            }}
+            pending={sterPending}
+            disabled={readOnly}
+            idPrefix="btn-dhw-sterilization-toggle"
+            onLabel="🧼 Käynnissä"
+            offLabel="⚡ Aja nyt"
+          />
+
+          <ToggleRow
             label="⚡ Pikakäyttövesi (Force DHW)"
             description="Kääntää venttiilin heti käyttövedelle ja lämmittää veden"
             on={forceDHW}
