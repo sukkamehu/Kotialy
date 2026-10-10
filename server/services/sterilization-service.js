@@ -126,10 +126,10 @@ class SterilizationService {
       this.reason = `Kompressorin esilämmitys (50–52 °C asti · nykyinen ${currentTemp}°C)`;
       await this.sendHeishaCommands({ forceDhw: 1, dhwTemp: 55 });
     } else {
-      // Phase 2: Electric booster final heating to 65 °C
+      // Phase 2: Electric booster final heating to 65 °C via native SetForceSterilization
       this.phase = 'BOOSTING';
       this.reason = `Sähkövastus-loppunousu (65 °C tavoite · nykyinen ${currentTemp}°C)`;
-      await this.sendHeishaCommands({ forceDhw: 1, dhwTemp: settings.target_temp_c });
+      await this.sendHeishaCommands({ forceSterilization: 1 });
     }
 
     db.updateState('dhw/sterilization/state', this.phase);
@@ -156,7 +156,7 @@ class SterilizationService {
     this.holdStartedAt = null;
 
     // Restore normal DHW operation
-    await this.sendHeishaCommands({ forceDhw: 0, dhwTemp: this.originalDhwTarget || 55 });
+    await this.sendHeishaCommands({ forceSterilization: 0, forceDhw: 0, dhwTemp: this.originalDhwTarget || 55 });
 
     db.updateState('dhw/sterilization/state', 'IDLE');
     this.broadcastStatus();
@@ -173,8 +173,11 @@ class SterilizationService {
     return this.getStatus();
   }
 
-  async sendHeishaCommands({ forceDhw = null, dhwTemp = null }) {
+  async sendHeishaCommands({ forceDhw = null, dhwTemp = null, forceSterilization = null }) {
     try {
+      if (forceSterilization !== null) {
+        await mqttClient.publish('commands/SetForceSterilization', String(forceSterilization));
+      }
       if (forceDhw !== null) {
         await mqttClient.publish('commands/SetForceDHW', String(forceDhw));
       }
@@ -213,8 +216,8 @@ class SterilizationService {
           this.phase = 'BOOSTING';
           this.phaseStartedAt = now;
           this.reason = `Sähkövastus-loppunousu (65 °C tavoite · nykyinen ${currentTemp}°C)`;
-          console.log(`[STERILIZATION] 📈 Esilämmitys valmis (${currentTemp}°C) -> Siirrytään loppunousuun (${settings.target_temp_c}°C)`);
-          await this.sendHeishaCommands({ forceDhw: 1, dhwTemp: settings.target_temp_c });
+          console.log(`[STERILIZATION] 📈 Esilämmitys valmis (${currentTemp}°C) -> Käynnistetään sterilointiohjelma (SetForceSterilization=1)`);
+          await this.sendHeishaCommands({ forceSterilization: 1, forceDhw: 0 });
           this.broadcastStatus();
         }
       }
@@ -228,14 +231,6 @@ class SterilizationService {
           this.reason = `Desinfiointipitoaika (${settings.hold_duration_minutes} min pito)`;
           console.log(`[STERILIZATION] 🎯 Tavoitelämpötila saavutettu (${currentTemp}°C) -> Aloitetaan ${settings.hold_duration_minutes} min pito`);
           this.broadcastStatus();
-        } else {
-          // Re-ensure SetDHWTemp = 65 and SetForceDHW = 1 if pump state was interrupted
-          const targetRow = db.getState('main/DHW_Target_Temp');
-          const forceDhwRow = db.getState('main/Force_DHW_State');
-          if ((targetRow && targetRow.value !== String(settings.target_temp_c)) || (forceDhwRow && forceDhwRow.value !== '1')) {
-            console.log(`[STERILIZATION] Re-enforcing DHW Target ${settings.target_temp_c}°C & Force DHW`);
-            await this.sendHeishaCommands({ forceDhw: 1, dhwTemp: settings.target_temp_c });
-          }
         }
       }
 
@@ -252,7 +247,7 @@ class SterilizationService {
           db.updateState('dhw/sterilization/state', 'COMPLETED');
 
           // Restore normal operation
-          await this.sendHeishaCommands({ forceDhw: 0, dhwTemp: this.originalDhwTarget || 55 });
+          await this.sendHeishaCommands({ forceSterilization: 0, forceDhw: 0, dhwTemp: this.originalDhwTarget || 55 });
 
           notificationService.sendNotification({
             title: '✨ Legionelladesinfiointi valmis',

@@ -235,6 +235,8 @@ const TOPICS = {
     category: 'dhw',
     type: 'enum',
     map: { 0: 'Pois', 1: 'Käynnissä' },
+    setTopic: 'commands/SetForceSterilization',
+    writable: true,
   },
   'main/Sterilization_Temp': {
     label: 'Sterilointilämpötila',
