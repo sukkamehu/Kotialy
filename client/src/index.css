@@ -647,12 +647,12 @@ h1, h2, h3, h4 {
 .status-bar-inner {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 var(--space-6);
-  min-height: 56px;
+  padding: 0 var(--space-4);
+  min-height: 52px;
   display: flex;
   align-items: center;
-  gap: var(--space-5);
-  flex-wrap: wrap;
+  gap: var(--space-3);
+  flex-wrap: nowrap;
 }
 
 .status-logo {

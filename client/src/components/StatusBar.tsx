@@ -319,11 +319,11 @@ export function StatusBar({
           </button>
         )}
 
-        {/* Last update & Clock */}
-        <div className="status-meta">
-          <span className="status-hide-sm" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            Päivitetty {timeAgo(lastUpdate, now)}
-          </span>
+        {/* Clock & tooltip */}
+        <div
+          className="status-meta"
+          title={`Kello: ${new Date(now).toLocaleTimeString('fi-FI')} | Viimeisin päivitys: ${timeAgo(lastUpdate, now)}`}
+        >
           <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
             {new Date(now).toLocaleTimeString('fi-FI')}
           </span>
