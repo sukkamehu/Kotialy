@@ -309,23 +309,31 @@ class PanasonicDriver {
       }
     }
 
-    // 2. Apply DHW Target only if changed
-    if (this.currentDhwTarget !== targetDhw) {
-      log(`Setting DHW Target Temperature: ${targetDhw}°C`);
-      const dhwOk = await this.sendCommand('commands/SetDHWTemp', targetDhw);
-      if (dhwOk) {
-        this.currentDhwTarget = targetDhw;
-        results.push({ target: 'DHW_Target', value: targetDhw });
-      }
-    }
+    // Check if DHW Sterilization is actively running
+    const sterilizationService = require('../services/sterilization-service');
+    const isSterilizationActive = sterilizationService.getStatus()?.isActive;
 
-    // 3. Apply Force DHW state only if explicitly configured in settings
-    if (settings.manage_force_dhw && this.currentForceDhw !== forceDhw) {
-      log(`Setting Force DHW: ${forceDhw}`);
-      const fOk = await this.sendCommand('commands/SetForceDHW', forceDhw);
-      if (fOk) {
-        this.currentForceDhw = forceDhw;
-        results.push({ target: 'Force_DHW', value: forceDhw });
+    if (isSterilizationActive) {
+      log('Sterilization is actively running: Inhibit APC DHW override');
+    } else {
+      // 2. Apply DHW Target only if changed
+      if (this.currentDhwTarget !== targetDhw) {
+        log(`Setting DHW Target Temperature: ${targetDhw}°C`);
+        const dhwOk = await this.sendCommand('commands/SetDHWTemp', targetDhw);
+        if (dhwOk) {
+          this.currentDhwTarget = targetDhw;
+          results.push({ target: 'DHW_Target', value: targetDhw });
+        }
+      }
+
+      // 3. Apply Force DHW state only if explicitly configured in settings
+      if (settings.manage_force_dhw && this.currentForceDhw !== forceDhw) {
+        log(`Setting Force DHW: ${forceDhw}`);
+        const fOk = await this.sendCommand('commands/SetForceDHW', forceDhw);
+        if (fOk) {
+          this.currentForceDhw = forceDhw;
+          results.push({ target: 'Force_DHW', value: forceDhw });
+        }
       }
     }
 

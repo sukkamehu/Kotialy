@@ -228,6 +228,14 @@ class SterilizationService {
           this.reason = `Desinfiointipitoaika (${settings.hold_duration_minutes} min pito)`;
           console.log(`[STERILIZATION] 🎯 Tavoitelämpötila saavutettu (${currentTemp}°C) -> Aloitetaan ${settings.hold_duration_minutes} min pito`);
           this.broadcastStatus();
+        } else {
+          // Re-ensure SetDHWTemp = 65 and SetForceDHW = 1 if pump state was interrupted
+          const targetRow = db.getState('main/DHW_Target_Temp');
+          const forceDhwRow = db.getState('main/Force_DHW_State');
+          if ((targetRow && targetRow.value !== String(settings.target_temp_c)) || (forceDhwRow && forceDhwRow.value !== '1')) {
+            console.log(`[STERILIZATION] Re-enforcing DHW Target ${settings.target_temp_c}°C & Force DHW`);
+            await this.sendHeishaCommands({ forceDhw: 1, dhwTemp: settings.target_temp_c });
+          }
         }
       }
 

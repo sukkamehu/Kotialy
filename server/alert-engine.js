@@ -119,10 +119,18 @@ class AlertEngine {
   async checkDhwHeaterAnomaly(state, settings) {
     if (settings.dhw_heater_alerts_enabled === 'false') return;
 
-    const dhwHeaterState = state['main/DHW_Heater_State']?.value === '1';
+    // Check if sterilization is running
+    const sterilizationService = require('./services/sterilization-service');
+    if (sterilizationService.getStatus()?.isActive) {
+      this.dhwHeaterStartTime = null;
+      return;
+    }
+
+    // Check if internal/external heater is actually drawing power (not just DHW_Heater_State config flag)
+    const isHeaterActuallyActive = state['main/Internal_Heater_State']?.value === '1' || state['main/External_Heater_State']?.value === '1';
     const outdoorTemp = parseFloat(state['main/Outside_Temp']?.value || state['tuya/ulko/temperature']?.value || '10');
 
-    if (dhwHeaterState) {
+    if (isHeaterActuallyActive) {
       if (!this.dhwHeaterStartTime) {
         this.dhwHeaterStartTime = Date.now();
       } else {
