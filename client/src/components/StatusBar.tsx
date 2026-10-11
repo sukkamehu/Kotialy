@@ -191,7 +191,7 @@ export function StatusBar({
             <span>⚡</span>
             <span>{priceCentsKWh.toFixed(1)} <span style={{ fontSize: 10, opacity: 0.85 }}>snt/kWh</span></span>
             {avgPriceCentsKWh !== null && (
-              <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.85, marginLeft: 2 }}>
+              <span className="status-hide-mobile" style={{ fontSize: 11, fontWeight: 400, opacity: 0.85, marginLeft: 2 }}>
                 (ka. {avgPriceCentsKWh.toFixed(1)} snt)
               </span>
             )}
@@ -201,7 +201,7 @@ export function StatusBar({
         {/* Estimated Daily Consumption Demand - Clickable to open VILP Estimate Modal */}
         {estimatedDailyKwh !== null && (
           <div
-            className={`badge status-hide-xs ${onOpenVilpModal || onOpenTrends ? 'status-badge-clickable' : ''}`}
+            className={`badge status-hide-mobile ${onOpenVilpModal || onOpenTrends ? 'status-badge-clickable' : ''}`}
             onClick={onOpenVilpModal || onOpenTrends}
             role={onOpenVilpModal || onOpenTrends ? 'button' : undefined}
             tabIndex={onOpenVilpModal || onOpenTrends ? 0 : undefined}
@@ -263,7 +263,7 @@ export function StatusBar({
             title={onOpenOutdoorModal ? 'Klikkaa avataksesi ulkolämpötilan historia ja sääennuste' : undefined}
           >
             <span style={{ fontSize: 13, marginRight: 1 }}>🌤️</span>
-            <span className="status-label status-hide-xs">Ulkoilma</span>
+            <span className="status-label status-hide-mobile">Ulkoilma</span>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cool-primary)' }}>
               {outsideTempNum.toFixed(1)}°C
             </span>
@@ -311,17 +311,18 @@ export function StatusBar({
         {!isLocal && authenticated && onLogout && (
           <button
             onClick={onLogout}
-            className="btn btn-sm btn-ghost status-hide-xs"
-            title="Kirjaudu ulos etäistunnosta"
-            style={{ fontSize: 11, padding: '4px 8px', color: 'var(--text-muted)' }}
+            className="btn btn-sm btn-ghost"
+            title={`Kirjaudu ulos (${username || (role === 'viewer' ? 'katsoja' : 'admin')})`}
+            style={{ fontSize: 11, padding: '4px 8px', color: 'var(--text-muted)', flexShrink: 0 }}
           >
-            👤 {username || (role === 'viewer' ? 'katsoja' : 'admin')} · Kirjaudu ulos
+            <span>👤</span>
+            <span className="status-hide-mobile"> {username || (role === 'viewer' ? 'katsoja' : 'admin')} · Kirjaudu ulos</span>
           </button>
         )}
 
         {/* Clock & tooltip */}
         <div
-          className="status-meta"
+          className="status-meta status-hide-mobile"
           title={`Kello: ${new Date(now).toLocaleTimeString('fi-FI')} | Viimeisin päivitys: ${timeAgo(lastUpdate, now)}`}
         >
           <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>

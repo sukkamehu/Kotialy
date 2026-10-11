@@ -290,6 +290,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
 
       {/* Grid of Categories (Optimized for Mobile Touch & Desktop) */}
       <div
+        className="category-hub-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',

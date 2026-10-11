@@ -84,7 +84,7 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
   const showIndicator = pullDistance > 0 || refreshing;
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* Pull down indicator */}
       {showIndicator && (
         <div
