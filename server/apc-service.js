@@ -231,9 +231,9 @@ class ApcService {
     const minSpreadRequired = settings.mode === 'eco' ? 1.8 : settings.mode === 'comfort' ? 3.5 : 2.5;
     const isFlatHorizon = spread < minSpreadRequired && maxP < (settings.peak_threshold_cents || 20.0);
 
-    const dhwBoostTarget = settings.dhw_boost_target_c || settings.dhw_target_c || 55;
-    const dhwNormalTarget = settings.dhw_normal_target_c || 50;
-    const dhwMinTarget = settings.dhw_min_c || 45;
+    const dhwBoostTarget = settings.dhw_boost_target_c || settings.dhw_target_c || 50;
+    const dhwNormalTarget = settings.dhw_normal_target_c || 48;
+    const dhwMinTarget = settings.dhw_min_c || 44;
     const boostDhwOnCheap = settings.dhw_boost_on_cheap !== false;
 
     const heatingCutoff = settings.heating_cutoff_c != null ? settings.heating_cutoff_c : 13;

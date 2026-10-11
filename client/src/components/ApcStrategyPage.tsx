@@ -85,9 +85,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   // APC Settings form draft state
   const [bufferBoost, setBufferBoost] = useState<number>(status?.settings?.buffer_boost_c ?? 3);
   const [bufferSetback, setBufferSetback] = useState<number>(status?.settings?.buffer_setback_c ?? -2);
-  const [dhwBoostTarget, setDhwBoostTarget] = useState<string>(String(status?.settings?.dhw_boost_target_c ?? 55));
-  const [dhwNormalTarget, setDhwNormalTarget] = useState<string>(String(status?.settings?.dhw_normal_target_c ?? 50));
-  const [dhwMin, setDhwMin] = useState<string>(String(status?.settings?.dhw_min_c ?? 45));
+  const [dhwBoostTarget, setDhwBoostTarget] = useState<string>(String(status?.settings?.dhw_boost_target_c ?? 50));
+  const [dhwNormalTarget, setDhwNormalTarget] = useState<string>(String(status?.settings?.dhw_normal_target_c ?? 48));
+  const [dhwMin, setDhwMin] = useState<string>(String(status?.settings?.dhw_min_c ?? 44));
   const [dhwBoostOnCheap, setDhwBoostOnCheap] = useState<boolean>(status?.settings?.dhw_boost_on_cheap ?? true);
   const [cheapThresh, setCheapThresh] = useState<string>(String(status?.settings?.cheap_threshold_cents ?? 3.0));
   const [peakThresh, setPeakThresh] = useState<string>(String(status?.settings?.peak_threshold_cents ?? 20.0));
@@ -149,9 +149,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     if (status?.settings) {
       setBufferBoost(status.settings.buffer_boost_c ?? 3);
       setBufferSetback(status.settings.buffer_setback_c ?? -2);
-      setDhwBoostTarget(String(status.settings.dhw_boost_target_c ?? 55));
-      setDhwNormalTarget(String(status.settings.dhw_normal_target_c ?? 50));
-      setDhwMin(String(status.settings.dhw_min_c ?? 45));
+      setDhwBoostTarget(String(status.settings.dhw_boost_target_c ?? 50));
+      setDhwNormalTarget(String(status.settings.dhw_normal_target_c ?? 48));
+      setDhwMin(String(status.settings.dhw_min_c ?? 44));
       setDhwBoostOnCheap(status.settings.dhw_boost_on_cheap !== false);
       setCheapThresh(String(status.settings.cheap_threshold_cents ?? 3.0));
       setPeakThresh(String(status.settings.peak_threshold_cents ?? 20.0));
@@ -227,10 +227,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     const ok = await updateSettings({
       buffer_boost_c: Number(bufferBoost),
       buffer_setback_c: Number(bufferSetback),
-      dhw_target_c: parseFloat(dhwBoostTarget) || 55,
-      dhw_boost_target_c: parseFloat(dhwBoostTarget) || 55,
-      dhw_normal_target_c: parseFloat(dhwNormalTarget) || 50,
-      dhw_min_c: parseFloat(dhwMin) || 45,
+      dhw_target_c: parseFloat(dhwBoostTarget) || 50,
+      dhw_boost_target_c: parseFloat(dhwBoostTarget) || 50,
+      dhw_normal_target_c: parseFloat(dhwNormalTarget) || 48,
+      dhw_min_c: parseFloat(dhwMin) || 44,
       dhw_boost_on_cheap: Boolean(dhwBoostOnCheap),
       cheap_threshold_cents: parseFloat(cheapThresh) || 3.0,
       peak_threshold_cents: parseFloat(peakThresh) || 20.0,

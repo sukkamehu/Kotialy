@@ -125,9 +125,9 @@ class PanasonicDriver {
     const now = Date.now();
 
     const baseShift = settings.base_z1_shift ?? 0;
-    const dhwBoostTarget = settings.dhw_boost_target_c || settings.dhw_target_c || 55;
-    const dhwNormalTarget = settings.dhw_normal_target_c || 50;
-    const dhwMinTarget = settings.dhw_min_c || 45;
+    const dhwBoostTarget = settings.dhw_boost_target_c || settings.dhw_target_c || 50;
+    const dhwNormalTarget = settings.dhw_normal_target_c || 48;
+    const dhwMinTarget = settings.dhw_min_c || 44;
     const boostDhwOnCheap = settings.dhw_boost_on_cheap !== false;
 
     let targetShift = baseShift;
@@ -157,7 +157,7 @@ class PanasonicDriver {
         break;
 
       case 'DHW_CYCLE':
-        targetShift = baseShift;
+        targetShift = Math.min(baseShift, 0); // Varmistetaan että lattialämmitys ei estä kompressorin siirtymistä käyttöveteen
         targetDhw = dhwBoostTarget;
         // Keep Force DHW OFF (0) to ensure heating is done via heat pump compressor, NOT electric immersion heater
         forceDhw = 0;
