@@ -666,7 +666,7 @@ router.post('/apc/floor-pump/settings', requireAdmin, express.json(), async (req
 /**
  * GET /api/apc/upstairs-pump/status
  */
-router.get('/api/apc/upstairs-pump/status', (req, res) => {
+router.get('/apc/upstairs-pump/status', (req, res) => {
   const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
   res.json(upstairsPumpDriver.getStatus());
 });
