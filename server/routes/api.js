@@ -38,6 +38,7 @@ const sterilizationService = require('../services/sterilization-service');
 
 const {
   isLocalIp,
+  isFromInternet,
   getClientIp,
   generateToken,
   verifyToken,
@@ -48,13 +49,42 @@ const {
   AUTH_TOKEN_DAYS,
 } = require('../auth');
 
+// Brute-force protection for login attempts
+const loginAttempts = new Map(); // ip -> { count, lockedUntil }
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (entry && entry.lockedUntil > now) {
+    const minutesLeft = Math.ceil((entry.lockedUntil - now) / 60000);
+    return `Liian monta virheellistä kirjautumisyritystä. Yritä uudelleen ${minutesLeft} minuutin kuluttua.`;
+  }
+  return null;
+}
+
+function recordLoginAttempt(ip, success) {
+  const now = Date.now();
+  if (success) {
+    loginAttempts.delete(ip);
+    return;
+  }
+  const entry = loginAttempts.get(ip) || { count: 0, lockedUntil: 0 };
+  entry.count += 1;
+  if (entry.count >= 5) {
+    entry.lockedUntil = now + 15 * 60 * 1000; // Lock for 15 minutes
+    console.warn(`[AUTH] IP ${ip} lukittu 15 minuutiksi toistuvien virheellisten kirjautumisten vuoksi.`);
+  }
+  loginAttempts.set(ip, entry);
+}
+
 /**
  * GET /api/auth/status
  * Check if the caller is in LAN or authenticated with a valid token.
  */
 router.get('/auth/status', (req, res) => {
   const ip = getClientIp(req);
-  const isLocal = isLocalIp(ip);
+  const fromWan = isFromInternet(req);
+  const isLocal = !fromWan && isLocalIp(ip);
 
   let authenticated = false;
   let username = null;
@@ -93,7 +123,13 @@ router.get('/auth/status', (req, res) => {
  * POST /api/auth/login
  * Body: { username, password }
  */
-router.post('/auth/login', express.json(), (req, res) => {
+router.post('/auth/login', express.json(), async (req, res) => {
+  const ip = getClientIp(req);
+  const lockMsg = checkLoginRateLimit(ip);
+  if (lockMsg) {
+    return res.status(429).json({ error: lockMsg });
+  }
+
   const { username, password } = req.body || {};
 
   if (!username || !password) {
@@ -102,11 +138,15 @@ router.post('/auth/login', express.json(), (req, res) => {
 
   const credCheck = checkCredentials(username, password);
   if (!credCheck || !credCheck.valid) {
+    recordLoginAttempt(ip, false);
+    await new Promise((r) => setTimeout(r, 600)); // Delay against timing attacks
     return res.status(401).json({ error: 'Virheellinen käyttäjätunnus tai salasana' });
   }
 
+  recordLoginAttempt(ip, true);
   const token = generateToken(credCheck.username, credCheck.role);
   const expiresAt = Date.now() + AUTH_TOKEN_DAYS * 24 * 60 * 60 * 1000;
+  const fromWan = isFromInternet(req);
 
   res.json({
     ok: true,
@@ -114,7 +154,7 @@ router.post('/auth/login', express.json(), (req, res) => {
     expiresAt,
     username: credCheck.username,
     role: credCheck.role,
-    isLocal: isLocalIp(getClientIp(req)),
+    isLocal: !fromWan && isLocalIp(ip),
   });
 });
 

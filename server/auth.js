@@ -56,15 +56,41 @@ function isLocalIp(ip) {
 }
 
 /**
+ * Check if the request is originating from the public internet (e.g. Cloudflare Tunnel or external proxy).
+ */
+function isFromInternet(req) {
+  if (!req || !req.headers) return false;
+  // If Cloudflare Tunnel or proxy headers are present, request definitely originated from WAN
+  if (req.headers['cf-connecting-ip'] || req.headers['cf-ray'] || req.headers['cf-visitor']) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Get client IP from Express request or WebSocket request.
+ * Prioritizes trusted Cloudflare headers if present.
  */
 function getClientIp(req) {
-  const forwarded = req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip']);
+  if (!req || !req.headers) return req?.socket?.remoteAddress || '';
+
+  // 1. If routed through Cloudflare Tunnel, CF-Connecting-IP is authenticated and untamperable
+  if (req.headers['cf-connecting-ip']) {
+    return String(req.headers['cf-connecting-ip']).trim();
+  }
+
+  // 2. Real-IP or Forwarded-For from trusted internal reverse proxy (nginx)
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) {
+    return String(realIp).trim();
+  }
+
+  const forwarded = req.headers['x-forwarded-for'];
   if (forwarded) {
     const list = String(forwarded).split(',');
-    // First IP in X-Forwarded-For is client origin
     return list[0].trim();
   }
+
   return req.socket?.remoteAddress || req.connection?.remoteAddress || req.ip || '';
 }
 
@@ -118,12 +144,14 @@ function verifyToken(tokenStr) {
 /**
  * Express Middleware:
  * If request is from LAN -> passes through automatically as admin.
- * If request is from WAN -> requires valid Bearer token.
+ * If request is from WAN / Cloudflare -> strictly requires valid Bearer token.
  */
 function requireAuthOrLan(req, res, next) {
   const ip = getClientIp(req);
+  const fromWan = isFromInternet(req);
 
-  if (isLocalIp(ip)) {
+  // If request came from WAN / Cloudflare, it can NEVER be considered local LAN!
+  if (!fromWan && isLocalIp(ip)) {
     req.isLocal = true;
     req.user = 'lan_user';
     req.role = 'admin';
@@ -195,6 +223,7 @@ function checkCredentials(username, password) {
 
 module.exports = {
   isLocalIp,
+  isFromInternet,
   getClientIp,
   generateToken,
   verifyToken,

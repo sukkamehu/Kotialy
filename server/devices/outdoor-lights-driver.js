@@ -415,7 +415,7 @@ class OutdoorLightsDriver {
 
     const relays = [
       {
-        id: deviceId1,
+        id: 'relay_1',
         relayNum: 1,
         name: dev1?.name || 'Ulkovalot 1',
         label: 'Pihapiiri & Autotalli',
@@ -434,7 +434,7 @@ class OutdoorLightsDriver {
         overrideMinutesRemaining: isRelay1OverrideActive ? relay1MinutesRemaining : (isGlobalOverrideActive ? globalMinutesRemaining : 0),
       },
       {
-        id: deviceId2,
+        id: 'relay_2',
         relayNum: 2,
         name: dev2?.name || 'Ulkovalot 2',
         label: 'Toinen wifi-rele',
@@ -453,8 +453,8 @@ class OutdoorLightsDriver {
       isOn: state1 === 'ON',
       reason: this.lastAppliedReason,
       enabled: settings.enabled === 'true',
-      deviceId: deviceId1,
-      deviceId2: deviceId2,
+      deviceId: 'relay_1',
+      deviceId2: 'relay_2',
       deviceName: dev1?.name || 'WiFi Switch (Ulkovalot 1)',
       deviceOnline: dev1?.online ?? true,
       relays,

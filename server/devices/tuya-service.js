@@ -370,10 +370,7 @@ class TuyaService {
       model: d.model || d.product_name || '',
       product_name: d.product_name || '',
       online: Boolean(d.online),
-      ip: d.ip || '',
-      local_key: d.local_key || '',
       properties,
-      raw_status: statusMap,
       update_time: d.update_time ? d.update_time * 1000 : Date.now(),
     };
   }
@@ -789,6 +786,15 @@ class TuyaService {
     }
 
     if (!this.saunaState.isOn) return;
+
+    // 0. Over-temperature emergency cutoff (95 °C) to prevent overheating / fire hazard
+    if (this.saunaState.temperature && this.saunaState.temperature >= 95) {
+      console.warn(`[TUYA] 🚨 SAUNAN YLILÄMPÖKATKAISU: Lämpötila saavutti ${this.saunaState.temperature} °C (raja 95 °C). Sammutetaan kiuas välittömästi!`);
+      this.setSaunaPower(false).catch((err) => {
+        console.error('[TUYA] Ylilämpösammutus epäonnistui:', err.message);
+      });
+      return;
+    }
 
     // Do not run safety cutoff if we just sent a command within 15s
     if (Date.now() - (this.lastCommandAt || 0) < 15000) return;

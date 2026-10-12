@@ -343,7 +343,7 @@ export function OutdoorLightsCard({ readOnly = false }: OutdoorLightsCardProps) 
   const dawnTime = formatTime(status?.sunTimes?.dawn);
 
   const relay1 = status?.relays?.[0] || {
-    id: status?.deviceId || 'bf7a39a3a10e38a52engat',
+    id: 'relay_1',
     relayNum: 1,
     name: 'Ulkovalot 1',
     label: 'Pihapiiri & Autotalli',
@@ -357,7 +357,7 @@ export function OutdoorLightsCard({ readOnly = false }: OutdoorLightsCardProps) 
   };
 
   const relay2 = status?.relays?.[1] || {
-    id: status?.deviceId2 || 'bfee1ec43ebb997b0c12ru',
+    id: 'relay_2',
     relayNum: 2,
     name: 'Ulkovalot 2',
     label: 'Toinen wifi-rele',

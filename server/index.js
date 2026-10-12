@@ -45,7 +45,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api', apiRoutes);
 
-const { isLocalIp, getClientIp, verifyToken } = require('./auth');
+const { isLocalIp, isFromInternet, getClientIp, verifyToken } = require('./auth');
 
 // ─── HTTP + WebSocket Server ──────────────────────────────────────────────────
 
@@ -56,7 +56,8 @@ const wsClients = new Set();
 
 wss.on('connection', (ws, req) => {
   const ip = getClientIp(req);
-  const isLocal = isLocalIp(ip);
+  const fromWan = isFromInternet(req);
+  const isLocal = !fromWan && isLocalIp(ip);
 
   let token = null;
   let validToken = null;
