@@ -155,7 +155,7 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
       <div className="card-body">
         <div className="dashboard-grid dashboard-grid-sub" style={{ gap: 20, marginBottom: 0 }}>
           {/* Left Column: Energy & Power Balance */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, width: '100%' }}>
             {/* View Mode Switcher Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
               <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: 2, gap: 2 }}>
@@ -408,7 +408,7 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
               {/* Heating row */}
               <div
                 className="metric-clickable"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, minWidth: 0 }}
                 title="Klikkaa nähdäksesi lämmitystehon trendi"
                 onClick={() =>
                   onOpenTrend?.({
@@ -423,7 +423,7 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--buffer-primary)' }} />
                   <span style={{ fontSize: 13, fontWeight: 500 }}>Tilojen lämmitys ↗</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
                   {viewMode === 'realtime' ? (
                     <>
                       <span style={{ color: 'var(--text-secondary)' }}>
@@ -455,7 +455,7 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
               {/* DHW row */}
               <div
                 className="metric-clickable"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, minWidth: 0 }}
                 title="Klikkaa nähdäksesi käyttöveden tuottotehon trendi"
                 onClick={() =>
                   onOpenTrend?.({
@@ -470,7 +470,7 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--dhw-primary)' }} />
                   <span style={{ fontSize: 13, fontWeight: 500 }}>Käyttövesi ↗</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
                   {viewMode === 'realtime' ? (
                     <>
                       <span style={{ color: 'var(--text-secondary)' }}>
@@ -533,7 +533,7 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
           </div>
 
           {/* Right Column: Cycles & Operational Analytics */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Kompressorin syklit & Käyttöajat
@@ -606,8 +606,9 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
+              minWidth: 0,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Koko elinkaari yhteensä
                 </span>
@@ -616,8 +617,8 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
-                <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                   <span>
                     Käyttötunnit: <strong style={{ color: 'var(--text-primary)' }}>{opHours !== null ? `${Math.round(opHours).toLocaleString('fi-FI')} h` : '—'}</strong>
                   </span>
@@ -638,13 +639,14 @@ export function EnergyStatsCard({ state, onOpenTrend }: EnergyStatsCardProps) {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
+                minWidth: 0,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Viimeiset 7 päivää (syklit & käyntiaika)
                   </span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${analytics.history.length}, 1fr)`, gap: 6 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${analytics.history.length}, minmax(0, 1fr))`, gap: 6, minWidth: 0 }}>
                   {analytics.history.map((day, idx) => {
                     const parsedDate = parseHistoryDate(day.timestamp ?? day.date);
                     const dayName = parsedDate

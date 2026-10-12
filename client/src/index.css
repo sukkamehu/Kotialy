@@ -171,6 +171,8 @@ h1, h2, h3, h4 {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-3);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Inside a tile the value should not shout as loudly as a card headline */
@@ -183,6 +185,7 @@ h1, h2, h3, h4 {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .metric-label {
@@ -191,6 +194,9 @@ h1, h2, h3, h4 {
   color: var(--text-label);
   text-transform: uppercase;
   letter-spacing: 0.07em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-value {
@@ -198,6 +204,9 @@ h1, h2, h3, h4 {
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-unit {
@@ -227,6 +236,25 @@ h1, h2, h3, h4 {
 }
 
 .metric-clickable:active {
+  transform: translateY(0);
+}
+
+/* When .metric-clickable is placed on a .metric-box, keep card padding and borders intact */
+.metric-box.metric-clickable {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.metric-box.metric-clickable:hover {
+  background: var(--bg-card-hover, rgba(255, 255, 255, 0.08));
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.metric-box.metric-clickable:active {
   transform: translateY(0);
 }
 
@@ -354,23 +382,31 @@ h1, h2, h3, h4 {
 .metrics-grid {
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
+  width: 100%;
 }
 
 .metrics-grid-2 {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .metrics-grid-3 {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .metrics-grid-4 {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 640px) {
   .metrics-grid-4 {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-grid {
+    gap: 8px;
   }
 }
 
