@@ -664,28 +664,31 @@ router.post('/apc/floor-pump/settings', requireAdmin, express.json(), async (req
 // ─── Upstairs Circulation Pump (Tuya) Specific Endpoints ─────────────────────
 
 /**
- * GET /api/apc/upstairs-pump/status
+ * GET /api/apc/upstairs-pump/status (aliases: /api/apc/dhw-pump/status, /api/apc/lkv-pump/status)
  */
-router.get('/apc/upstairs-pump/status', (req, res) => {
+function handlePumpStatus(req, res) {
   const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
   res.json(upstairsPumpDriver.getStatus());
-});
+}
+router.get('/apc/upstairs-pump/status', handlePumpStatus);
+router.get('/apc/dhw-pump/status', handlePumpStatus);
+router.get('/apc/lkv-pump/status', handlePumpStatus);
 
 /**
  * POST /api/apc/upstairs-pump/override
- * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
+ * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0.25 | 0.5 | 1 | 2 }
  */
-router.post('/apc/upstairs-pump/override', requireAdmin, express.json(), async (req, res) => {
+async function handlePumpOverride(req, res) {
   try {
     const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
-    const { state, duration_hours = 0 } = req.body || {};
+    const { state, duration_hours = 0.5 } = req.body || {};
 
     let status;
     if (state === null || state === undefined || state === 'AUTO' || state === 'auto') {
       status = await upstairsPumpDriver.cancelManualOverride();
     } else {
       const stateStr = (state === 'ON' || state === 1 || state === true) ? 'ON' : 'OFF';
-      status = await upstairsPumpDriver.setManualOverride(stateStr, parseFloat(duration_hours) || 0);
+      status = await upstairsPumpDriver.setManualOverride(stateStr, parseFloat(duration_hours) || 0.5);
     }
 
     apcService.evaluate();
@@ -693,13 +696,16 @@ router.post('/apc/upstairs-pump/override', requireAdmin, express.json(), async (
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}
+router.post('/apc/upstairs-pump/override', requireAdmin, express.json(), handlePumpOverride);
+router.post('/apc/dhw-pump/override', requireAdmin, express.json(), handlePumpOverride);
+router.post('/apc/lkv-pump/override', requireAdmin, express.json(), handlePumpOverride);
 
 /**
  * POST /api/apc/upstairs-pump/mode
  * Body: { mode: 'auto' | 'constant_on' | 'constant_off' }
  */
-router.post('/apc/upstairs-pump/mode', requireAdmin, express.json(), async (req, res) => {
+async function handlePumpMode(req, res) {
   try {
     const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
     const { mode } = req.body || {};
@@ -709,22 +715,57 @@ router.post('/apc/upstairs-pump/mode', requireAdmin, express.json(), async (req,
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}
+router.post('/apc/upstairs-pump/mode', requireAdmin, express.json(), handlePumpMode);
+router.post('/apc/dhw-pump/mode', requireAdmin, express.json(), handlePumpMode);
+router.post('/apc/lkv-pump/mode', requireAdmin, express.json(), handlePumpMode);
 
 /**
  * POST /api/apc/upstairs-pump/settings
- * Body: { target_temp, temp_hysteresis, summer_cutoff_temp, anti_seize_enabled, price_setback_enabled }
+ * Body: { night_start, night_end, cycle_on_minutes, cycle_off_minutes, min_tank_temp, anti_seize_enabled, price_setback_enabled }
  */
-router.post('/apc/upstairs-pump/settings', requireAdmin, express.json(), async (req, res) => {
+async function handlePumpSettings(req, res) {
   try {
     const {
+      night_start,
+      night_end,
+      cycle_on_minutes,
+      cycle_off_minutes,
+      min_tank_temp,
+      anti_seize_enabled,
+      price_setback_enabled,
+      // legacy support
       target_temp,
       temp_hysteresis,
       summer_cutoff_temp,
-      anti_seize_enabled,
-      price_setback_enabled,
     } = req.body || {};
     const dbModule = require('../db');
+
+    if (night_start !== undefined && !isNaN(parseInt(night_start, 10))) {
+      dbModule.updateApcSetting('dhw_pump_night_start', parseInt(night_start, 10));
+    }
+    if (night_end !== undefined && !isNaN(parseInt(night_end, 10))) {
+      dbModule.updateApcSetting('dhw_pump_night_end', parseInt(night_end, 10));
+    }
+    if (cycle_on_minutes !== undefined && !isNaN(parseFloat(cycle_on_minutes))) {
+      dbModule.updateApcSetting('dhw_pump_cycle_on_minutes', parseFloat(cycle_on_minutes));
+    }
+    if (cycle_off_minutes !== undefined && !isNaN(parseFloat(cycle_off_minutes))) {
+      dbModule.updateApcSetting('dhw_pump_cycle_off_minutes', parseFloat(cycle_off_minutes));
+    }
+    if (min_tank_temp !== undefined && !isNaN(parseFloat(min_tank_temp))) {
+      dbModule.updateApcSetting('dhw_pump_min_tank_temp', parseFloat(min_tank_temp));
+    }
+    if (anti_seize_enabled !== undefined) {
+      const val = anti_seize_enabled ? '1' : '0';
+      dbModule.updateApcSetting('dhw_pump_anti_seize_enabled', val);
+      dbModule.updateApcSetting('upstairs_pump_anti_seize_enabled', val);
+    }
+    if (price_setback_enabled !== undefined) {
+      const val = price_setback_enabled ? '1' : '0';
+      dbModule.updateApcSetting('dhw_pump_price_setback_enabled', val);
+      dbModule.updateApcSetting('upstairs_pump_price_setback_enabled', val);
+    }
 
     if (target_temp !== undefined && !isNaN(parseFloat(target_temp))) {
       dbModule.updateApcSetting('upstairs_pump_target_temp', parseFloat(target_temp));
@@ -735,12 +776,6 @@ router.post('/apc/upstairs-pump/settings', requireAdmin, express.json(), async (
     if (summer_cutoff_temp !== undefined && !isNaN(parseFloat(summer_cutoff_temp))) {
       dbModule.updateApcSetting('upstairs_pump_summer_cutoff_temp', parseFloat(summer_cutoff_temp));
     }
-    if (anti_seize_enabled !== undefined) {
-      dbModule.updateApcSetting('upstairs_pump_anti_seize_enabled', anti_seize_enabled ? '1' : '0');
-    }
-    if (price_setback_enabled !== undefined) {
-      dbModule.updateApcSetting('upstairs_pump_price_setback_enabled', price_setback_enabled ? '1' : '0');
-    }
 
     apcService.evaluate();
     const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
@@ -748,7 +783,10 @@ router.post('/apc/upstairs-pump/settings', requireAdmin, express.json(), async (
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}
+router.post('/apc/upstairs-pump/settings', requireAdmin, express.json(), handlePumpSettings);
+router.post('/apc/dhw-pump/settings', requireAdmin, express.json(), handlePumpSettings);
+router.post('/apc/lkv-pump/settings', requireAdmin, express.json(), handlePumpSettings);
 
 // ─── Defrost Cable (Sonoff) Specific Endpoints ───────────────────────────────
 

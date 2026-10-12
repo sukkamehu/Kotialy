@@ -230,6 +230,11 @@ export function useApc() {
   };
 
   const updateUpstairsPumpSettings = async (pumpSettings: {
+    night_start?: number;
+    night_end?: number;
+    cycle_on_minutes?: number;
+    cycle_off_minutes?: number;
+    min_tank_temp?: number;
     target_temp?: number;
     temp_hysteresis?: number;
     summer_cutoff_temp?: number;

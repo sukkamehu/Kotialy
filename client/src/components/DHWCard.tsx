@@ -112,7 +112,12 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
 
   const { send, pending, error, success } = useCommand();
   const { calcCostPerHour } = useElectricityPrice();
-  const { status: apcStatus, updateSettings: updateApcSettings } = useApc();
+  const {
+    status: apcStatus,
+    updateSettings: updateApcSettings,
+    setUpstairsPumpOverride,
+    setUpstairsPumpMode,
+  } = useApc();
   const {
     status: sterStatus,
     actionPending: sterPending,
@@ -146,8 +151,20 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   const isKotiSterilization = sterStatus?.isActive ?? false;
   const isSterilization = isPanasonicSterilization || isKotiSterilization;
   const sterilizationTemp = state['main/Sterilization_Temp']?.value || sterStatus?.targetTemp;
-  const dhwPumpState = state['main/DHW_Pump_State']?.value === '1';
   const dhwHours = numVal(state, 'main/DHW_Hours');
+
+  // LKV (Käyttövesi) circulation pump (Tuya WiFi Smart Relay)
+  const lkvPumpRaw = state['tuya/kiertovesipumppu/state']?.value ??
+                     state['tuya/lkv_kiertovesipumppu/state']?.value ??
+                     state['tuya/ylakerran_kiertovesipumppu/state']?.value;
+  const lkvPumpDevice = apcStatus?.devices?.find((d) => d.driver === 'upstairs_pump') as any;
+  const isLkvRunning = lkvPumpRaw === 'true' || lkvPumpRaw === '1' || lkvPumpRaw === 'ON' || lkvPumpDevice?.currentState === 'ON';
+  const lkvMode = lkvPumpDevice?.mode ?? apcStatus?.settings?.dhw_pump_mode ?? apcStatus?.settings?.upstairs_pump_mode ?? 'auto';
+  const isLkvOverrideActive = lkvPumpDevice?.overrideActive ?? (apcStatus?.settings?.dhw_pump_override_until ? apcStatus.settings.dhw_pump_override_until > Date.now() : false);
+  const lkvOverrideState = lkvPumpDevice?.overrideState ?? apcStatus?.settings?.dhw_pump_override_state;
+  const lkvOverrideMins = lkvPumpDevice?.overrideMinutesRemaining ?? 0;
+  const lkvReason = lkvPumpDevice?.reason || (isLkvRunning ? 'Käynnissä (LKV-kierto)' : 'Lepotilassa (Kierto pois)');
+  const isLkvAntiSeize = lkvPumpDevice?.antiSeizeActive ?? false;
 
   const tempColor = temp !== null && temp > 55 ? 'var(--heat-primary)' :
     temp !== null && temp > 45 ? 'var(--heat-secondary)' : 'var(--cool-primary)';
@@ -285,67 +302,208 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
           </div>
         )}
 
-        {/* DHW Upstairs Circulation Loop (LKV-kierto) */}
+        {/* LKV (Käyttövesi Yläkerta) circulation pump widget */}
         <div
           style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: isLkvRunning ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+            border: isLkvRunning ? '1px solid rgba(16, 185, 129, 0.28)' : '1px solid rgba(255, 255, 255, 0.07)',
             borderRadius: 10,
-            padding: '10px 14px',
+            padding: '12px 14px',
             marginBottom: 14,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            transition: 'all 0.3s ease',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'rgba(16, 185, 129, 0.1)',
-              border: '1.5px solid rgba(16, 185, 129, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--dhw-primary)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-              </svg>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: isLkvRunning ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: isLkvRunning ? '1.5px solid rgba(16, 185, 129, 0.35)' : '1.5px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isLkvRunning ? '0 0 10px rgba(16, 185, 129, 0.25)' : 'none',
+                flexShrink: 0,
+              }}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={isLkvRunning ? '#10b981' : 'rgba(255, 255, 255, 0.4)'}
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={isLkvRunning ? 'spinning' : ''}
+                  style={{ transition: 'stroke 0.3s' }}
+                >
+                  <circle cx="12" cy="12" r="10" strokeDasharray="5 3" />
+                  <path d="M12 7v5l3 3" />
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>Käyttöveden kierto (Yläkerta)</span>
+                  <span className="badge" style={{
+                    fontSize: 9,
+                    padding: '1px 6px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: '#34d399',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                  }}>
+                    LKV Tuya
+                  </span>
+                  {isLkvOverrideActive && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      color: '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                    }}>
+                      ⚡ Suihkuboost {lkvOverrideState || (isLkvRunning ? 'ON' : 'OFF')} ({lkvOverrideMins} min)
+                    </span>
+                  )}
+                  {isLkvAntiSeize && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(168, 85, 247, 0.2)',
+                      color: '#c084fc',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                    }}>
+                      🔄 Huuhtelu / Jumiutumissuoja
+                    </span>
+                  )}
+                  {lkvMode === 'constant_on' && !isLkvOverrideActive && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                    }}>
+                      230V Suorasyöttö (24/7)
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {lkvReason}
+                </div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>Käyttöveden kierto (Yläkerta)</span>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>(LKV)</span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {dhwPumpState
-                  ? 'Ohjattu lämpöpumpulta (DHW Pump)'
-                  : 'Kokoaikainen kierto · 230V suorasyöttö'}
-              </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: isLkvRunning ? '#10b981' : 'var(--text-muted, #64748b)',
+                  boxShadow: isLkvRunning ? '0 0 8px #10b981' : 'none',
+                }}
+              />
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: isLkvRunning ? '#10b981' : 'var(--text-muted, #64748b)',
+              }}>
+                {isLkvRunning ? 'Kierto Päällä' : 'Tauolla'}
+              </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: 'var(--text-secondary)',
-              background: 'rgba(255, 255, 255, 0.05)',
-              padding: '2px 8px',
-              borderRadius: 6,
-            }}>
-              Jatkuva
+
+          {/* Quick boost and mode buttons */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 'auto' }}>
+              Pikaohjaus:
             </span>
+
+            {isLkvOverrideActive ? (
+              <button
+                className="btn btn-xs btn-primary"
+                onClick={() => setUpstairsPumpOverride(null, 0)}
+                disabled={readOnly || pending}
+                title="Palauta älykäs automaattiohjaus"
+                style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6 }}
+              >
+                ↺ Palauta Auto
+              </button>
+            ) : (
+              <>
+                <button
+                  className="btn btn-xs btn-ghost"
+                  onClick={() => setUpstairsPumpOverride('ON', 0.25)}
+                  disabled={readOnly || pending}
+                  title="Käynnistä LKV-kierto 15 minuutiksi (suihkuboost)"
+                  style={{
+                    fontSize: 11,
+                    padding: '3px 9px',
+                    borderRadius: 6,
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    color: '#f59e0b',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                  }}
+                >
+                  🚿 Suihku +15m
+                </button>
+                <button
+                  className="btn btn-xs btn-ghost"
+                  onClick={() => setUpstairsPumpOverride('ON', 0.5)}
+                  disabled={readOnly || pending}
+                  title="Käynnistä LKV-kierto 30 minuutiksi"
+                  style={{
+                    fontSize: 11,
+                    padding: '3px 9px',
+                    borderRadius: 6,
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    color: '#f59e0b',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                  }}
+                >
+                  🚿 +30m
+                </button>
+              </>
+            )}
+
+            <button
+              className={`btn btn-xs ${lkvMode === 'auto' && !isLkvOverrideActive ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setUpstairsPumpMode('auto')}
+              disabled={readOnly || pending}
+              title="Aseta älykäs tila (sykli + yölepo + APC)"
+              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6 }}
+            >
+              Auto
+            </button>
+            <button
+              className={`btn btn-xs ${lkvMode === 'constant_on' ? 'btn-success' : 'btn-ghost'}`}
+              onClick={() => setUpstairsPumpMode('constant_on')}
+              disabled={readOnly || pending}
+              title="Kokoaikainen jatkuva kierto (vastaa 230V suorasyöttöä)"
+              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6 }}
+            >
+              24/7 Päällä
+            </button>
+            <button
+              className={`btn btn-xs ${lkvMode === 'constant_off' ? 'btn-danger' : 'btn-ghost'}`}
+              onClick={() => setUpstairsPumpMode('constant_off')}
+              disabled={readOnly || pending}
+              title="Kytke kierto kokonaan pois päältä"
+              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6 }}
+            >
+              Pois
+            </button>
           </div>
         </div>
 

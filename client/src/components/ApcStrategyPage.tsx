@@ -106,12 +106,14 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [floorPumpAntiSeize, setFloorPumpAntiSeize] = useState<boolean>(true);
   const [floorPumpOverrideDuration, setFloorPumpOverrideDuration] = useState<number>(0);
   const [upstairsPumpMode, setUpstairsPumpModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
-  const [upstairsPumpTargetTemp, setUpstairsPumpTargetTemp] = useState<string>('21.3');
-  const [upstairsPumpHysteresis, setUpstairsPumpHysteresis] = useState<string>('0.3');
-  const [upstairsPumpCutoff, setUpstairsPumpCutoff] = useState<string>('18.0');
+  const [lkvNightStart, setLkvNightStart] = useState<string>('23');
+  const [lkvNightEnd, setLkvNightEnd] = useState<string>('6');
+  const [lkvCycleOn, setLkvCycleOn] = useState<string>('10');
+  const [lkvCycleOff, setLkvCycleOff] = useState<string>('15');
+  const [lkvMinTankTemp, setLkvMinTankTemp] = useState<string>('40.0');
   const [upstairsPumpAntiSeize, setUpstairsPumpAntiSeize] = useState<boolean>(true);
   const [upstairsPumpPriceSetback, setUpstairsPumpPriceSetback] = useState<boolean>(true);
-  const [upstairsPumpOverrideDuration, setUpstairsPumpOverrideDuration] = useState<number>(0);
+  const [upstairsPumpOverrideDuration, setUpstairsPumpOverrideDuration] = useState<number>(0.5);
   const [smartCyclingEnabled, setSmartCyclingEnabled] = useState<boolean>(status?.settings?.smart_cycling_enabled !== false);
   const [smartCyclingBoost, setSmartCyclingBoost] = useState<string>(String(status?.settings?.smart_cycling_charge_boost_c ?? 3.0));
   const [smartCyclingMinRest, setSmartCyclingMinRest] = useState<string>(String(status?.settings?.smart_cycling_min_rest_min ?? 60));
@@ -175,12 +177,14 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setFloorPumpCutoff(String(status.settings.floor_pump_summer_cutoff_temp ?? 20.0));
       setFloorPumpSummerPulse(status.settings.floor_pump_summer_pulse_enabled !== false);
       setFloorPumpAntiSeize(status.settings.floor_pump_anti_seize_enabled !== false);
-      setUpstairsPumpModeState(status.settings.upstairs_pump_mode ?? 'auto');
-      setUpstairsPumpTargetTemp(String(status.settings.upstairs_pump_target_temp ?? 21.3));
-      setUpstairsPumpHysteresis(String(status.settings.upstairs_pump_temp_hysteresis ?? 0.3));
-      setUpstairsPumpCutoff(String(status.settings.upstairs_pump_summer_cutoff_temp ?? 18.0));
-      setUpstairsPumpAntiSeize(status.settings.upstairs_pump_anti_seize_enabled !== false);
-      setUpstairsPumpPriceSetback(status.settings.upstairs_pump_price_setback_enabled !== false);
+      setUpstairsPumpModeState(status.settings.dhw_pump_mode ?? status.settings.upstairs_pump_mode ?? 'auto');
+      setLkvNightStart(String(status.settings.dhw_pump_night_start ?? 23));
+      setLkvNightEnd(String(status.settings.dhw_pump_night_end ?? 6));
+      setLkvCycleOn(String(status.settings.dhw_pump_cycle_on_minutes ?? 10));
+      setLkvCycleOff(String(status.settings.dhw_pump_cycle_off_minutes ?? 15));
+      setLkvMinTankTemp(String(status.settings.dhw_pump_min_tank_temp ?? 40.0));
+      setUpstairsPumpAntiSeize(status.settings.dhw_pump_anti_seize_enabled !== false && status.settings.upstairs_pump_anti_seize_enabled !== false);
+      setUpstairsPumpPriceSetback(status.settings.dhw_pump_price_setback_enabled !== false && status.settings.upstairs_pump_price_setback_enabled !== false);
       setSmartCyclingEnabled(status.settings.smart_cycling_enabled !== false);
       setSmartCyclingBoost(String(status.settings.smart_cycling_charge_boost_c ?? 3.0));
       setSmartCyclingMinRest(String(status.settings.smart_cycling_min_rest_min ?? 60));
@@ -261,9 +265,14 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       floor_pump_summer_pulse_enabled: Boolean(floorPumpSummerPulse),
       floor_pump_anti_seize_enabled: Boolean(floorPumpAntiSeize),
       upstairs_pump_mode: upstairsPumpMode,
-      upstairs_pump_target_temp: parseFloat(upstairsPumpTargetTemp) || 21.3,
-      upstairs_pump_temp_hysteresis: parseFloat(upstairsPumpHysteresis) || 0.3,
-      upstairs_pump_summer_cutoff_temp: parseFloat(upstairsPumpCutoff) || 18.0,
+      dhw_pump_mode: upstairsPumpMode,
+      dhw_pump_night_start: parseInt(lkvNightStart, 10) || 23,
+      dhw_pump_night_end: parseInt(lkvNightEnd, 10) || 6,
+      dhw_pump_cycle_on_minutes: parseFloat(lkvCycleOn) || 10,
+      dhw_pump_cycle_off_minutes: parseFloat(lkvCycleOff) || 15,
+      dhw_pump_min_tank_temp: parseFloat(lkvMinTankTemp) || 40.0,
+      dhw_pump_anti_seize_enabled: Boolean(upstairsPumpAntiSeize),
+      dhw_pump_price_setback_enabled: Boolean(upstairsPumpPriceSetback),
       upstairs_pump_anti_seize_enabled: Boolean(upstairsPumpAntiSeize),
       upstairs_pump_price_setback_enabled: Boolean(upstairsPumpPriceSetback),
       smart_cycling_enabled: Boolean(smartCyclingEnabled),
@@ -1760,19 +1769,19 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
             </div>
           </div>
 
-          {/* ── CARD: Yläkerran Kiertovesipumppu (Tuya WiFi-rele) ── */}
-          <div className="card" style={{ padding: 20, marginTop: 20, border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 14 }}>
+          {/* ── CARD: Käyttöveden Kiertovesipumppu (LKV Yläkerta · Tuya WiFi-rele) ── */}
+          <div className="card" style={{ padding: 20, marginTop: 20, border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>🌀</span> Yläkerran Kiertovesipumppu (Tuya)
+                  <span>🔁</span> Käyttöveden Kiertovesipumppu (LKV Yläkerta)
                 </h3>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  Älykäs lämpötilaohjaus, ylilämpösuoja ja pörssisähköoptimointi yläkerran piirille
+                  Grundfos Comfort PM + Tuya WiFi-rele · Syklinen kierto, yölepo ja varaajasuojaus
                 </div>
               </div>
-              <span className="badge" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', fontSize: 11, padding: '2px 8px' }}>
-                Yläkerta
+              <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: 11, padding: '2px 8px' }}>
+                LKV Käyttövesi
               </span>
             </div>
 
@@ -1784,8 +1793,8 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
               const isAntiSeize = up?.antiSeizeActive;
               return (
                 <div style={{
-                  background: isOn ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.03)',
-                  border: isOn ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)',
+                  background: isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                  border: isOn ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)',
                   borderRadius: 10,
                   padding: '10px 12px',
                   marginBottom: 16,
@@ -1799,25 +1808,25 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        backgroundColor: isOn ? '#38bdf8' : '#64748b',
-                        boxShadow: isOn ? '0 0 8px #38bdf8' : 'none',
+                        backgroundColor: isOn ? '#10b981' : '#64748b',
+                        boxShadow: isOn ? '0 0 8px #10b981' : 'none',
                       }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: isOn ? '#38bdf8' : 'var(--text-muted)' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: isOn ? '#10b981' : 'var(--text-muted)' }}>
                         {isOn ? 'Käynnissä (ON)' : 'Lepotilassa (OFF)'}
                       </span>
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {up?.reason || 'Automaattinen huonelämpöohjaus'}
+                    {up?.reason || 'Automaattinen LKV-kierto-ohjaus'}
                   </div>
                   {isOverride && (
                     <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 4 }}>
-                      ⚡ Manuaalinen pakkokytkentä aktiivinen
+                      ⚡ Manuaalinen ohitus / Suihkuboost aktiivinen ({(up as any)?.overrideMinutesRemaining ?? 0} min)
                     </div>
                   )}
                   {isAntiSeize && (
                     <div style={{ fontSize: 11, color: '#c084fc', fontWeight: 600, marginTop: 4 }}>
-                      🔄 Päivittäinen jumiutumissuojan liikutteluajo aktiivinen
+                      🔄 Huuhtelu- ja jumiutumissuojan ajo aktiivinen
                     </div>
                   )}
                 </div>
@@ -1827,13 +1836,13 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Operating Mode Selector */}
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#38bdf8', display: 'block', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#34d399', display: 'block', marginBottom: 6 }}>
                   Toimintatila:
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   {[
-                    { id: 'auto', label: '⚡ Automaatti', desc: 'Älykäs huonelämpö' },
-                    { id: 'constant_on', label: '🟢 Jatkuva', desc: 'Aina päällä' },
+                    { id: 'auto', label: '⚡ Automaatti', desc: 'Sykli + yölepo + APC' },
+                    { id: 'constant_on', label: '🟢 24/7 Päällä', desc: '230V suorasyöttö' },
                     { id: 'constant_off', label: '🔴 Pois', desc: 'Aina pois' },
                   ].map(m => (
                     <button
@@ -1847,9 +1856,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                       style={{
                         padding: '8px 6px',
                         borderRadius: 8,
-                        border: upstairsPumpMode === m.id ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
-                        background: upstairsPumpMode === m.id ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.02)',
-                        color: upstairsPumpMode === m.id ? '#38bdf8' : 'var(--text-secondary)',
+                        border: upstairsPumpMode === m.id ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
+                        background: upstairsPumpMode === m.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.02)',
+                        color: upstairsPumpMode === m.id ? '#34d399' : 'var(--text-secondary)',
                         cursor: 'pointer',
                         fontSize: 12,
                         fontWeight: 600,
@@ -1868,7 +1877,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Pakkokytkentä / Ohitus:
+                    Pikaohjaus / Suihkuboost:
                   </label>
                   <select
                     value={upstairsPumpOverrideDuration}
@@ -1883,14 +1892,31 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                       fontSize: 11,
                     }}
                   >
-                    <option value="0">Toistaiseksi</option>
+                    <option value="0.25">15 min</option>
+                    <option value="0.5">30 min</option>
                     <option value="1">1 tunti</option>
                     <option value="2">2 tuntia</option>
-                    <option value="4">4 tuntia</option>
-                    <option value="8">8 tuntia</option>
+                    <option value="0">Toistaiseksi</option>
                   </select>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => !readOnly && setUpstairsPumpOverride('ON', 0.25)}
+                    disabled={readOnly}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      color: '#f59e0b',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    🚿 Suihku +15m
+                  </button>
                   <button
                     type="button"
                     onClick={() => !readOnly && setUpstairsPumpOverride('ON', upstairsPumpOverrideDuration)}
@@ -1898,9 +1924,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     style={{
                       padding: '8px 10px',
                       borderRadius: 8,
-                      border: '1px solid rgba(56, 189, 248, 0.4)',
-                      background: 'rgba(56, 189, 248, 0.15)',
-                      color: '#38bdf8',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: '#34d399',
                       cursor: 'pointer',
                       fontSize: 12,
                       fontWeight: 600,
@@ -1945,24 +1971,24 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                 </div>
               </div>
 
-              {/* Target Temperature & Hysteresis */}
+              {/* Duty-cycle timings (Päällä min / Pois min) */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Yläkerran tavoitelämpö:
+                      Kierto päällä syklissä:
                     </label>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
-                      {upstairsPumpTargetTemp} °C
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>
+                      {lkvCycleOn} min
                     </span>
                   </div>
                   <input
                     type="number"
-                    step="0.1"
-                    min="18.0"
-                    max="24.0"
-                    value={upstairsPumpTargetTemp}
-                    onChange={(e) => setUpstairsPumpTargetTemp(e.target.value)}
+                    step="1"
+                    min="2"
+                    max="60"
+                    value={lkvCycleOn}
+                    onChange={(e) => setLkvCycleOn(e.target.value)}
                     disabled={readOnly}
                     style={{
                       width: '100%',
@@ -1975,26 +2001,26 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     }}
                   />
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Mitataan: Yläkerran työhuone (tuya)
+                    Aika, jonka pumppu käy syklin alussa
                   </div>
                 </div>
 
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Ylilämpöhystereesi:
+                      Kiertotauko syklissä:
                     </label>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
-                      +{upstairsPumpHysteresis} °C
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>
+                      {lkvCycleOff} min
                     </span>
                   </div>
                   <input
                     type="number"
-                    step="0.1"
-                    min="0.1"
-                    max="1.5"
-                    value={upstairsPumpHysteresis}
-                    onChange={(e) => setUpstairsPumpHysteresis(e.target.value)}
+                    step="1"
+                    min="1"
+                    max="60"
+                    value={lkvCycleOff}
+                    onChange={(e) => setLkvCycleOff(e.target.value)}
                     disabled={readOnly}
                     style={{
                       width: '100%',
@@ -2007,33 +2033,108 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     }}
                   />
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Pysäyttää kierron ylilämmön välttämiseksi
+                    Taukoaika, jolloin vesi pysyy lämpimänä putkissa
                   </div>
                 </div>
               </div>
 
-              {/* Summer Cutoff Threshold */}
+              {/* Night Sleep Standby Windows (Yölepo) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Yölepo alkaa klo:
+                    </label>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
+                      {lkvNightStart}:00
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="1"
+                    min="18"
+                    max="23"
+                    value={lkvNightStart}
+                    onChange={(e) => setLkvNightStart(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Kierto sammutetaan öisin lämpöhäviöiden estämiseksi
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Yölepo päättyy klo:
+                    </label>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
+                      {lkvNightEnd}:00
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="1"
+                    min="4"
+                    max="10"
+                    value={lkvNightEnd}
+                    onChange={(e) => setLkvNightEnd(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Aamun mukavuuskierto käynnistyy tällöin
+                  </div>
+                </div>
+              </div>
+
+              {/* Tank Min Temp Protection */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Kesäkatkaisun ulkolämpötila:
+                    Varaajan suojaraja (DHW Min Temp):
                   </label>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
-                    {upstairsPumpCutoff} °C
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>
+                    {lkvMinTankTemp} °C
                   </span>
                 </div>
                 <input
-                  type="range"
-                  min="14"
-                  max="22"
+                  type="number"
                   step="0.5"
-                  value={upstairsPumpCutoff}
-                  onChange={(e) => setUpstairsPumpCutoff(e.target.value)}
+                  min="30"
+                  max="50"
+                  value={lkvMinTankTemp}
+                  onChange={(e) => setLkvMinTankTemp(e.target.value)}
                   disabled={readOnly}
-                  style={{ width: '100%', accentColor: '#38bdf8' }}
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                  }}
                 />
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Sammuttaa yläkerran pumpun automaattisesti kun ulkolämpötila ylittää tämän arvon.
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Jos käyttövesi jäähtyy tämän alle, kierto pysäytetään varaajan nopean toipumisen varmistamiseksi.
                 </div>
               </div>
 
@@ -2048,7 +2149,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     style={{ width: 16, height: 16, marginTop: 2, accentColor: '#38bdf8' }}
                   />
                   <span>
-                    <strong style={{ color: 'var(--text-primary)' }}>Hintapiikkisäästö (SETBACK)</strong>: Tauottaa yläkerran kierron kalliin pörssisähkön hintahuippujen aikana, jos yläkerran lämpötila on riittävä.
+                    <strong style={{ color: 'var(--text-primary)' }}>Hintapiikkisäästö (SETBACK)</strong>: Tauottaa LKV-kierron kalliin pörssisähkön huipputuntien aikana varaajan lämmön säästämiseksi.
                   </span>
                 </label>
 
@@ -2061,7 +2162,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     style={{ width: 16, height: 16, marginTop: 2, accentColor: '#10b981' }}
                   />
                   <span>
-                    <strong style={{ color: 'var(--text-primary)' }}>Päivittäinen jumiutumisenesto</strong>: Pyörittää yläkerran pumppua 5 minuutin ajan päivittäin (klo 12:10–12:15) kesätauon aikana.
+                    <strong style={{ color: 'var(--text-primary)' }}>Huuhtelu- ja jumiutumissuoja</strong>: Käynnistää kierron legionelladesinfioinnin yhteydessä ja ajaa 5 min huuhtelun päivittäin klo 13:00.
                   </span>
                 </label>
               </div>

@@ -221,20 +221,20 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
     },
     upstairs_pump: {
       id: 'upstairs_pump',
-      title: 'Yläkerran kiertovesipumppu (Tuya)',
-      icon: '🌀',
-      category: 'Toisiopiiri · Yläkerran Lämmityspiiri',
-      description: 'Älyohjattu toisiopiirin kiertovesipumppu yläkerran lämmityspiireille. Ohjataan Tuya WiFi-releellä yläkerran huonelämpötilan, ylilämpösuojan ja APC-strategian mukaisesti.',
+      title: 'Käyttöveden kiertovesipumppu (LKV Yläkerta · Tuya)',
+      icon: '🔁',
+      category: 'LKV-kierto · Lämmin Käyttövesi',
+      description: 'Älyohjattu käyttöveden mukavuuskiertovesipumppu (Grundfos Comfort PM + Tuya WiFi-rele). Kierrättää lämmintä käyttövettä 284L varaajasta yläkerran suihkuihin ja hanoille syklisesti ja yölevolla.',
       metrics: [
-        { label: 'Tila', value: isUpstairsPumpRunning ? 'Käynnissä (ON)' : 'Lepotilassa (OFF)' },
-        { label: 'Yläkerran lämpötila', value: state['tuya/ylakerran_tyohuone/temperature']?.value ? `${state['tuya/ylakerran_tyohuone/temperature']?.value} °C` : '--' },
+        { label: 'Tila', value: isUpstairsPumpRunning ? 'Käynnissä (Kierto aktiivinen)' : 'Lepotilassa (Tauko / Yölepo)' },
+        { label: 'Varaajan lämpötila', value: state['main/DHW_Temp']?.value ? `${state['main/DHW_Temp']?.value} °C` : '--' },
         { label: 'Ohjaustapa', value: 'Tuya WiFi Smart Relay' },
-        { label: 'Strategia', value: 'Huonelämpöohjaus, Ylilämpösuoja & Jumiutumissuoja' },
+        { label: 'Strategia', value: 'Syklinen kierto (10/15 min), Yölepo (23–06) & Suihkuboost' },
       ],
       technicalDetails: [
-        'Kierrättää puskurivaraajan lämpöä yläkerran lämmitysverkostoon.',
-        'Pysäytetään automaattisesti, kun yläkerta saavuttaa tavoitelämpötilan (21,3 °C), mikä estää rossipohjaisen yläkerran ylilämpenemisen.',
-        'Kesäkatkaisu (≥ 18 °C) ja päivittäinen jumiutumissuojapulssi klo 12:10–12:15.',
+        'Kierrättää 284L käyttövesivaraajasta lämmintä vettä yläkerran hanoille ja suihkutiloille.',
+        'Korvaa entisen 24/7 jatkuvan 230V suorasyötön ja estää varaajan tarpeettoman jäähtymisen öisin ja taukojaksoina.',
+        'Pumppua voi ohjata suoraan pikanäppäimillä (suihkuboost 15 min / 30 min) tai antaa älyohjauksen hoitaa syklit.',
       ],
     },
   };
@@ -529,14 +529,46 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
             {/* 8. Domestic Hot Water Comfort Recirculation (Grundfos Comfort PM to faucets) */}
             <path
               d="M 550 90 L 550 70 L 630 70 L 630 140 L 565 140"
-              stroke="#ef4444"
+              stroke={isUpstairsPumpRunning ? '#10b981' : '#ef4444'}
               strokeWidth="4"
-              strokeDasharray="4 4"
+              strokeDasharray={isUpstairsPumpRunning ? '6 4' : '4 4'}
               strokeLinejoin="round"
               fill="none"
-              opacity="0.7"
+              opacity={isUpstairsPumpRunning ? 0.9 : 0.6}
+              className={isUpstairsPumpRunning ? 'pipe-flow-active' : undefined}
             />
-            <text x="635" y="95" fill="#f87171" fontSize="10" fontWeight="600">LKV-kierto (Yläkerta)</text>
+            <text x="645" y="95" fill={isUpstairsPumpRunning ? '#34d399' : '#f87171'} fontSize="10" fontWeight="600">LKV-kierto (Yläkerta)</text>
+
+            {/* NODE 8: LKV Circulation Pump (Grundfos Comfort PM + Tuya Smart Relay) */}
+            <g
+              className="diagram-node-clickable"
+              onClick={() => setSelectedNode('upstairs_pump')}
+              transform="translate(615, 80)"
+            >
+              <circle
+                cx="15"
+                cy="15"
+                r="16"
+                fill="rgba(30, 41, 59, 0.95)"
+                stroke={isUpstairsPumpRunning ? '#10b981' : selectedNode === 'upstairs_pump' ? '#38bdf8' : 'rgba(255,255,255,0.3)'}
+                strokeWidth="2"
+                filter={isUpstairsPumpRunning ? 'url(#glowCool)' : undefined}
+              />
+              <text
+                x="15"
+                y="20"
+                fontSize="14"
+                textAnchor="middle"
+                className={isUpstairsPumpRunning ? 'spinning' : ''}
+              >
+                🔁
+              </text>
+              <rect x="-15" y="34" width="60" height="16" rx="4" fill="rgba(0,0,0,0.7)" />
+              <text x="15" y="45" fill={isUpstairsPumpRunning ? '#34d399' : '#94a3b8'} fontSize="8" fontWeight="700" textAnchor="middle">
+                LKV (Tuya)
+              </text>
+              <circle cx="15" cy="-1" r="3" fill={isUpstairsPumpRunning ? '#10b981' : '#64748b'} />
+            </g>
 
             {/* ─── HARDWARE NODES & TANKS ─── */}
 
@@ -732,36 +764,6 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
               <circle cx="20" cy="1" r="3.5" fill={isFloorPumpRunning ? '#22c55e' : '#64748b'} />
             </g>
 
-            {/* NODE 5.6: Upstairs Secondary Pump (Tuya - Yläkerta) */}
-            <g
-              className="diagram-node-clickable"
-              onClick={() => setSelectedNode('upstairs_pump')}
-              transform="translate(805, 95)"
-            >
-              <circle
-                cx="20"
-                cy="22"
-                r="18"
-                fill="rgba(30, 41, 59, 0.95)"
-                stroke={isUpstairsPumpRunning ? '#38bdf8' : 'rgba(255,255,255,0.3)'}
-                strokeWidth="2"
-                filter={isUpstairsPumpRunning ? 'url(#glowHeat)' : undefined}
-              />
-              <text
-                x="20"
-                y="28"
-                fontSize="16"
-                textAnchor="middle"
-                className={isUpstairsPumpRunning ? 'spinning' : ''}
-              >
-                🌀
-              </text>
-              <rect x="-10" y="44" width="60" height="18" rx="4" fill="rgba(0,0,0,0.6)" />
-              <text x="20" y="56" fill="#38bdf8" fontSize="8" fontWeight="700" textAnchor="middle">
-                Yläkerta (Tuya)
-              </text>
-              <circle cx="20" cy="1" r="3.5" fill={isUpstairsPumpRunning ? '#38bdf8' : '#64748b'} />
-            </g>
 
             {/* NODE 5: Floor Heating Manifold & Loops */}
             <g
@@ -971,20 +973,60 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
             </div>
           )}
 
-          {/* Quick Override Controls for Upstairs Pump */}
+          {/* Quick Override Controls for Upstairs LKV Pump */}
           {selectedNode === 'upstairs_pump' && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Yläkerran kiertovesipumpun ohjaus
+                Käyttöveden kiertovesipumpun ohjaus (LKV Yläkerta)
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setUpstairsPumpOverride('ON', 0.25)}
+                  disabled={pending}
+                  style={{
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: '#f59e0b',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                  }}
+                >
+                  <span>🚿</span> Suihku +15m
+                </button>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setUpstairsPumpOverride('ON', 0.5)}
+                  disabled={pending}
+                  style={{
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: '#f59e0b',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                  }}
+                >
+                  <span>🚿</span> Suihku +30m
+                </button>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={() => setUpstairsPumpOverride(null, 0)}
+                  disabled={pending}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>⚡</span> Auto
+                </button>
                 <button
                   className="btn btn-sm btn-success"
                   onClick={() => setUpstairsPumpOverride('ON', 0)}
                   disabled={pending}
                   style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <span>🟢</span> Pakota Päälle
+                  <span>🟢</span> 24/7 Päällä
                 </button>
                 <button
                   className="btn btn-sm btn-danger"
@@ -992,15 +1034,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
                   disabled={pending}
                   style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <span>🔴</span> Pakota Pois
-                </button>
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => setUpstairsPumpOverride(null, 0)}
-                  disabled={pending}
-                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <span>⚡</span> Palauta Auto
+                  <span>🔴</span> Pois
                 </button>
               </div>
             </div>

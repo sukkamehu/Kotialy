@@ -733,6 +733,18 @@ function getApcSettings() {
     upstairs_pump_override_until: 0,
     upstairs_pump_override_state: null,
     upstairs_pump_device_id: 'bfb6ed442015162bc97kca',
+    // LKV (Käyttövesi) circulation pump settings
+    dhw_pump_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
+    dhw_pump_night_start: 23,
+    dhw_pump_night_end: 6,
+    dhw_pump_cycle_on_minutes: 10,
+    dhw_pump_cycle_off_minutes: 15,
+    dhw_pump_min_tank_temp: 40.0,
+    dhw_pump_price_setback_enabled: true,
+    dhw_pump_anti_seize_enabled: true,
+    dhw_pump_override_until: 0,
+    dhw_pump_override_state: null,
+    dhw_pump_device_id: 'bfb6ed442015162bc97kca',
     defrost_cable_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
     defrost_cable_temp_threshold: 2.0,
     defrost_cable_hard_freeze_temp: -5.0,
@@ -777,10 +789,14 @@ function getApcSettings() {
       settings.floor_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_summer_pulse_enabled') {
       settings.floor_pump_summer_pulse_enabled = r.value === '1' || r.value === 'true';
-    } else if (r.key === 'upstairs_pump_anti_seize_enabled') {
-      settings.upstairs_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
-    } else if (r.key === 'upstairs_pump_price_setback_enabled') {
-      settings.upstairs_pump_price_setback_enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'upstairs_pump_anti_seize_enabled' || r.key === 'dhw_pump_anti_seize_enabled') {
+      const val = r.value === '1' || r.value === 'true';
+      settings.upstairs_pump_anti_seize_enabled = val;
+      settings.dhw_pump_anti_seize_enabled = val;
+    } else if (r.key === 'upstairs_pump_price_setback_enabled' || r.key === 'dhw_pump_price_setback_enabled') {
+      const val = r.value === '1' || r.value === 'true';
+      settings.upstairs_pump_price_setback_enabled = val;
+      settings.dhw_pump_price_setback_enabled = val;
     } else if (
       r.key === 'mode' ||
       r.key === 'override_directive' ||
@@ -789,10 +805,17 @@ function getApcSettings() {
       r.key === 'upstairs_pump_mode' ||
       r.key === 'upstairs_pump_override_state' ||
       r.key === 'upstairs_pump_device_id' ||
+      r.key === 'dhw_pump_mode' ||
+      r.key === 'dhw_pump_override_state' ||
+      r.key === 'dhw_pump_device_id' ||
       r.key === 'defrost_cable_mode' ||
       r.key === 'defrost_cable_override_state'
     ) {
       settings[r.key] = r.value;
+      if (r.key === 'dhw_pump_mode') settings.upstairs_pump_mode = r.value;
+      if (r.key === 'upstairs_pump_mode') settings.dhw_pump_mode = r.value;
+      if (r.key === 'dhw_pump_override_state') settings.upstairs_pump_override_state = r.value;
+      if (r.key === 'upstairs_pump_override_state') settings.dhw_pump_override_state = r.value;
     } else {
       const n = parseFloat(r.value);
       if (!isNaN(n)) settings[r.key] = n;
