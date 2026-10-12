@@ -37,6 +37,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_history_topic_time
     ON sensor_history (topic, recorded_at);
 
+  CREATE INDEX IF NOT EXISTS idx_sensor_history_recorded_at
+    ON sensor_history (recorded_at);
+
   CREATE TABLE IF NOT EXISTS nordpool_prices (
     start_time INTEGER PRIMARY KEY,
     end_time   INTEGER NOT NULL,
@@ -1117,18 +1120,84 @@ function getHerrforsStats() {
   };
 }
 
-function pruneOldHistory(retentionDays = 30) {
-  const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+/**
+ * Downsamples sensor history older than rawRetentionDays into 1-hour averages,
+ * preserving hourly records up to maxHourlyRetentionDays (default 3 years / 1095 days).
+ * Weather forecasts (>14d), APC logs (>60d), and notification logs (>60d) are pruned.
+ */
+function downsampleAndPruneHistory(rawRetentionDays = 14, maxHourlyRetentionDays = 1095) {
+  const now = Date.now();
+  const rawCutoffMs = now - rawRetentionDays * 24 * 60 * 60 * 1000;
+  const hourlyCutoffMs = now - maxHourlyRetentionDays * 24 * 60 * 60 * 1000;
+
   try {
-    const res1 = db.prepare('DELETE FROM sensor_history WHERE recorded_at < ?').run(cutoffMs);
-    const res2 = db.prepare('DELETE FROM weather_forecast WHERE time < ?').run(cutoffMs);
-    const res3 = db.prepare('DELETE FROM apc_logs WHERE timestamp < ?').run(cutoffMs);
-    console.log(`[DB] Pruned history older than ${retentionDays} days: ${res1.changes} sensor records, ${res2.changes} weather records, ${res3.changes} logs removed`);
-    return { sensor_records: res1.changes, weather_records: res2.changes, log_records: res3.changes };
+    // 1. Delete records older than max hourly retention (default: 3 years)
+    const resPruneOld = db.prepare('DELETE FROM sensor_history WHERE recorded_at < ?').run(hourlyCutoffMs);
+
+    // 2. Identify hours with multiple raw records older than rawCutoffMs and aggregate into hourly averages
+    db.exec(`
+      CREATE TEMP TABLE IF NOT EXISTS _downsample_agg AS
+      SELECT 
+        topic,
+        ROUND(AVG(value), 3) AS avg_value,
+        (CAST(recorded_at / 3600000 AS INTEGER) * 3600000) AS hour_ts
+      FROM sensor_history
+      WHERE recorded_at < ${rawCutoffMs} AND recorded_at >= ${hourlyCutoffMs}
+      GROUP BY topic, (CAST(recorded_at / 3600000 AS INTEGER))
+      HAVING COUNT(*) > 1;
+    `);
+
+    const aggCount = db.prepare('SELECT count(*) as c FROM _downsample_agg').get()?.c || 0;
+    let deletedRaw = 0;
+
+    if (aggCount > 0) {
+      const resDelete = db.prepare(`
+        DELETE FROM sensor_history
+        WHERE recorded_at < ? AND recorded_at >= ?
+          AND EXISTS (
+            SELECT 1 FROM _downsample_agg a
+            WHERE a.topic = sensor_history.topic
+              AND a.hour_ts = (CAST(sensor_history.recorded_at / 3600000 AS INTEGER) * 3600000)
+          )
+      `).run(rawCutoffMs, hourlyCutoffMs);
+      deletedRaw = resDelete.changes;
+
+      db.exec(`
+        INSERT INTO sensor_history (topic, value, recorded_at)
+        SELECT topic, avg_value, hour_ts FROM _downsample_agg;
+      `);
+    }
+
+    db.exec('DROP TABLE IF EXISTS _downsample_agg;');
+
+    // 3. Prune forecasts (>14 days), APC logs (>60 days), notifications (>60 days)
+    const resWeather = db.prepare('DELETE FROM weather_forecast WHERE time < ?').run(now - 14 * 86400000);
+    const resApc = db.prepare('DELETE FROM apc_logs WHERE timestamp < ?').run(now - 60 * 86400000);
+    let notifPruned = 0;
+    try {
+      const resNotif = db.prepare('DELETE FROM notification_history WHERE created_at < ?').run(now - 60 * 86400000);
+      notifPruned = resNotif.changes;
+    } catch {}
+
+    console.log(`[DB] Downsampling & maintenance complete: ${deletedRaw} raw samples aggregated into ${aggCount} hourly records. Pruned: ${resPruneOld.changes} ultra-old history, ${resWeather.changes} weather, ${resApc.changes} APC logs, ${notifPruned} notifications.`);
+
+    return {
+      success: true,
+      downsampledHours: aggCount,
+      rawRowsFreed: deletedRaw - aggCount,
+      ultraOldPruned: resPruneOld.changes,
+      weatherPruned: resWeather.changes,
+      apcPruned: resApc.changes,
+    };
   } catch (err) {
-    console.error('[DB] pruneOldHistory failed:', err.message);
-    return { error: err.message };
+    console.error('[DB] downsampleAndPruneHistory failed:', err.message);
+    try { db.exec('DROP TABLE IF EXISTS _downsample_agg;'); } catch {}
+    return { success: false, error: err.message };
   }
+}
+
+function pruneOldHistory(retentionDays = 14) {
+  return downsampleAndPruneHistory(retentionDays, 1095);
 }
 
 function vacuumDatabase() {
@@ -1688,6 +1757,7 @@ module.exports = {
   getHerrforsSettings,
   updateHerrforsSetting,
   getHerrforsStats,
+  downsampleAndPruneHistory,
   pruneOldHistory,
   vacuumDatabase,
   getTapoDevices,

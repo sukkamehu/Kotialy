@@ -233,12 +233,21 @@ function publishMqttLiveStates() {
 setInterval(publishMqttLiveStates, 2_000);
 setTimeout(publishMqttLiveStates, 1_000);
 
-// Daily database maintenance (prune records older than 30 days & truncate WAL)
-const { pruneOldHistory, vacuumDatabase } = require('./db');
-setTimeout(() => pruneOldHistory(30), 60_000);
+// Database maintenance: keep 14 days of raw 1-min samples, downsample older to 1-hour averages (up to 3 years), vacuum weekly
+const { downsampleAndPruneHistory, vacuumDatabase } = require('./db');
+setTimeout(() => {
+  downsampleAndPruneHistory(14, 1095);
+}, 60_000);
+
+// Daily downsampling and cleanup
 setInterval(() => {
-  pruneOldHistory(30);
+  downsampleAndPruneHistory(14, 1095);
 }, 24 * 60 * 60 * 1000);
+
+// Weekly database vacuum (every 7 days) to reclaim disk space
+setInterval(() => {
+  vacuumDatabase();
+}, 7 * 24 * 60 * 60 * 1000);
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 

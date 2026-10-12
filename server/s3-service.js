@@ -1,6 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, CopyObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 class S3Service {
@@ -74,11 +75,11 @@ class S3Service {
   }
 
   /**
-   * Backup SQLite database to Cloudflare R2
+   * Backup SQLite database to Cloudflare R2 (gzip compressed)
    * Max 2 copies strategy:
-   * 1. kotialy-latest.db (continuously synced latest copy)
-   * 2. kotialy-previous.db (previous snapshot rotated before updating latest)
-   * Any older timestamped files are automatically pruned.
+   * 1. kotialy-latest.db.gz (latest compressed snapshot)
+   * 2. kotialy-previous.db.gz (previous compressed snapshot rotated before updating latest)
+   * Any older or uncompressed legacy backup files are automatically pruned.
    */
   async backupDatabase() {
     if (!this.isConfigured()) {
@@ -100,10 +101,11 @@ class S3Service {
         }
       } catch {}
 
-      const data = fs.readFileSync(dbPath);
+      const rawData = fs.readFileSync(dbPath);
+      const compressedData = zlib.gzipSync(rawData, { level: 6 });
 
-      const latestRelKey = 'backups/kotialy-latest.db';
-      const previousRelKey = 'backups/kotialy-previous.db';
+      const latestRelKey = 'backups/kotialy-latest.db.gz';
+      const previousRelKey = 'backups/kotialy-previous.db.gz';
 
       const fullLatestKey = this.prefix ? `${this.prefix.replace(/\/+$/, '')}/${latestRelKey}` : latestRelKey;
       const fullPreviousKey = this.prefix ? `${this.prefix.replace(/\/+$/, '')}/${previousRelKey}` : previousRelKey;
@@ -121,20 +123,21 @@ class S3Service {
         // Initial run or no latest exists yet - ignorable
       }
 
-      // 2. Upload fresh database snapshot to latest.db
-      const latestRes = await this.uploadFile(latestRelKey, data, 'application/x-sqlite3');
+      // 2. Upload fresh gzip-compressed database snapshot to latest.db.gz
+      const latestRes = await this.uploadFile(latestRelKey, compressedData, 'application/gzip');
 
-      // 3. Prune any other legacy or old timestamped backups (keeps strictly max 2)
+      // 3. Prune any other legacy or old uncompressed backups (keeps strictly max 2: latest & previous)
       await this.pruneExcessBackups([fullLatestKey, fullPreviousKey]);
 
       this.lastBackupAt = Date.now();
       this.lastBackupStatus = 'success';
       this.lastBackupError = null;
 
-      console.log(`[R2] Database backup synced to Cloudflare R2 (${(data.length / 1024 / 1024).toFixed(2)} MB): ${latestRes.key}`);
+      console.log(`[R2] Database backup compressed & synced to Cloudflare R2 (${(compressedData.length / 1024 / 1024).toFixed(2)} MB, raw ${(rawData.length / 1024 / 1024).toFixed(2)} MB): ${latestRes.key}`);
       return {
         success: true,
-        sizeBytes: data.length,
+        sizeBytes: compressedData.length,
+        rawSizeBytes: rawData.length,
         latestKey: fullLatestKey,
         previousKey: fullPreviousKey,
         uploadedAt: this.lastBackupAt,
@@ -226,7 +229,7 @@ class S3Service {
       endpoint: this.endpoint,
       publicUrl: this.publicUrl,
       prefix: this.prefix,
-      intervalMinutes: parseInt(process.env.BACKUP_INTERVAL_MINUTES || '10'),
+      intervalMinutes: parseInt(process.env.BACKUP_INTERVAL_MINUTES || '720'),
       lastBackupAt: this.lastBackupAt,
       lastBackupStatus: this.lastBackupStatus,
       lastBackupError: this.lastBackupError,
@@ -234,15 +237,15 @@ class S3Service {
   }
 
   /**
-   * Start periodic backup scheduler (every 10 minutes)
+   * Start periodic backup scheduler (default: 2x / day = 720 minutes)
    */
   startScheduler() {
     if (this.backupIntervalTimer) clearInterval(this.backupIntervalTimer);
 
-    const intervalMinutes = parseInt(process.env.BACKUP_INTERVAL_MINUTES || '10');
+    const intervalMinutes = parseInt(process.env.BACKUP_INTERVAL_MINUTES || '720');
     const intervalMs = Math.max(1, intervalMinutes) * 60 * 1000;
 
-    console.log(`[R2] Käynnistetään Cloudflare R2 automaattinen varmuuskopiointi (${intervalMinutes} minuutin välein)...`);
+    console.log(`[R2] Käynnistetään Cloudflare R2 automaattinen varmuuskopiointi (2x / vrk, ${intervalMinutes} minuutin välein)...`);
 
     if (this.isConfigured()) {
       setTimeout(() => {

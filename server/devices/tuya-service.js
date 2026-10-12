@@ -415,9 +415,6 @@ class TuyaService {
       // Append history for numeric properties (temperature, humidity, battery, power, energy, etc.)
       if (typeof val === 'number') {
         db.maybeAppendHistory(topic, val, 60000);
-        if (legacyPrefix !== prefix) {
-          db.maybeAppendHistory(`${legacyPrefix}${prop}`, val, 60000);
-        }
       }
     }
 
@@ -437,7 +434,6 @@ class TuyaService {
         db.updateState(`tuya/ulkovalot_1/${prop}`, String(val));
         if (typeof val === 'number') {
           db.maybeAppendHistory(`tuya/ulkovalot/${prop}`, val, 60000);
-          db.maybeAppendHistory(`tuya/ulkovalot_1/${prop}`, val, 60000);
         }
       }
     }
