@@ -180,6 +180,84 @@ export function useApc() {
     }
   };
 
+  const setUpstairsPumpOverride = async (state: 'ON' | 'OFF' | null, durationHours: number = 0) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/upstairs-pump/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state, duration_hours: durationHours }),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      } else {
+        const errData = await res.json().catch(() => ({ error: 'Yläkerran pumpun ohjaus epäonnistui' }));
+        setError(errData.error);
+        return false;
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setUpstairsPumpMode = async (mode: 'auto' | 'constant_on' | 'constant_off') => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/upstairs-pump/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateUpstairsPumpSettings = async (pumpSettings: {
+    target_temp?: number;
+    temp_hysteresis?: number;
+    summer_cutoff_temp?: number;
+    anti_seize_enabled?: boolean;
+    price_setback_enabled?: boolean;
+  }) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/apc/upstairs-pump/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pumpSettings),
+      });
+      if (res.ok) {
+        fetchStatus();
+        fetchLogs();
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      setError(err.message || 'Verkkovirhe');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const setDefrostCableOverride = async (state: 'ON' | 'OFF' | null, durationHours: number = 0) => {
     setSaving(true);
     setError(null);
@@ -243,6 +321,9 @@ export function useApc() {
     setFloorPumpOverride,
     setFloorPumpMode,
     updateFloorPumpSettings,
+    setUpstairsPumpOverride,
+    setUpstairsPumpMode,
+    updateUpstairsPumpSettings,
     setDefrostCableOverride,
     updateDefrostCableSettings,
   };

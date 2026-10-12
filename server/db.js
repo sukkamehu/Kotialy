@@ -724,6 +724,15 @@ function getApcSettings() {
     floor_pump_anti_seize_enabled: true,
     floor_pump_override_until: 0,
     floor_pump_override_state: null,
+    upstairs_pump_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
+    upstairs_pump_target_temp: 21.3,
+    upstairs_pump_temp_hysteresis: 0.3,
+    upstairs_pump_summer_cutoff_temp: 18.0,
+    upstairs_pump_anti_seize_enabled: true,
+    upstairs_pump_price_setback_enabled: true,
+    upstairs_pump_override_until: 0,
+    upstairs_pump_override_state: null,
+    upstairs_pump_device_id: 'bfb6ed442015162bc97kca',
     defrost_cable_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
     defrost_cable_temp_threshold: 2.0,
     defrost_cable_hard_freeze_temp: -5.0,
@@ -768,11 +777,18 @@ function getApcSettings() {
       settings.floor_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'floor_pump_summer_pulse_enabled') {
       settings.floor_pump_summer_pulse_enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'upstairs_pump_anti_seize_enabled') {
+      settings.upstairs_pump_anti_seize_enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'upstairs_pump_price_setback_enabled') {
+      settings.upstairs_pump_price_setback_enabled = r.value === '1' || r.value === 'true';
     } else if (
       r.key === 'mode' ||
       r.key === 'override_directive' ||
       r.key === 'floor_pump_mode' ||
       r.key === 'floor_pump_override_state' ||
+      r.key === 'upstairs_pump_mode' ||
+      r.key === 'upstairs_pump_override_state' ||
+      r.key === 'upstairs_pump_device_id' ||
       r.key === 'defrost_cable_mode' ||
       r.key === 'defrost_cable_override_state'
     ) {
@@ -1364,6 +1380,7 @@ function getNotificationHistory(limit = 50) {
 const DEFAULT_OUTDOOR_LIGHTS_SETTINGS = {
   enabled: 'true',
   device_id: 'bf7a39a3a10e38a52engat',
+  device_id_2: 'bfee1ec43ebb997b0c12ru',
   dusk_offset_minutes: '10',
   dawn_offset_minutes: '15',
   night_off_enabled: 'true',
@@ -1371,6 +1388,10 @@ const DEFAULT_OUTDOOR_LIGHTS_SETTINGS = {
   night_off_end: '05:30',
   override_state: '',
   override_until: '0',
+  override_relay1_state: '',
+  override_relay1_until: '0',
+  override_relay2_state: '',
+  override_relay2_until: '0',
 };
 
 function getOutdoorLightsSettings() {

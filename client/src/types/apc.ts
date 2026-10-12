@@ -3,6 +3,7 @@ export type ApcMode = 'balanced' | 'eco' | 'comfort' | 'dhw_only';
 export type ApcDirective = 'BOOST' | 'NORMAL' | 'SETBACK' | 'ECO' | 'DHW_CYCLE';
 
 export type FloorPumpMode = 'auto' | 'constant_on' | 'constant_off';
+export type UpstairsPumpMode = 'auto' | 'constant_on' | 'constant_off';
 export type DefrostCableMode = 'auto' | 'constant_on' | 'constant_off';
 
 export interface ApcSettings {
@@ -31,6 +32,15 @@ export interface ApcSettings {
   floor_pump_anti_seize_enabled?: boolean;
   floor_pump_override_until?: number;
   floor_pump_override_state?: 'ON' | 'OFF' | null;
+  upstairs_pump_mode?: UpstairsPumpMode;
+  upstairs_pump_target_temp?: number;
+  upstairs_pump_temp_hysteresis?: number;
+  upstairs_pump_summer_cutoff_temp?: number;
+  upstairs_pump_anti_seize_enabled?: boolean;
+  upstairs_pump_price_setback_enabled?: boolean;
+  upstairs_pump_override_until?: number;
+  upstairs_pump_override_state?: 'ON' | 'OFF' | null;
+  upstairs_pump_device_id?: string;
   defrost_cable_mode?: DefrostCableMode;
   defrost_cable_temp_threshold?: number;
   defrost_cable_hard_freeze_temp?: number;
@@ -67,6 +77,28 @@ export interface FloorPumpStatus {
   summerCutoffTemp: number;
   summerPulseEnabled?: boolean;
   antiSeizeEnabled: boolean;
+}
+
+export interface UpstairsPumpStatus {
+  driver: 'upstairs_pump';
+  name: string;
+  type: string;
+  connected: boolean;
+  currentState: 'ON' | 'OFF' | string;
+  mode: UpstairsPumpMode;
+  overrideActive: boolean;
+  overrideUntil: number;
+  overrideState: 'ON' | 'OFF' | null;
+  reason: string;
+  antiSeizeActive: boolean;
+  lastAppliedAt: number;
+  upstairsTemp: number | null;
+  targetTemp: number;
+  tempHysteresis: number;
+  summerCutoffTemp: number;
+  antiSeizeEnabled: boolean;
+  priceSetbackEnabled: boolean;
+  deviceId?: string;
 }
 
 export interface DefrostCableStatus {

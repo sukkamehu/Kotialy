@@ -27,13 +27,13 @@ export function useOutdoorLights() {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  const setOverride = async (state: 'ON' | 'OFF' | 'AUTO', durationMinutes = 120) => {
+  const setOverride = async (state: 'ON' | 'OFF' | 'AUTO', durationMinutes = 120, target: 'all' | 'relay1' | 'relay2' | string = 'all') => {
     setSaving(true);
     try {
       const res = await apiFetch('/api/outdoor-lights/override', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state, durationMinutes }),
+        body: JSON.stringify({ state, durationMinutes, target }),
       });
       if (res.ok) {
         const data = await res.json();

@@ -138,7 +138,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
 
   const { send, pending, error, success } = useCommand();
   const { calcCostPerHour } = useElectricityPrice();
-  const { status: apcStatus, updateSettings: updateApcSettings, setFloorPumpOverride } = useApc();
+  const { status: apcStatus, updateSettings: updateApcSettings, setFloorPumpOverride, setUpstairsPumpOverride } = useApc();
   const cost = calcCostPerHour(cons);
 
   const [mode, setMode] = useState<Z1Mode>(loadMode);
@@ -164,6 +164,26 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
     } else {
       await setFloorPumpOverride(target, 0);
     }
+  };
+
+  // Yläkerran toisiokiertovesipumpun (Tuya) tila ja älykäs ohjaus
+  const upstairsPumpRaw = state['tuya/kiertovesipumppu/state']?.value ??
+                          state['tuya/ylakerran_kiertovesipumppu/state']?.value;
+  const isUpstairsPumpRunning = upstairsPumpRaw === 'true' || upstairsPumpRaw === '1' || upstairsPumpRaw === 'ON';
+  const upstairsPumpDevice = apcStatus?.devices?.find((d) => d.driver === 'upstairs_pump') as any;
+  const upstairsPumpOverrideActive = upstairsPumpDevice?.overrideActive ?? (apcStatus?.settings?.upstairs_pump_override_until ? apcStatus.settings.upstairs_pump_override_until > Date.now() : false);
+  const upstairsPumpOverrideState = upstairsPumpDevice?.overrideState ?? apcStatus?.settings?.upstairs_pump_override_state;
+  const upstairsPumpReason = upstairsPumpDevice?.reason || (isUpstairsPumpRunning ? 'Käynnissä (Yläkerran kierto)' : 'Lepotilassa (Pois päältä)');
+  const isUpstairsAntiSeizeRunning = upstairsPumpDevice?.antiSeizeActive ?? false;
+
+  const upstairsTempRaw = state['tuya/ylakerran_tyohuone/temperature']?.value ??
+                          state['tuya/yl_kerran_ty_huone/temperature']?.value;
+  const upstairsTemp = upstairsTempRaw != null ? parseFloat(upstairsTempRaw) : null;
+  const upstairsTarget = apcStatus?.settings?.upstairs_pump_target_temp ?? 21.3;
+
+  const handleUpstairsPumpToggle = async (target: 'ON' | 'OFF' | null) => {
+    if (readOnly) return;
+    await setUpstairsPumpOverride(target, 0);
   };
 
   function changeMode(next: Z1Mode) {
@@ -548,6 +568,175 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                 borderRadius: 6,
                 color: !isFloorPumpRunning && floorPumpOverrideActive ? '#ef4444' : undefined,
                 border: floorPumpOverrideActive && floorPumpOverrideState === 'OFF' ? '1px solid #ef4444' : undefined,
+              }}
+            >
+              🔴 Pakota Pois
+            </button>
+          </div>
+        </div>
+
+        {/* Yläkerran kiertovesipumppu (Toisiopiiri · Tuya WiFi-rele) */}
+        <div
+          style={{
+            background: isUpstairsPumpRunning ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+            border: isUpstairsPumpRunning ? '1px solid rgba(56, 189, 248, 0.28)' : '1px solid rgba(255, 255, 255, 0.07)',
+            borderRadius: 10,
+            padding: '12px 14px',
+            marginBottom: 14,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: isUpstairsPumpRunning ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: isUpstairsPumpRunning ? '1.5px solid rgba(56, 189, 248, 0.3)' : '1.5px solid rgba(255, 255, 255, 0.07)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isUpstairsPumpRunning ? '0 0 10px rgba(56, 189, 248, 0.25)' : 'none',
+                flexShrink: 0,
+              }}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={isUpstairsPumpRunning ? '#38bdf8' : 'rgba(255, 255, 255, 0.4)'}
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={isUpstairsPumpRunning ? 'spinning' : ''}
+                  style={{ transition: 'stroke 0.3s' }}
+                >
+                  <circle cx="12" cy="12" r="10" strokeDasharray="5 3" />
+                  <path d="M12 7v5l3 3" />
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>Yläkerran kiertovesipumppu (Tuya)</span>
+                  <span className="badge" style={{
+                    fontSize: 9,
+                    padding: '1px 6px',
+                    background: 'rgba(168, 85, 247, 0.15)',
+                    color: '#c084fc',
+                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                  }}>
+                    Yläkerta
+                  </span>
+                  {upstairsTemp != null && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                    }}>
+                      🌡️ {upstairsTemp.toFixed(1)} °C (tav. {upstairsTarget.toFixed(1)} °C)
+                    </span>
+                  )}
+                  {upstairsPumpOverrideActive && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      color: '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                    }}>
+                      ⚡ Pakotettu {upstairsPumpOverrideState || (isUpstairsPumpRunning ? 'ON' : 'OFF')}
+                    </span>
+                  )}
+                  {isUpstairsAntiSeizeRunning && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(168, 85, 247, 0.2)',
+                      color: '#c084fc',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                    }}>
+                      🔄 Jumiutumissuoja
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {upstairsPumpReason}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: isUpstairsPumpRunning ? '#38bdf8' : 'var(--text-muted, #64748b)',
+                  boxShadow: isUpstairsPumpRunning ? '0 0 8px #38bdf8' : 'none',
+                }}
+              />
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: isUpstairsPumpRunning ? '#38bdf8' : 'var(--text-muted, #64748b)',
+              }}>
+                {isUpstairsPumpRunning ? 'Käynnissä' : 'Lepotilassa'}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick override buttons */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 'auto' }}>
+              Älykäs ohjaus:
+            </span>
+            <button
+              className={`btn btn-xs ${!upstairsPumpOverrideActive ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => handleUpstairsPumpToggle(null)}
+              disabled={readOnly || pending}
+              title="Palauta älykäs automaattiohjaus"
+              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6 }}
+            >
+              ⚡ Auto
+            </button>
+            <button
+              className={`btn btn-xs ${upstairsPumpOverrideActive && (upstairsPumpOverrideState === 'ON' || (isUpstairsPumpRunning && !upstairsPumpOverrideState)) ? 'btn-success' : 'btn-ghost'}`}
+              onClick={() => handleUpstairsPumpToggle('ON')}
+              disabled={readOnly || pending}
+              title="Pakota yläkerran pumppu päälle"
+              style={{
+                fontSize: 11,
+                padding: '3px 9px',
+                borderRadius: 6,
+                color: isUpstairsPumpRunning ? '#38bdf8' : undefined,
+                border: upstairsPumpOverrideActive && upstairsPumpOverrideState === 'ON' ? '1px solid #38bdf8' : undefined,
+              }}
+            >
+              🟢 Pakota Päälle
+            </button>
+            <button
+              className={`btn btn-xs ${upstairsPumpOverrideActive && (upstairsPumpOverrideState === 'OFF' || (!isUpstairsPumpRunning && !upstairsPumpOverrideState)) ? 'btn-danger' : 'btn-ghost'}`}
+              onClick={() => handleUpstairsPumpToggle('OFF')}
+              disabled={readOnly || pending}
+              title="Pakota yläkerran pumppu pois päältä"
+              style={{
+                fontSize: 11,
+                padding: '3px 9px',
+                borderRadius: 6,
+                color: !isUpstairsPumpRunning && upstairsPumpOverrideActive ? '#ef4444' : undefined,
+                border: upstairsPumpOverrideActive && upstairsPumpOverrideState === 'OFF' ? '1px solid #ef4444' : undefined,
               }}
             >
               🔴 Pakota Pois

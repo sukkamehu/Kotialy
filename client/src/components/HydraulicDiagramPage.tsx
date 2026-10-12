@@ -26,7 +26,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const { send, pending } = useCommand();
-  const { setFloorPumpOverride } = useApc();
+  const { setFloorPumpOverride, setUpstairsPumpOverride } = useApc();
 
   // Extract real sensor data from state
   const rawOutsideTemp = numVal(state, 'main/Outside_Temp');
@@ -46,6 +46,8 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
   const rawSterilization = state['main/Sterilization_State']?.value === '1';
   const rawFan1Speed = numVal(state, 'main/Fan1_Motor_Speed');
   const floorPumpRaw = state['lattialampopumppu/stat/POWER']?.value;
+  const upstairsPumpRaw = state['tuya/kiertovesipumppu/state']?.value ??
+                          state['tuya/ylakerran_kiertovesipumppu/state']?.value;
 
   // Simulated or Live values depending on selected diagramMode
   const isSimulated = diagramMode !== 'live';
@@ -61,6 +63,10 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
   const isFloorPumpRunning = isSimulated
     ? (diagramMode === 'heating' || diagramMode === 'dhw')
     : (floorPumpRaw === 'ON' || floorPumpRaw === '1' || floorPumpRaw === 'true');
+
+  const isUpstairsPumpRunning = isSimulated
+    ? isHeatingMode
+    : (upstairsPumpRaw === 'true' || upstairsPumpRaw === '1' || upstairsPumpRaw === 'ON');
 
   const outsideTemp = rawOutsideTemp ?? 4.5;
   const dhwTemp = isSimulated && diagramMode === 'dhw' ? 53.5 : rawDhwTemp ?? 49.0;
@@ -198,7 +204,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
       id: 'floor_pump',
       title: 'Lattialämmityksen kiertopumppu (Sonoff)',
       icon: '🌀',
-      category: 'Toisiopiiri · Lämmönjako',
+      category: 'Toisiopiiri · Alakerran Lattialämmitys',
       description: 'Älyohjattu toisiopiirin kiertovesipumppu puskurivaraajan ja jakotukin välissä. Ohjataan Sonoff/Tasmota-älyreleellä Kotiäly APC -strategian mukaisesti.',
       metrics: [
         { label: 'Tila', value: isFloorPumpRunning ? 'Käynnissä (ON)' : 'Lepotilassa (OFF)' },
@@ -207,10 +213,28 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
         { label: 'Strategia', value: 'APC Kesäkatkaisu & Jumiutumissuoja' },
       ],
       technicalDetails: [
-        'Kierrättää puskurivaraajan lämpöä huonekohtaisille lattialämmityspiireille.',
-        'Sammutetaan automaattisesti kesällä (≥ 14 °C) sähkön ja kompressorin säästämiseksi.',
+        'Kierrättää puskurivaraajan lämpöä huonekohtaisille alakerran lattialämmityspiireille.',
+        'Sammutetaan automaattisesti kesällä sähkön ja kompressorin säästämiseksi.',
         'Pyöritetään 5 min päivittäin klo 12:00 jumiutumisen estämiseksi kesäkaudella.',
         'Hyödyntää käyttövesisyklin paluulämmön puskurista suoraan lattialämmitykseen.',
+      ],
+    },
+    upstairs_pump: {
+      id: 'upstairs_pump',
+      title: 'Yläkerran kiertovesipumppu (Tuya)',
+      icon: '🌀',
+      category: 'Toisiopiiri · Yläkerran Lämmityspiiri',
+      description: 'Älyohjattu toisiopiirin kiertovesipumppu yläkerran lämmityspiireille. Ohjataan Tuya WiFi-releellä yläkerran huonelämpötilan, ylilämpösuojan ja APC-strategian mukaisesti.',
+      metrics: [
+        { label: 'Tila', value: isUpstairsPumpRunning ? 'Käynnissä (ON)' : 'Lepotilassa (OFF)' },
+        { label: 'Yläkerran lämpötila', value: state['tuya/ylakerran_tyohuone/temperature']?.value ? `${state['tuya/ylakerran_tyohuone/temperature']?.value} °C` : '--' },
+        { label: 'Ohjaustapa', value: 'Tuya WiFi Smart Relay' },
+        { label: 'Strategia', value: 'Huonelämpöohjaus, Ylilämpösuoja & Jumiutumissuoja' },
+      ],
+      technicalDetails: [
+        'Kierrättää puskurivaraajan lämpöä yläkerran lämmitysverkostoon.',
+        'Pysäytetään automaattisesti, kun yläkerta saavuttaa tavoitelämpötilan (21,3 °C), mikä estää rossipohjaisen yläkerran ylilämpenemisen.',
+        'Kesäkatkaisu (≥ 18 °C) ja päivittäinen jumiutumissuojapulssi klo 12:10–12:15.',
       ],
     },
   };
@@ -677,7 +701,7 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
               </text>
             </g>
 
-            {/* NODE 5.5: Floor Heating Secondary Pump (Sonoff) */}
+            {/* NODE 5.5: Floor Heating Secondary Pump (Sonoff - Alakerta) */}
             <g
               className="diagram-node-clickable"
               onClick={() => setSelectedNode('floor_pump')}
@@ -702,10 +726,41 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
                 🌀
               </text>
               <rect x="-10" y="44" width="60" height="18" rx="4" fill="rgba(0,0,0,0.6)" />
-              <text x="20" y="56" fill="#60a5fa" fontSize="8.5" fontWeight="700" textAnchor="middle">
-                Sonoff-pumppu
+              <text x="20" y="56" fill="#60a5fa" fontSize="8" fontWeight="700" textAnchor="middle">
+                Alakerta (Sonoff)
               </text>
               <circle cx="20" cy="1" r="3.5" fill={isFloorPumpRunning ? '#22c55e' : '#64748b'} />
+            </g>
+
+            {/* NODE 5.6: Upstairs Secondary Pump (Tuya - Yläkerta) */}
+            <g
+              className="diagram-node-clickable"
+              onClick={() => setSelectedNode('upstairs_pump')}
+              transform="translate(805, 95)"
+            >
+              <circle
+                cx="20"
+                cy="22"
+                r="18"
+                fill="rgba(30, 41, 59, 0.95)"
+                stroke={isUpstairsPumpRunning ? '#38bdf8' : 'rgba(255,255,255,0.3)'}
+                strokeWidth="2"
+                filter={isUpstairsPumpRunning ? 'url(#glowHeat)' : undefined}
+              />
+              <text
+                x="20"
+                y="28"
+                fontSize="16"
+                textAnchor="middle"
+                className={isUpstairsPumpRunning ? 'spinning' : ''}
+              >
+                🌀
+              </text>
+              <rect x="-10" y="44" width="60" height="18" rx="4" fill="rgba(0,0,0,0.6)" />
+              <text x="20" y="56" fill="#38bdf8" fontSize="8" fontWeight="700" textAnchor="middle">
+                Yläkerta (Tuya)
+              </text>
+              <circle cx="20" cy="1" r="3.5" fill={isUpstairsPumpRunning ? '#38bdf8' : '#64748b'} />
             </g>
 
             {/* NODE 5: Floor Heating Manifold & Loops */}
@@ -907,6 +962,41 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
                 <button
                   className="btn btn-sm btn-ghost"
                   onClick={() => setFloorPumpOverride(null, 0)}
+                  disabled={pending}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>⚡</span> Palauta Auto
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Override Controls for Upstairs Pump */}
+          {selectedNode === 'upstairs_pump' && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Yläkerran kiertovesipumpun ohjaus
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-sm btn-success"
+                  onClick={() => setUpstairsPumpOverride('ON', 0)}
+                  disabled={pending}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>🟢</span> Pakota Päälle
+                </button>
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={() => setUpstairsPumpOverride('OFF', 0)}
+                  disabled={pending}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>🔴</span> Pakota Pois
+                </button>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setUpstairsPumpOverride(null, 0)}
                   disabled={pending}
                   style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
                 >

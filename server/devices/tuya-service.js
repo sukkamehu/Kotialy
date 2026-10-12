@@ -421,19 +421,46 @@ class TuyaService {
       }
     }
 
-    // If device is the outdoor lights metering relay, also sync to tuya/ulkovalot/*
+    // If device is the outdoor lights metering relay, also sync to tuya/ulkovalot/* and tuya/ulkovalot_1/*
     let outdoorDeviceId = 'bf7a39a3a10e38a52engat';
+    let outdoorDeviceId2 = 'bfee1ec43ebb997b0c12ru';
     try {
       const outdoorSettings = db.getOutdoorLightsSettings ? db.getOutdoorLightsSettings() : null;
       if (outdoorSettings?.device_id) outdoorDeviceId = outdoorSettings.device_id;
+      if (outdoorSettings?.device_id_2) outdoorDeviceId2 = outdoorSettings.device_id_2;
     } catch { }
 
-    if (device.id === outdoorDeviceId || (device.name && device.name.toLowerCase().includes('wifi switch / 1p-mtrg 2'))) {
+    if (device.id === outdoorDeviceId || (device.name && (device.name.toLowerCase().includes('ulkovalot 1') || device.name.toLowerCase().includes('wifi switch / 1p-mtrg 2')))) {
       for (const [prop, val] of Object.entries(device.properties)) {
         if (val === null || val === undefined) continue;
         db.updateState(`tuya/ulkovalot/${prop}`, String(val));
+        db.updateState(`tuya/ulkovalot_1/${prop}`, String(val));
         if (typeof val === 'number') {
           db.maybeAppendHistory(`tuya/ulkovalot/${prop}`, val, 60000);
+          db.maybeAppendHistory(`tuya/ulkovalot_1/${prop}`, val, 60000);
+        }
+      }
+    }
+
+    if (device.id === outdoorDeviceId2 || (device.name && device.name.toLowerCase().includes('ulkovalot 2'))) {
+      for (const [prop, val] of Object.entries(device.properties)) {
+        if (val === null || val === undefined) continue;
+        db.updateState(`tuya/ulkovalot_2/${prop}`, String(val));
+        if (prop === 'state') {
+          db.updateState('tuya/ulkovalot_2/switch', val ? '1' : '0');
+        }
+      }
+    }
+
+    // If device is upstairs circulation pump, also sync to tuya/kiertovesipumppu/* and tuya/ylakerran_kiertovesipumppu/*
+    if (device.id === 'bfb6ed442015162bc97kca' || (device.name && device.name.toLowerCase().includes('kiertovesipumppu'))) {
+      for (const [prop, val] of Object.entries(device.properties)) {
+        if (val === null || val === undefined) continue;
+        db.updateState(`tuya/kiertovesipumppu/${prop}`, String(val));
+        db.updateState(`tuya/ylakerran_kiertovesipumppu/${prop}`, String(val));
+        if (prop === 'state') {
+          db.updateState('tuya/kiertovesipumppu/switch', val ? '1' : '0');
+          db.updateState('tuya/ylakerran_kiertovesipumppu/switch', val ? '1' : '0');
         }
       }
     }

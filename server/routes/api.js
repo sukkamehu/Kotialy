@@ -661,6 +661,95 @@ router.post('/apc/floor-pump/settings', requireAdmin, express.json(), async (req
   }
 });
 
+// ─── Upstairs Circulation Pump (Tuya) Specific Endpoints ─────────────────────
+
+/**
+ * GET /api/apc/upstairs-pump/status
+ */
+router.get('/api/apc/upstairs-pump/status', (req, res) => {
+  const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
+  res.json(upstairsPumpDriver.getStatus());
+});
+
+/**
+ * POST /api/apc/upstairs-pump/override
+ * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
+ */
+router.post('/apc/upstairs-pump/override', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
+    const { state, duration_hours = 0 } = req.body || {};
+
+    let status;
+    if (state === null || state === undefined || state === 'AUTO' || state === 'auto') {
+      status = await upstairsPumpDriver.cancelManualOverride();
+    } else {
+      const stateStr = (state === 'ON' || state === 1 || state === true) ? 'ON' : 'OFF';
+      status = await upstairsPumpDriver.setManualOverride(stateStr, parseFloat(duration_hours) || 0);
+    }
+
+    apcService.evaluate();
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/upstairs-pump/mode
+ * Body: { mode: 'auto' | 'constant_on' | 'constant_off' }
+ */
+router.post('/apc/upstairs-pump/mode', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
+    const { mode } = req.body || {};
+    const status = await upstairsPumpDriver.setMode(mode);
+    apcService.evaluate();
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/upstairs-pump/settings
+ * Body: { target_temp, temp_hysteresis, summer_cutoff_temp, anti_seize_enabled, price_setback_enabled }
+ */
+router.post('/apc/upstairs-pump/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const {
+      target_temp,
+      temp_hysteresis,
+      summer_cutoff_temp,
+      anti_seize_enabled,
+      price_setback_enabled,
+    } = req.body || {};
+    const dbModule = require('../db');
+
+    if (target_temp !== undefined && !isNaN(parseFloat(target_temp))) {
+      dbModule.updateApcSetting('upstairs_pump_target_temp', parseFloat(target_temp));
+    }
+    if (temp_hysteresis !== undefined && !isNaN(parseFloat(temp_hysteresis))) {
+      dbModule.updateApcSetting('upstairs_pump_temp_hysteresis', parseFloat(temp_hysteresis));
+    }
+    if (summer_cutoff_temp !== undefined && !isNaN(parseFloat(summer_cutoff_temp))) {
+      dbModule.updateApcSetting('upstairs_pump_summer_cutoff_temp', parseFloat(summer_cutoff_temp));
+    }
+    if (anti_seize_enabled !== undefined) {
+      dbModule.updateApcSetting('upstairs_pump_anti_seize_enabled', anti_seize_enabled ? '1' : '0');
+    }
+    if (price_setback_enabled !== undefined) {
+      dbModule.updateApcSetting('upstairs_pump_price_setback_enabled', price_setback_enabled ? '1' : '0');
+    }
+
+    apcService.evaluate();
+    const upstairsPumpDriver = require('../devices/upstairs-pump-driver');
+    res.json({ ok: true, status: upstairsPumpDriver.getStatus() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Defrost Cable (Sonoff) Specific Endpoints ───────────────────────────────
 
 /**
@@ -1422,8 +1511,8 @@ router.post('/outdoor-lights/settings', requireAdmin, express.json(), async (req
  */
 router.post('/outdoor-lights/override', requireAdmin, express.json(), async (req, res) => {
   try {
-    const { state, durationMinutes } = req.body;
-    const status = await outdoorLightsDriver.setOverride(state, durationMinutes);
+    const { state, durationMinutes, target } = req.body || {};
+    const status = await outdoorLightsDriver.setOverride(state, durationMinutes, target);
     res.json({ ok: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });

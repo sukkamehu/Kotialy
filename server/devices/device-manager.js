@@ -5,6 +5,7 @@
 
 const panasonicDriver = require('./panasonic-driver');
 const floorPumpDriver = require('./floor-pump-driver');
+const upstairsPumpDriver = require('./upstairs-pump-driver');
 const defrostCableDriver = require('./defrost-cable-driver');
 const tapoDriver = require('./tapo-driver');
 const { unit1, unit2 } = require('./mitsubishi-driver');
@@ -14,6 +15,7 @@ class DeviceManager {
     this.drivers = [
       panasonicDriver,
       floorPumpDriver,
+      upstairsPumpDriver,
       defrostCableDriver,
       tapoDriver,
       unit1,

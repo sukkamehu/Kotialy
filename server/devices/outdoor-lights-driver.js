@@ -77,6 +77,8 @@ class OutdoorLightsDriver {
   constructor() {
     this.timer = null;
     this.lastAppliedState = null;
+    this.lastAppliedState1 = null;
+    this.lastAppliedState2 = null;
     this.lastAppliedReason = 'Alustetaan...';
     this.lastEvaluatedAt = 0;
     this.wsBroadcast = null;
@@ -87,7 +89,7 @@ class OutdoorLightsDriver {
   }
 
   start() {
-    log('Käynnistetään ulkovalojen astronominen hämäräohjaus...');
+    log('Käynnistetään ulkovalojen astronominen hämäräohjaus (2 relettä)...');
     // Initial evaluation after 3 seconds
     setTimeout(() => this.evaluate(), 3000);
     // Recurring evaluation every 30 seconds
@@ -112,7 +114,8 @@ class OutdoorLightsDriver {
     this.lastEvaluatedAt = Date.now();
     try {
       const settings = db.getOutdoorLightsSettings();
-      const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+      const deviceId1 = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+      const deviceId2 = settings.device_id_2 || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID_2 || 'bfee1ec43ebb997b0c12ru';
       const now = new Date();
       const nowMs = now.getTime();
 
@@ -129,30 +132,18 @@ class OutdoorLightsDriver {
       const onTimeMs = sunset ? sunset + duskOffsetMs : null;
       const offTimeMs = sunrise ? sunrise + dawnOffsetMs : null;
 
-      let targetState = 'OFF';
-      let reason = '';
+      let autoTargetState = 'OFF';
+      let autoReason = '';
       let isDark = false;
       let isNightOff = false;
 
-      // ── 1. Check Manual Override ──────────────────────────────────────────
-      const overrideUntil = parseInt(settings.override_until || '0', 10);
-      const overrideState = settings.override_state;
-      const isOverrideActive = overrideUntil > nowMs && (overrideState === 'ON' || overrideState === 'OFF');
-
-      if (isOverrideActive) {
-        targetState = overrideState;
-        const minsLeft = Math.ceil((overrideUntil - nowMs) / 60000);
-        reason = `Käyttäjän manuaalinen ohitus: ${targetState} (${minsLeft} min jäljellä)`;
-      }
-      // ── 2. Automatic Astronomical & Night Setback Evaluation ───────────────
-      else if (settings.enabled === 'false') {
-        reason = 'Automaattiohjaus kytketty pois päältä';
-        // When disabled, don't force state changes automatically
-        targetState = this.lastAppliedState || 'OFF';
+      // ── 1. Automatic Astronomical & Night Setback Evaluation ───────────────
+      if (settings.enabled === 'false') {
+        autoReason = 'Automaattiohjaus kytketty pois päältä';
+        autoTargetState = this.lastAppliedState || 'OFF';
       } else {
         // Determine if it is currently dark / twilight
         if (onTimeMs && offTimeMs) {
-          // If we have passed tonight's sunset OR we are before this morning's sunrise
           if (nowMs >= onTimeMs || nowMs < offTimeMs) {
             isDark = true;
           }
@@ -168,7 +159,6 @@ class OutdoorLightsDriver {
           const nightEndMin = endH * 60 + endM;
 
           if (nightStartMin > nightEndMin) {
-            // Spans midnight (e.g. 23:30 -> 05:30)
             if (curMinutes >= nightStartMin || curMinutes < nightEndMin) {
               isNightOff = true;
             }
@@ -180,38 +170,94 @@ class OutdoorLightsDriver {
         }
 
         if (isNightOff) {
-          targetState = 'OFF';
-          reason = `🌙 Yösammutus aktiivinen (${settings.night_off_start || '23:30'}–${settings.night_off_end || '05:30'}) · Valot sammutettu säästösyistä`;
+          autoTargetState = 'OFF';
+          autoReason = `🌙 Yösammutus aktiivinen (${settings.night_off_start || '23:30'}–${settings.night_off_end || '05:30'}) · Valot sammutettu säästösyistä`;
         } else if (isDark) {
-          targetState = 'ON';
+          autoTargetState = 'ON';
           const sunsetFormatted = sunTimes.sunset ? sunTimes.sunset.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }) : '';
-          reason = `💡 Hämäräaika (Aurinko laski klo ${sunsetFormatted}) · Astronominen ohjaus: Päällä`;
+          autoReason = `💡 Hämäräaika (Aurinko laski klo ${sunsetFormatted}) · Astronominen ohjaus: Päällä`;
         } else {
-          targetState = 'OFF';
+          autoTargetState = 'OFF';
           const sunriseFormatted = sunTimes.sunrise ? sunTimes.sunrise.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }) : '';
-          reason = `☀️ Päiväaika (Aurinko noussut klo ${sunriseFormatted}) · Valot sammutettu`;
+          autoReason = `☀️ Päiväaika (Aurinko noussut klo ${sunriseFormatted}) · Valot sammutettu`;
         }
       }
 
-      // ── 3. Apply state changes to physical Tuya relay ─────────────────────
-      const shouldApply = this.lastAppliedState !== targetState;
-      if (shouldApply && deviceId) {
-        log(`Tilamuutos: ${this.lastAppliedState || 'NULL'} -> ${targetState} (Syy: ${reason})`);
-        try {
-          await tuyaService.setSwitchPower(deviceId, targetState === 'ON');
-          this.lastAppliedState = targetState;
-          this.lastAppliedReason = reason;
-        } catch (err) {
-          warn(`Tuya-kytkimen ohjaus epäonnistui: ${err.message}`);
-        }
-      } else {
-        this.lastAppliedReason = reason;
+      // ── 2. Check Global & Individual Overrides ──────────────────────────────
+      const globalOverrideUntil = parseInt(settings.override_until || '0', 10);
+      const globalOverrideState = settings.override_state;
+      const isGlobalOverrideActive = globalOverrideUntil > nowMs && (globalOverrideState === 'ON' || globalOverrideState === 'OFF');
+
+      const relay1OverrideUntil = parseInt(settings.override_relay1_until || '0', 10);
+      const relay1OverrideState = settings.override_relay1_state;
+      const isRelay1OverrideActive = relay1OverrideUntil > nowMs && (relay1OverrideState === 'ON' || relay1OverrideState === 'OFF');
+
+      const relay2OverrideUntil = parseInt(settings.override_relay2_until || '0', 10);
+      const relay2OverrideState = settings.override_relay2_state;
+      const isRelay2OverrideActive = relay2OverrideUntil > nowMs && (relay2OverrideState === 'ON' || relay2OverrideState === 'OFF');
+
+      // Determine Target for Relay 1
+      let targetState1 = autoTargetState;
+      let reason1 = autoReason;
+      if (isRelay1OverrideActive) {
+        targetState1 = relay1OverrideState;
+        const minsLeft = Math.ceil((relay1OverrideUntil - nowMs) / 60000);
+        reason1 = `Rele 1 manuaalinen ohitus: ${targetState1} (${minsLeft} min jäljellä)`;
+      } else if (isGlobalOverrideActive) {
+        targetState1 = globalOverrideState;
+        const minsLeft = Math.ceil((globalOverrideUntil - nowMs) / 60000);
+        reason1 = `Yleinen manuaalinen ohitus: ${targetState1} (${minsLeft} min jäljellä)`;
       }
+
+      // Determine Target for Relay 2
+      let targetState2 = autoTargetState;
+      let reason2 = autoReason;
+      if (isRelay2OverrideActive) {
+        targetState2 = relay2OverrideState;
+        const minsLeft = Math.ceil((relay2OverrideUntil - nowMs) / 60000);
+        reason2 = `Rele 2 manuaalinen ohitus: ${targetState2} (${minsLeft} min jäljellä)`;
+      } else if (isGlobalOverrideActive) {
+        targetState2 = globalOverrideState;
+        const minsLeft = Math.ceil((globalOverrideUntil - nowMs) / 60000);
+        reason2 = `Yleinen manuaalinen ohitus: ${targetState2} (${minsLeft} min jäljellä)`;
+      }
+
+      // ── 3. Apply state changes to physical Tuya relays ─────────────────────
+      if (deviceId1 && this.lastAppliedState1 !== targetState1) {
+        log(`Rele 1 tilamuutos (${deviceId1}): ${this.lastAppliedState1 || 'NULL'} -> ${targetState1} (${reason1})`);
+        try {
+          await tuyaService.setSwitchPower(deviceId1, targetState1 === 'ON');
+          this.lastAppliedState1 = targetState1;
+        } catch (err) {
+          warn(`Tuya-kytkimen 1 ohjaus epäonnistui: ${err.message}`);
+        }
+      }
+
+      if (deviceId2 && this.lastAppliedState2 !== targetState2) {
+        log(`Rele 2 tilamuutos (${deviceId2}): ${this.lastAppliedState2 || 'NULL'} -> ${targetState2} (${reason2})`);
+        try {
+          await tuyaService.setSwitchPower(deviceId2, targetState2 === 'ON');
+          this.lastAppliedState2 = targetState2;
+        } catch (err) {
+          warn(`Tuya-kytkimen 2 ohjaus epäonnistui: ${err.message}`);
+        }
+      }
+
+      this.lastAppliedState = targetState1;
+      this.lastAppliedReason = reason1;
 
       // Update state in SQLite DB
-      db.updateState('tuya/ulkovalot/state', targetState);
-      db.updateState('tuya/ulkovalot/switch', targetState === 'ON' ? '1' : '0');
-      db.updateState('tuya/ulkovalot/reason', reason);
+      db.updateState('tuya/ulkovalot/state', targetState1);
+      db.updateState('tuya/ulkovalot/switch', targetState1 === 'ON' ? '1' : '0');
+      db.updateState('tuya/ulkovalot/reason', reason1);
+
+      db.updateState('tuya/ulkovalot_1/state', targetState1 === 'ON' ? 'true' : 'false');
+      db.updateState('tuya/ulkovalot_1/switch', targetState1 === 'ON' ? '1' : '0');
+      db.updateState('tuya/ulkovalot_1/reason', reason1);
+
+      db.updateState('tuya/ulkovalot_2/state', targetState2 === 'ON' ? 'true' : 'false');
+      db.updateState('tuya/ulkovalot_2/switch', targetState2 === 'ON' ? '1' : '0');
+      db.updateState('tuya/ulkovalot_2/reason', reason2);
 
       // Broadcast to WebSocket clients
       if (this.wsBroadcast) {
@@ -228,39 +274,82 @@ class OutdoorLightsDriver {
 
   /**
    * Set manual timed override
+   * @param {'ON'|'OFF'|'AUTO'} state
+   * @param {number} durationMinutes
+   * @param {'all'|'relay1'|'relay2'|string} target
    */
-  async setOverride(state, durationMinutes = 120) {
+  async setOverride(state, durationMinutes = 120, target = 'all') {
     const settings = db.getOutdoorLightsSettings();
-    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+    const deviceId1 = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+    const deviceId2 = settings.device_id_2 || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID_2 || 'bfee1ec43ebb997b0c12ru';
 
-    if (state === null || state === 'AUTO' || state === '') {
-      log('Palautetaan automaattinen astronominen hämäräohjaus...');
-      db.updateOutdoorLightsSetting('override_state', '');
-      db.updateOutdoorLightsSetting('override_until', '0');
-      this.lastAppliedState = null; // force re-evaluation
-      await this.evaluate();
-      return this.getStatus();
-    }
-
+    const isClear = state === null || state === 'AUTO' || state === '';
     const val = state === 'ON' || state === true || state === 1 ? 'ON' : 'OFF';
     const duration = Math.max(5, parseInt(durationMinutes, 10) || 120);
     const untilMs = Date.now() + duration * 60 * 1000;
 
-    log(`Asetetaan manuaalinen ohitus: ${val} (${duration} min, asti ${new Date(untilMs).toLocaleTimeString('fi-FI')})`);
+    const normTarget = String(target || 'all').toLowerCase();
 
-    db.updateOutdoorLightsSetting('override_state', val);
-    db.updateOutdoorLightsSetting('override_until', String(untilMs));
-
-    try {
-      if (deviceId) {
-        await tuyaService.setSwitchPower(deviceId, val === 'ON');
+    if (normTarget === 'relay1' || normTarget === '1' || normTarget === deviceId1.toLowerCase()) {
+      if (isClear) {
+        log('Palautetaan Rele 1 automaattiseen ohjaukseen...');
+        db.updateOutdoorLightsSetting('override_relay1_state', '');
+        db.updateOutdoorLightsSetting('override_relay1_until', '0');
+      } else {
+        log(`Asetetaan Rele 1 manuaalinen ohitus: ${val} (${duration} min)`);
+        db.updateOutdoorLightsSetting('override_relay1_state', val);
+        db.updateOutdoorLightsSetting('override_relay1_until', String(untilMs));
+        try {
+          if (deviceId1) await tuyaService.setSwitchPower(deviceId1, val === 'ON');
+        } catch (e) {
+          warn(`Tuya-ohjaus epäonnistui: ${e.message}`);
+        }
       }
-    } catch (err) {
-      warn(`Tuya-ohjaus epäonnistui ohituksessa: ${err.message}`);
+      this.lastAppliedState1 = null;
+    } else if (normTarget === 'relay2' || normTarget === '2' || normTarget === deviceId2.toLowerCase()) {
+      if (isClear) {
+        log('Palautetaan Rele 2 automaattiseen ohjaukseen...');
+        db.updateOutdoorLightsSetting('override_relay2_state', '');
+        db.updateOutdoorLightsSetting('override_relay2_until', '0');
+      } else {
+        log(`Asetetaan Rele 2 manuaalinen ohitus: ${val} (${duration} min)`);
+        db.updateOutdoorLightsSetting('override_relay2_state', val);
+        db.updateOutdoorLightsSetting('override_relay2_until', String(untilMs));
+        try {
+          if (deviceId2) await tuyaService.setSwitchPower(deviceId2, val === 'ON');
+        } catch (e) {
+          warn(`Tuya-ohjaus epäonnistui: ${e.message}`);
+        }
+      }
+      this.lastAppliedState2 = null;
+    } else {
+      // Global override for ALL relays
+      if (isClear) {
+        log('Palautetaan kaikki ulkovalot automaattiseen astronomiseen hämäräohjaukseen...');
+        db.updateOutdoorLightsSetting('override_state', '');
+        db.updateOutdoorLightsSetting('override_until', '0');
+        db.updateOutdoorLightsSetting('override_relay1_state', '');
+        db.updateOutdoorLightsSetting('override_relay1_until', '0');
+        db.updateOutdoorLightsSetting('override_relay2_state', '');
+        db.updateOutdoorLightsSetting('override_relay2_until', '0');
+      } else {
+        log(`Asetetaan kaikki ulkovalot manuaaliseen tilaan: ${val} (${duration} min)`);
+        db.updateOutdoorLightsSetting('override_state', val);
+        db.updateOutdoorLightsSetting('override_until', String(untilMs));
+        db.updateOutdoorLightsSetting('override_relay1_state', '');
+        db.updateOutdoorLightsSetting('override_relay1_until', '0');
+        db.updateOutdoorLightsSetting('override_relay2_state', '');
+        db.updateOutdoorLightsSetting('override_relay2_until', '0');
+        try {
+          if (deviceId1) await tuyaService.setSwitchPower(deviceId1, val === 'ON');
+          if (deviceId2) await tuyaService.setSwitchPower(deviceId2, val === 'ON');
+        } catch (e) {
+          warn(`Tuya-ohjaus epäonnistui: ${e.message}`);
+        }
+      }
+      this.lastAppliedState1 = null;
+      this.lastAppliedState2 = null;
     }
-
-    this.lastAppliedState = val;
-    this.lastAppliedReason = `Manuaalinen ohitus (${duration} min)`;
 
     await this.evaluate();
     return this.getStatus();
@@ -275,7 +364,8 @@ class OutdoorLightsDriver {
         db.updateOutdoorLightsSetting(k, String(v));
       }
     }
-    this.lastAppliedState = null; // force re-evaluate
+    this.lastAppliedState1 = null;
+    this.lastAppliedState2 = null;
     await this.evaluate();
     return this.getStatus();
   }
@@ -285,35 +375,89 @@ class OutdoorLightsDriver {
    */
   getStatus() {
     const settings = db.getOutdoorLightsSettings();
-    const deviceId = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+    const deviceId1 = settings.device_id || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID || 'bf7a39a3a10e38a52engat';
+    const deviceId2 = settings.device_id_2 || process.env.TUYA_OUTDOOR_LIGHTS_DEVICE_ID_2 || 'bfee1ec43ebb997b0c12ru';
     const now = new Date();
+    const nowMs = now.getTime();
     const sunTimes = calculateSunTimes(now);
 
-    const overrideUntil = parseInt(settings.override_until || '0', 10);
-    const overrideState = settings.override_state;
-    const isOverrideActive = overrideUntil > Date.now() && (overrideState === 'ON' || overrideState === 'OFF');
-    const overrideMinutesRemaining = isOverrideActive ? Math.ceil((overrideUntil - Date.now()) / 60000) : 0;
+    const globalOverrideUntil = parseInt(settings.override_until || '0', 10);
+    const globalOverrideState = settings.override_state;
+    const isGlobalOverrideActive = globalOverrideUntil > nowMs && (globalOverrideState === 'ON' || globalOverrideState === 'OFF');
+    const globalMinutesRemaining = isGlobalOverrideActive ? Math.ceil((globalOverrideUntil - nowMs) / 60000) : 0;
 
-    // Fetch live hardware telemetry from Tuya cache
-    const dev = tuyaService.devicesById?.get(deviceId) || tuyaService.devices?.find(d => d.id === deviceId || (d.name && d.name.toLowerCase().includes('wifi switch / 1p-mtrg 2')));
+    const relay1OverrideUntil = parseInt(settings.override_relay1_until || '0', 10);
+    const relay1OverrideState = settings.override_relay1_state;
+    const isRelay1OverrideActive = relay1OverrideUntil > nowMs && (relay1OverrideState === 'ON' || relay1OverrideState === 'OFF');
+    const relay1MinutesRemaining = isRelay1OverrideActive ? Math.ceil((relay1OverrideUntil - nowMs) / 60000) : 0;
 
-    const rawPower = dev?.properties?.power ?? (dev?.raw_status?.cur_power != null ? Number(dev.raw_status.cur_power) / 10 : (dev?.raw_status?.power != null ? Number(dev.raw_status.power) : 0));
+    const relay2OverrideUntil = parseInt(settings.override_relay2_until || '0', 10);
+    const relay2OverrideState = settings.override_relay2_state;
+    const isRelay2OverrideActive = relay2OverrideUntil > nowMs && (relay2OverrideState === 'ON' || relay2OverrideState === 'OFF');
+    const relay2MinutesRemaining = isRelay2OverrideActive ? Math.ceil((relay2OverrideUntil - nowMs) / 60000) : 0;
+
+    // Fetch live hardware telemetry from Tuya cache for Relay 1
+    const dev1 = tuyaService.devicesById?.get(deviceId1) || tuyaService.devices?.find(d => d.id === deviceId1 || (d.name && d.name.toLowerCase().includes('ulkovalot 1')));
+    const rawPower = dev1?.properties?.power ?? (dev1?.raw_status?.cur_power != null ? Number(dev1.raw_status.cur_power) / 10 : (dev1?.raw_status?.power != null ? Number(dev1.raw_status.power) : 0));
     const powerW = Number(Number(rawPower).toFixed(1));
-    const rawVoltage = dev?.properties?.voltage ?? (dev?.raw_status?.cur_voltage != null ? Number(dev.raw_status.cur_voltage) / 10 : 230);
+    const rawVoltage = dev1?.properties?.voltage ?? (dev1?.raw_status?.cur_voltage != null ? Number(dev1.raw_status.cur_voltage) / 10 : 230);
     const voltageV = Number(Number(rawVoltage).toFixed(1));
-    const rawCurrent = dev?.properties?.current ?? (dev?.raw_status?.cur_current != null ? Number(dev.raw_status.cur_current) / 1000 : 0);
+    const rawCurrent = dev1?.properties?.current ?? (dev1?.raw_status?.cur_current != null ? Number(dev1.raw_status.cur_current) / 1000 : 0);
     const currentA = Number(Number(rawCurrent).toFixed(3));
-    const energyKwh = dev?.properties?.energy ?? (dev?.raw_status?.add_ele != null ? Number(dev.raw_status.add_ele) : 0);
-    const deviceTemp = dev?.properties?.device_temp ?? dev?.raw_status?.temp_value ?? null;
+    const energyKwh = dev1?.properties?.energy ?? (dev1?.raw_status?.add_ele != null ? Number(dev1.raw_status.add_ele) : 0);
+    const deviceTemp = dev1?.properties?.device_temp ?? dev1?.raw_status?.temp_value ?? null;
+
+    // Fetch Relay 2 status
+    const dev2 = tuyaService.devicesById?.get(deviceId2) || tuyaService.devices?.find(d => d.id === deviceId2 || (d.name && d.name.toLowerCase().includes('ulkovalot 2')));
+
+    const state1 = this.lastAppliedState1 || (dev1?.properties?.state ? 'ON' : 'OFF');
+    const state2 = this.lastAppliedState2 || (dev2?.properties?.state ? 'ON' : 'OFF');
+
+    const relays = [
+      {
+        id: deviceId1,
+        relayNum: 1,
+        name: dev1?.name || 'Ulkovalot 1',
+        label: 'Pihapiiri & Autotalli',
+        state: state1,
+        isOn: state1 === 'ON',
+        online: dev1?.online ?? true,
+        telemetry: {
+          power_w: powerW,
+          voltage_v: voltageV,
+          current_a: currentA,
+          energy_kwh: energyKwh,
+          device_temp: deviceTemp,
+        },
+        isOverrideActive: isRelay1OverrideActive || isGlobalOverrideActive,
+        overrideState: isRelay1OverrideActive ? relay1OverrideState : (isGlobalOverrideActive ? globalOverrideState : null),
+        overrideMinutesRemaining: isRelay1OverrideActive ? relay1MinutesRemaining : (isGlobalOverrideActive ? globalMinutesRemaining : 0),
+      },
+      {
+        id: deviceId2,
+        relayNum: 2,
+        name: dev2?.name || 'Ulkovalot 2',
+        label: 'Toinen wifi-rele',
+        state: state2,
+        isOn: state2 === 'ON',
+        online: dev2?.online ?? true,
+        telemetry: null,
+        isOverrideActive: isRelay2OverrideActive || isGlobalOverrideActive,
+        overrideState: isRelay2OverrideActive ? relay2OverrideState : (isGlobalOverrideActive ? globalOverrideState : null),
+        overrideMinutesRemaining: isRelay2OverrideActive ? relay2MinutesRemaining : (isGlobalOverrideActive ? globalMinutesRemaining : 0),
+      },
+    ];
 
     return {
-      state: this.lastAppliedState || 'OFF',
-      isOn: this.lastAppliedState === 'ON',
+      state: state1,
+      isOn: state1 === 'ON',
       reason: this.lastAppliedReason,
       enabled: settings.enabled === 'true',
-      deviceId,
-      deviceName: dev?.name || 'WiFi Switch (Ulkovalot)',
-      deviceOnline: dev?.online ?? true,
+      deviceId: deviceId1,
+      deviceId2: deviceId2,
+      deviceName: dev1?.name || 'WiFi Switch (Ulkovalot 1)',
+      deviceOnline: dev1?.online ?? true,
+      relays,
       telemetry: {
         power_w: powerW,
         voltage_v: voltageV,
@@ -328,9 +472,9 @@ class OutdoorLightsDriver {
         dawn: sunTimes.dawn ? sunTimes.dawn.toISOString() : null,
         dusk: sunTimes.dusk ? sunTimes.dusk.toISOString() : null,
       },
-      isOverrideActive,
-      overrideState: isOverrideActive ? overrideState : null,
-      overrideMinutesRemaining,
+      isOverrideActive: isGlobalOverrideActive,
+      overrideState: isGlobalOverrideActive ? globalOverrideState : null,
+      overrideMinutesRemaining: globalMinutesRemaining,
       lastEvaluatedAt: this.lastEvaluatedAt,
     };
   }

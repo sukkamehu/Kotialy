@@ -80,6 +80,8 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     updateSettings,
     setFloorPumpOverride,
     setFloorPumpMode: setFloorPumpModeApi,
+    setUpstairsPumpOverride,
+    setUpstairsPumpMode: setUpstairsPumpModeApi,
   } = useApc();
 
   // APC Settings form draft state
@@ -103,6 +105,13 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [floorPumpSummerPulse, setFloorPumpSummerPulse] = useState<boolean>(true);
   const [floorPumpAntiSeize, setFloorPumpAntiSeize] = useState<boolean>(true);
   const [floorPumpOverrideDuration, setFloorPumpOverrideDuration] = useState<number>(0);
+  const [upstairsPumpMode, setUpstairsPumpModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
+  const [upstairsPumpTargetTemp, setUpstairsPumpTargetTemp] = useState<string>('21.3');
+  const [upstairsPumpHysteresis, setUpstairsPumpHysteresis] = useState<string>('0.3');
+  const [upstairsPumpCutoff, setUpstairsPumpCutoff] = useState<string>('18.0');
+  const [upstairsPumpAntiSeize, setUpstairsPumpAntiSeize] = useState<boolean>(true);
+  const [upstairsPumpPriceSetback, setUpstairsPumpPriceSetback] = useState<boolean>(true);
+  const [upstairsPumpOverrideDuration, setUpstairsPumpOverrideDuration] = useState<number>(0);
   const [smartCyclingEnabled, setSmartCyclingEnabled] = useState<boolean>(status?.settings?.smart_cycling_enabled !== false);
   const [smartCyclingBoost, setSmartCyclingBoost] = useState<string>(String(status?.settings?.smart_cycling_charge_boost_c ?? 3.0));
   const [smartCyclingMinRest, setSmartCyclingMinRest] = useState<string>(String(status?.settings?.smart_cycling_min_rest_min ?? 60));
@@ -166,6 +175,12 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setFloorPumpCutoff(String(status.settings.floor_pump_summer_cutoff_temp ?? 20.0));
       setFloorPumpSummerPulse(status.settings.floor_pump_summer_pulse_enabled !== false);
       setFloorPumpAntiSeize(status.settings.floor_pump_anti_seize_enabled !== false);
+      setUpstairsPumpModeState(status.settings.upstairs_pump_mode ?? 'auto');
+      setUpstairsPumpTargetTemp(String(status.settings.upstairs_pump_target_temp ?? 21.3));
+      setUpstairsPumpHysteresis(String(status.settings.upstairs_pump_temp_hysteresis ?? 0.3));
+      setUpstairsPumpCutoff(String(status.settings.upstairs_pump_summer_cutoff_temp ?? 18.0));
+      setUpstairsPumpAntiSeize(status.settings.upstairs_pump_anti_seize_enabled !== false);
+      setUpstairsPumpPriceSetback(status.settings.upstairs_pump_price_setback_enabled !== false);
       setSmartCyclingEnabled(status.settings.smart_cycling_enabled !== false);
       setSmartCyclingBoost(String(status.settings.smart_cycling_charge_boost_c ?? 3.0));
       setSmartCyclingMinRest(String(status.settings.smart_cycling_min_rest_min ?? 60));
@@ -245,6 +260,12 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       floor_pump_summer_cutoff_temp: parseFloat(floorPumpCutoff) || 20.0,
       floor_pump_summer_pulse_enabled: Boolean(floorPumpSummerPulse),
       floor_pump_anti_seize_enabled: Boolean(floorPumpAntiSeize),
+      upstairs_pump_mode: upstairsPumpMode,
+      upstairs_pump_target_temp: parseFloat(upstairsPumpTargetTemp) || 21.3,
+      upstairs_pump_temp_hysteresis: parseFloat(upstairsPumpHysteresis) || 0.3,
+      upstairs_pump_summer_cutoff_temp: parseFloat(upstairsPumpCutoff) || 18.0,
+      upstairs_pump_anti_seize_enabled: Boolean(upstairsPumpAntiSeize),
+      upstairs_pump_price_setback_enabled: Boolean(upstairsPumpPriceSetback),
       smart_cycling_enabled: Boolean(smartCyclingEnabled),
       smart_cycling_charge_boost_c: parseFloat(smartCyclingBoost) || 3.0,
       smart_cycling_min_rest_min: parseInt(smartCyclingMinRest, 10) || 60,
@@ -1736,6 +1757,314 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                   <strong style={{ color: 'var(--text-primary)' }}>Päivittäinen jumiutumisenesto</strong>: Pyörittää pumppua 5 minuutin ajan päivittäin (klo 12:00–12:05) kesätauon aikana juoksupyörän suojaamiseksi.
                 </span>
               </label>
+            </div>
+          </div>
+
+          {/* ── CARD: Yläkerran Kiertovesipumppu (Tuya WiFi-rele) ── */}
+          <div className="card" style={{ padding: 20, marginTop: 20, border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>🌀</span> Yläkerran Kiertovesipumppu (Tuya)
+                </h3>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Älykäs lämpötilaohjaus, ylilämpösuoja ja pörssisähköoptimointi yläkerran piirille
+                </div>
+              </div>
+              <span className="badge" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', fontSize: 11, padding: '2px 8px' }}>
+                Yläkerta
+              </span>
+            </div>
+
+            {/* Live Status Box */}
+            {(() => {
+              const up = status?.devices?.find(d => d.driver === 'upstairs_pump');
+              const isOn = up?.currentState === 'ON';
+              const isOverride = up?.overrideActive;
+              const isAntiSeize = up?.antiSeizeActive;
+              return (
+                <div style={{
+                  background: isOn ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                  border: isOn ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  marginBottom: 16,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      Reaaliaikainen tila:
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: isOn ? '#38bdf8' : '#64748b',
+                        boxShadow: isOn ? '0 0 8px #38bdf8' : 'none',
+                      }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: isOn ? '#38bdf8' : 'var(--text-muted)' }}>
+                        {isOn ? 'Käynnissä (ON)' : 'Lepotilassa (OFF)'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {up?.reason || 'Automaattinen huonelämpöohjaus'}
+                  </div>
+                  {isOverride && (
+                    <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 4 }}>
+                      ⚡ Manuaalinen pakkokytkentä aktiivinen
+                    </div>
+                  )}
+                  {isAntiSeize && (
+                    <div style={{ fontSize: 11, color: '#c084fc', fontWeight: 600, marginTop: 4 }}>
+                      🔄 Päivittäinen jumiutumissuojan liikutteluajo aktiivinen
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Operating Mode Selector */}
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#38bdf8', display: 'block', marginBottom: 6 }}>
+                  Toimintatila:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  {[
+                    { id: 'auto', label: '⚡ Automaatti', desc: 'Älykäs huonelämpö' },
+                    { id: 'constant_on', label: '🟢 Jatkuva', desc: 'Aina päällä' },
+                    { id: 'constant_off', label: '🔴 Pois', desc: 'Aina pois' },
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setUpstairsPumpModeState(m.id as any);
+                        if (!readOnly) setUpstairsPumpModeApi(m.id as any);
+                      }}
+                      disabled={readOnly}
+                      style={{
+                        padding: '8px 6px',
+                        borderRadius: 8,
+                        border: upstairsPumpMode === m.id ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
+                        background: upstairsPumpMode === m.id ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.02)',
+                        color: upstairsPumpMode === m.id ? '#38bdf8' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div>{m.label}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Manual Override Quick Controls */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Pakkokytkentä / Ohitus:
+                  </label>
+                  <select
+                    value={upstairsPumpOverrideDuration}
+                    onChange={(e) => setUpstairsPumpOverrideDuration(Number(e.target.value))}
+                    disabled={readOnly}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      fontSize: 11,
+                    }}
+                  >
+                    <option value="0">Toistaiseksi</option>
+                    <option value="1">1 tunti</option>
+                    <option value="2">2 tuntia</option>
+                    <option value="4">4 tuntia</option>
+                    <option value="8">8 tuntia</option>
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => !readOnly && setUpstairsPumpOverride('ON', upstairsPumpOverrideDuration)}
+                    disabled={readOnly}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(56, 189, 248, 0.4)',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    🟢 Pakota Päälle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => !readOnly && setUpstairsPumpOverride('OFF', upstairsPumpOverrideDuration)}
+                    disabled={readOnly}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      color: '#f87171',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    🔴 Pakota Pois
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => !readOnly && setUpstairsPumpOverride(null, 0)}
+                    disabled={readOnly}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    ⚡ Auto (Palauta)
+                  </button>
+                </div>
+              </div>
+
+              {/* Target Temperature & Hysteresis */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Yläkerran tavoitelämpö:
+                    </label>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
+                      {upstairsPumpTargetTemp} °C
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="18.0"
+                    max="24.0"
+                    value={upstairsPumpTargetTemp}
+                    onChange={(e) => setUpstairsPumpTargetTemp(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Mitataan: Yläkerran työhuone (tuya)
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Ylilämpöhystereesi:
+                    </label>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
+                      +{upstairsPumpHysteresis} °C
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    max="1.5"
+                    value={upstairsPumpHysteresis}
+                    onChange={(e) => setUpstairsPumpHysteresis(e.target.value)}
+                    disabled={readOnly}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Pysäyttää kierron ylilämmön välttämiseksi
+                  </div>
+                </div>
+              </div>
+
+              {/* Summer Cutoff Threshold */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Kesäkatkaisun ulkolämpötila:
+                  </label>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
+                    {upstairsPumpCutoff} °C
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="14"
+                  max="22"
+                  step="0.5"
+                  value={upstairsPumpCutoff}
+                  onChange={(e) => setUpstairsPumpCutoff(e.target.value)}
+                  disabled={readOnly}
+                  style={{ width: '100%', accentColor: '#38bdf8' }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Sammuttaa yläkerran pumpun automaattisesti kun ulkolämpötila ylittää tämän arvon.
+                </div>
+              </div>
+
+              {/* Checkboxes: Price Setback & Anti-Seize */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={upstairsPumpPriceSetback}
+                    onChange={(e) => setUpstairsPumpPriceSetback(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#38bdf8' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Hintapiikkisäästö (SETBACK)</strong>: Tauottaa yläkerran kierron kalliin pörssisähkön hintahuippujen aikana, jos yläkerran lämpötila on riittävä.
+                  </span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={upstairsPumpAntiSeize}
+                    onChange={(e) => setUpstairsPumpAntiSeize(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#10b981' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Päivittäinen jumiutumisenesto</strong>: Pyörittää yläkerran pumppua 5 minuutin ajan päivittäin (klo 12:10–12:15) kesätauon aikana.
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
 
