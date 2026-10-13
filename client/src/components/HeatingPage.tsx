@@ -4,7 +4,6 @@ import { HeatpumpCard } from './HeatpumpCard';
 import { DHWCard } from './DHWCard';
 import { BufferTankCard } from './BufferTankCard';
 import { OutdoorCard } from './OutdoorCard';
-import { ThreeWayValveCard } from './ThreeWayValveCard';
 import { CameraCard } from './CameraCard';
 import { UnifiedForecastCard } from './UnifiedForecastCard';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -52,7 +51,7 @@ export const HeatingPage: React.FC<HeatingPageProps> = ({
         </ErrorBoundary>
       </div>
 
-      {/* Row 2: Outdoor + Valve + Camera (Next 3 widgets) */}
+      {/* Row 2: Outdoor status + Technical room camera */}
       <div className="dashboard-grid dashboard-grid-sub">
         <ErrorBoundary>
           <OutdoorCard
@@ -61,9 +60,6 @@ export const HeatingPage: React.FC<HeatingPageProps> = ({
             onOpenOutdoorWeather={onOpenOutdoorWeather}
             readOnly={readOnly}
           />
-        </ErrorBoundary>
-        <ErrorBoundary>
-          <ThreeWayValveCard state={state} onOpenTrend={onOpenTrend} readOnly={readOnly} />
         </ErrorBoundary>
         <ErrorBoundary>
           <CameraCard />

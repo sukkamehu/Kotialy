@@ -199,6 +199,12 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
   const powerfulTime = numVal(state, 'main/Powerful_Mode_Time');
   const holidayOn = (numVal(state, 'main/Holiday_Mode_State') ?? 0) > 0;
 
+  // 3-way valve (PAW-3WYVLV4HW) state
+  const valveVal = state['main/ThreeWay_Valve_State']?.value;
+  const forceDHW = state['main/Force_DHW_State']?.value === '1';
+  const isValveHeating = valveVal === '0';
+  const isValveDHW = valveVal === '1';
+
   const { send, pending, error, success } = useCommand();
   const [showPowerConfirm, setShowPowerConfirm] = useState(false);
 
@@ -346,6 +352,75 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
 
         <div className="divider" />
 
+        {/* 3-Tieventtiili (PAW-3WYVLV4HW) tila & virtaus */}
+        <div
+          className="metric-clickable"
+          style={{
+            background: isValveDHW ? 'rgba(16, 185, 129, 0.08)' : isValveHeating ? 'rgba(167, 139, 250, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+            border: `1px solid ${isValveDHW ? 'rgba(16, 185, 129, 0.25)' : isValveHeating ? 'rgba(167, 139, 250, 0.25)' : 'var(--border)'}`,
+            borderRadius: 10,
+            padding: '10px 12px',
+            marginTop: 14,
+            marginBottom: 12,
+            cursor: 'pointer',
+          }}
+          title="Klikkaa nähdäksesi 3-tieventtiilin asennon trendi"
+          onClick={() =>
+            onOpenTrend?.({
+              topic: 'main/ThreeWay_Valve_State',
+              label: '3-tieventtiilin asento (0=Lämpö, 1=KV)',
+              unit: '',
+              color: isValveDHW ? 'var(--dhw-primary)' : 'var(--buffer-primary)',
+              currentValue: isValveDHW ? 'Käyttövesi (1)' : isValveHeating ? 'Lämmitys (0)' : '—',
+            })
+          }
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13 }}>🔀</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                3-Tieventtiili (PAW-3WYVLV4HW) ↗
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {forceDHW && (
+                <span className="badge badge-dhw" style={{ fontSize: 10, padding: '2px 6px' }}>
+                  ⚡ Pakotettu KV
+                </span>
+              )}
+              {isValveDHW ? (
+                <span className="badge badge-dhw" style={{ fontSize: 10, padding: '2px 8px' }}>
+                  💧 Käyttövesi (1)
+                </span>
+              ) : isValveHeating ? (
+                <span
+                  className="badge"
+                  style={{
+                    background: 'var(--buffer-glow)',
+                    color: 'var(--buffer-primary)',
+                    border: '1px solid rgba(167,139,250,0.3)',
+                    fontSize: 10,
+                    padding: '2px 8px',
+                  }}
+                >
+                  🏠 Lämmitys (0)
+                </span>
+              ) : (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  {valveVal !== undefined ? `Tila ${valveVal}` : 'Ei tietoa'}
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.35 }}>
+            {isValveDHW
+              ? `Virtaus ohjautuu LKV-varaajan kierukalle ${flow !== null && flow >= 0.3 ? `(${flow.toFixed(1)} L/min)` : ''}`
+              : isValveHeating
+              ? `Virtaus ohjautuu puskurivaraajalle & lattialämmitykseen ${flow !== null && flow >= 0.3 ? `(${flow.toFixed(1)} L/min)` : ''}`
+              : 'Venttiilin asento ohjautuu automaattisesti käyttötilan mukaan.'}
+          </div>
+        </div>
+
         {/* Controls */}
         <div className="section-label" style={{ marginBottom: 10 }}>Ohjaus</div>
 
@@ -353,8 +428,13 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
           label="🔄 Toimintatila"
           options={OPERATING_MODES}
           value={operatingMode === null ? null : Math.round(operatingMode)}
-          onSelect={(v) => send('commands/SetOperationMode', v,
-            `Toimintatila: ${ALL_OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`)}
+          onSelect={async (v) => {
+            if (forceDHW) {
+              await send('commands/SetForceDHW', 0);
+            }
+            send('commands/SetOperationMode', v,
+              `Toimintatila: ${ALL_OPERATING_MODES.find((m) => m.value === v)?.label ?? v}`);
+          }}
           pending={pending}
           disabled={readOnly}
           idPrefix="btn-mode"

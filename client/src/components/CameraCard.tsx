@@ -224,7 +224,7 @@ export function CameraCard() {
 
   return (
     <>
-      <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', alignSelf: 'start', height: 'fit-content' }}>
         {/* Card Header */}
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
