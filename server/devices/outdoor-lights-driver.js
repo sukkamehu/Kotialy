@@ -25,6 +25,25 @@ function warn(...args) {
 }
 
 /**
+ * Get current time in Finland (Europe/Helsinki) converted to minutes from midnight
+ */
+function getHelsinkiMinutes(date = new Date()) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Helsinki',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+    }).formatToParts(date);
+    const hour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(parts.find((p) => p.type === 'minute')?.value || '0', 10);
+    return hour * 60 + minute;
+  } catch {
+    return date.getHours() * 60 + date.getMinutes();
+  }
+}
+
+/**
  * Astronomical solar calculation (NOAA solar model)
  */
 function calculateSunTimes(date = new Date(), lat = DEFAULT_LAT, lon = DEFAULT_LON) {
@@ -154,7 +173,7 @@ class OutdoorLightsDriver {
           const [startH, startM] = (settings.night_off_start || '23:30').split(':').map(Number);
           const [endH, endM] = (settings.night_off_end || '05:30').split(':').map(Number);
 
-          const curMinutes = now.getHours() * 60 + now.getMinutes();
+          const curMinutes = getHelsinkiMinutes(now);
           const nightStartMin = startH * 60 + startM;
           const nightEndMin = endH * 60 + endM;
 
@@ -174,11 +193,16 @@ class OutdoorLightsDriver {
           autoReason = `🌙 Yösammutus aktiivinen (${settings.night_off_start || '23:30'}–${settings.night_off_end || '05:30'}) · Valot sammutettu säästösyistä`;
         } else if (isDark) {
           autoTargetState = 'ON';
-          const sunsetFormatted = sunTimes.sunset ? sunTimes.sunset.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }) : '';
-          autoReason = `💡 Hämäräaika (Aurinko laski klo ${sunsetFormatted}) · Astronominen ohjaus: Päällä`;
+          const sunriseFormatted = sunTimes.sunrise ? sunTimes.sunrise.toLocaleTimeString('fi-FI', { timeZone: 'Europe/Helsinki', hour: '2-digit', minute: '2-digit' }) : '';
+          const sunsetFormatted = sunTimes.sunset ? sunTimes.sunset.toLocaleTimeString('fi-FI', { timeZone: 'Europe/Helsinki', hour: '2-digit', minute: '2-digit' }) : '';
+          if (nowMs < offTimeMs) {
+            autoReason = `💡 Aamun hämäräaika (Aurinko nousee klo ${sunriseFormatted}) · Astronominen ohjaus: Päällä`;
+          } else {
+            autoReason = `💡 Illan hämäräaika (Aurinko laski klo ${sunsetFormatted}) · Astronominen ohjaus: Päällä`;
+          }
         } else {
           autoTargetState = 'OFF';
-          const sunriseFormatted = sunTimes.sunrise ? sunTimes.sunrise.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }) : '';
+          const sunriseFormatted = sunTimes.sunrise ? sunTimes.sunrise.toLocaleTimeString('fi-FI', { timeZone: 'Europe/Helsinki', hour: '2-digit', minute: '2-digit' }) : '';
           autoReason = `☀️ Päiväaika (Aurinko noussut klo ${sunriseFormatted}) · Valot sammutettu`;
         }
       }
