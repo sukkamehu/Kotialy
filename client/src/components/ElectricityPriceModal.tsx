@@ -35,7 +35,6 @@ interface HourlyPriceItem {
 export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
   isOpen,
   onClose,
-  onOpenApc,
 }) => {
   const [timeframe, setTimeframe] = useState<PriceTimeframe>('today_tomorrow');
   const [prices, setPrices] = useState<NordpoolPrice[]>([]);
@@ -246,9 +245,6 @@ export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
                 Pörssisähkön Hinnankehitys & Ennuste
               </h3>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                Nord Pool Spot FI -tuntihinnat (sis. alv 25,5 %) · Reaaliaikainen seuranta ja hintaprofiili
-              </div>
             </div>
           </div>
 
@@ -464,7 +460,7 @@ export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
             </div>
 
             {/* Recharts Bar Chart */}
-            <div style={{ width: '100%', height: 320, position: 'relative' }}>
+            <div style={{ width: '100%', height: 380, position: 'relative' }}>
               {loading && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 8, zIndex: 10 }}>
                   <span style={{ fontSize: 13, color: '#38bdf8', fontWeight: 600 }}>Ladataan pörssihintoja...</span>
@@ -566,56 +562,6 @@ export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
                 </ResponsiveContainer>
               )}
             </div>
-          </div>
-
-          {/* APC Automation Integration Prompt */}
-          <div
-            style={{
-              background: 'linear-gradient(145deg, rgba(16, 185, 129, 0.1) 0%, rgba(15, 23, 42, 0.9) 100%)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              borderRadius: 14,
-              padding: '16px 20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 12,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 24 }}>⚡</span>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>
-                  APC (Automaattinen Pörssiohjaus) on aktiivinen
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  VILP ja varaajat optimoivat kulutuksen edullisille tunneille ja laskevat pyyntiä kalliiden tuntien aikana
-                </div>
-              </div>
-            </div>
-
-            {onOpenApc && (
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() => {
-                  onClose();
-                  onOpenApc();
-                }}
-                style={{
-                  background: 'rgba(16, 185, 129, 0.2)',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
-                  color: '#4ade80',
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  fontSize: 12.5,
-                  cursor: 'pointer',
-                }}
-              >
-                Avaa APC-Strategia & Asetukset ▶
-              </button>
-            )}
           </div>
         </div>
       </div>
