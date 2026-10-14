@@ -113,6 +113,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [lkvMinTankTemp, setLkvMinTankTemp] = useState<string>('40.0');
   const [upstairsPumpAntiSeize, setUpstairsPumpAntiSeize] = useState<boolean>(true);
   const [upstairsPumpPriceSetback, setUpstairsPumpPriceSetback] = useState<boolean>(true);
+  const [upstairsPumpWeekendContinuous, setUpstairsPumpWeekendContinuous] = useState<boolean>(true);
   const [upstairsPumpOverrideDuration, setUpstairsPumpOverrideDuration] = useState<number>(0.5);
   const [smartCyclingEnabled, setSmartCyclingEnabled] = useState<boolean>(status?.settings?.smart_cycling_enabled !== false);
   const [smartCyclingBoost, setSmartCyclingBoost] = useState<string>(String(status?.settings?.smart_cycling_charge_boost_c ?? 3.0));
@@ -185,6 +186,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setLkvMinTankTemp(String(status.settings.dhw_pump_min_tank_temp ?? 40.0));
       setUpstairsPumpAntiSeize(status.settings.dhw_pump_anti_seize_enabled !== false && status.settings.upstairs_pump_anti_seize_enabled !== false);
       setUpstairsPumpPriceSetback(status.settings.dhw_pump_price_setback_enabled !== false && status.settings.upstairs_pump_price_setback_enabled !== false);
+      setUpstairsPumpWeekendContinuous(status.settings.dhw_pump_weekend_continuous !== false && status.settings.upstairs_pump_weekend_continuous !== false);
       setSmartCyclingEnabled(status.settings.smart_cycling_enabled !== false);
       setSmartCyclingBoost(String(status.settings.smart_cycling_charge_boost_c ?? 3.0));
       setSmartCyclingMinRest(String(status.settings.smart_cycling_min_rest_min ?? 60));
@@ -273,8 +275,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       dhw_pump_min_tank_temp: parseFloat(lkvMinTankTemp) || 40.0,
       dhw_pump_anti_seize_enabled: Boolean(upstairsPumpAntiSeize),
       dhw_pump_price_setback_enabled: Boolean(upstairsPumpPriceSetback),
+      dhw_pump_weekend_continuous: Boolean(upstairsPumpWeekendContinuous),
       upstairs_pump_anti_seize_enabled: Boolean(upstairsPumpAntiSeize),
       upstairs_pump_price_setback_enabled: Boolean(upstairsPumpPriceSetback),
+      upstairs_pump_weekend_continuous: Boolean(upstairsPumpWeekendContinuous),
       smart_cycling_enabled: Boolean(smartCyclingEnabled),
       smart_cycling_charge_boost_c: parseFloat(smartCyclingBoost) || 3.0,
       smart_cycling_min_rest_min: parseInt(smartCyclingMinRest, 10) || 60,
@@ -2138,8 +2142,21 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                 </div>
               </div>
 
-              {/* Checkboxes: Price Setback & Anti-Seize */}
+              {/* Checkboxes: Price Setback, Weekend Continuous & Anti-Seize */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={upstairsPumpWeekendContinuous}
+                    onChange={(e) => setUpstairsPumpWeekendContinuous(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#f59e0b' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Aina päällä viikonloppupäivisin</strong>: Kierto käy lauantaisin ja sunnuntaisin päivällä (klo 06–23) jatkuvasti ilman syklitaukoja, jotta lämmintä vettä on aina heti saatavilla.
+                  </span>
+                </label>
+
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
                   <input
                     type="checkbox"

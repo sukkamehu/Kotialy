@@ -49,6 +49,8 @@ export interface ApcSettings {
   dhw_pump_min_tank_temp?: number;
   dhw_pump_price_setback_enabled?: boolean;
   dhw_pump_anti_seize_enabled?: boolean;
+  dhw_pump_weekend_continuous?: boolean;
+  upstairs_pump_weekend_continuous?: boolean;
   dhw_pump_override_until?: number;
   dhw_pump_override_state?: 'ON' | 'OFF' | null;
   dhw_pump_device_id?: string;
@@ -118,6 +120,8 @@ export interface UpstairsPumpStatus {
   summerCutoffTemp?: number;
   antiSeizeEnabled: boolean;
   priceSetbackEnabled: boolean;
+  weekendContinuous?: boolean;
+  isWeekend?: boolean;
   deviceId?: string;
 }
 

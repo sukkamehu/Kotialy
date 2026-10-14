@@ -745,6 +745,8 @@ function getApcSettings() {
     dhw_pump_min_tank_temp: 40.0,
     dhw_pump_price_setback_enabled: true,
     dhw_pump_anti_seize_enabled: true,
+    dhw_pump_weekend_continuous: true,
+    upstairs_pump_weekend_continuous: true,
     dhw_pump_override_until: 0,
     dhw_pump_override_state: null,
     dhw_pump_device_id: 'bfb6ed442015162bc97kca',
@@ -800,6 +802,10 @@ function getApcSettings() {
       const val = r.value === '1' || r.value === 'true';
       settings.upstairs_pump_price_setback_enabled = val;
       settings.dhw_pump_price_setback_enabled = val;
+    } else if (r.key === 'upstairs_pump_weekend_continuous' || r.key === 'dhw_pump_weekend_continuous') {
+      const val = r.value === '1' || r.value === 'true';
+      settings.upstairs_pump_weekend_continuous = val;
+      settings.dhw_pump_weekend_continuous = val;
     } else if (
       r.key === 'mode' ||
       r.key === 'override_directive' ||

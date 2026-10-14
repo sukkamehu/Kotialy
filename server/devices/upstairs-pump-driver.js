@@ -42,6 +42,24 @@ function warn(...args) {
   console.warn('[APC:LKV_PUMP]', ...args);
 }
 
+function getHelsinkiTime(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Helsinki',
+    hour: 'numeric',
+    minute: 'numeric',
+    weekday: 'short',
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const hours = parseInt(get('hour'), 10);
+  const minutes = parseInt(get('minute'), 10);
+  const weekday = get('weekday'); // 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+  const isWeekend = weekday === 'Sat' || weekday === 'Sun';
+
+  return { hours, minutes, weekday, isWeekend };
+}
+
 class UpstairsPumpDriver {
   constructor() {
     this.id = 'upstairs_pump';
@@ -111,6 +129,7 @@ class UpstairsPumpDriver {
     const minTankTemp = settings.dhw_pump_min_tank_temp != null ? Number(settings.dhw_pump_min_tank_temp) : 40.0;
     const antiSeizeEnabled = settings.dhw_pump_anti_seize_enabled !== false;
     const priceSetbackEnabled = settings.dhw_pump_price_setback_enabled !== false;
+    const weekendContinuous = settings.dhw_pump_weekend_continuous !== false && settings.upstairs_pump_weekend_continuous !== false;
 
     // Read current DHW temperature
     const currentDhwTemp = dhwTemp != null
@@ -141,9 +160,7 @@ class UpstairsPumpDriver {
     }
     // ── 3. Intelligent APC Automatic Mode ───────────────────────────────────
     else {
-      const nowDate = new Date(now);
-      const hours = nowDate.getHours();
-      const minutes = nowDate.getMinutes();
+      const { hours, minutes, isWeekend } = getHelsinkiTime(new Date(now));
 
       // A. Anti-Seize Protection Check (Daily exercise pulse 13:00–13:05)
       const isDailyPulse = hours === 13 && minutes >= 0 && minutes < 5;
@@ -176,12 +193,17 @@ class UpstairsPumpDriver {
         const endStr = String(nightEnd).padStart(2, '0') + ':00';
         reason = `Yölepo (${startStr}–${endStr}) · LKV-kierto pysäytetty lämpöhäviöiden estämiseksi`;
       }
-      // E. Peak Electricity Price Setback (Hintahuippu / SETBACK)
+      // E. Viikonloppupäivisin aina päällä (Weekend daytime continuous circulation)
+      else if (isWeekend && weekendContinuous) {
+        targetState = 'ON';
+        reason = 'Viikonloppu: Jatkuva LKV-kierto päällä viikonloppupäivisin (Aina lämmintä vettä)';
+      }
+      // F. Peak Electricity Price Setback (Hintahuippu / SETBACK arkipäivisin)
       else if (directive === 'SETBACK' && priceSetbackEnabled) {
         targetState = 'OFF';
         reason = 'Hintapiikkisäästö (SETBACK): LKV-kierto tauolla kalliin pörssisähkön aikana';
       }
-      // F. Daytime / Active Comfort Windows with Intelligent Duty-Cycle Pulsing
+      // G. Weekday Daytime Active Comfort Windows with Intelligent Duty-Cycle Pulsing
       else {
         // Calculate deterministic duty-cycle phase based on current time
         const periodMs = (cycleOnMin + cycleOffMin) * 60 * 1000;
@@ -194,10 +216,10 @@ class UpstairsPumpDriver {
 
         if (isPhaseOn) {
           targetState = 'ON';
-          reason = `Mukavuusjakso: Syklinen kierto käynnissä (${minLeft} min jäljellä · jakso ${cycleOnMin} min ON / ${cycleOffMin} min OFF)`;
+          reason = `Mukavuusjakso (Arkipäivä): Syklinen kierto käynnissä (${minLeft} min jäljellä · jakso ${cycleOnMin} min ON / ${cycleOffMin} min OFF)`;
         } else {
           targetState = 'OFF';
-          reason = `Mukavuusjakso: Syklitauko (${minLeft} min jäljellä · vesi lämmintä putkissa, säästetään varaajaa)`;
+          reason = `Mukavuusjakso (Arkipäivä): Syklitauko (${minLeft} min jäljellä · vesi lämmintä putkissa, säästetään varaajaa)`;
         }
       }
     }
@@ -316,10 +338,18 @@ class UpstairsPumpDriver {
     const nightStart = settings.dhw_pump_night_start != null ? Number(settings.dhw_pump_night_start) : 23;
     const nightEnd = settings.dhw_pump_night_end != null ? Number(settings.dhw_pump_night_end) : 6;
 
+    const { hours, isWeekend } = getHelsinkiTime(new Date(now));
+    const isNight = nightStart > nightEnd
+      ? (hours >= nightStart || hours < nightEnd)
+      : (hours >= nightStart && hours < nightEnd);
+    const weekendContinuous = settings.dhw_pump_weekend_continuous !== false && settings.upstairs_pump_weekend_continuous !== false;
+
     // Remaining minutes in current duty cycle or override
     let cycleMinutesRemaining = 0;
     if (isOverrideActive) {
       cycleMinutesRemaining = Math.max(0, Math.ceil((overrideUntil - now) / 60000));
+    } else if (isWeekend && weekendContinuous && !isNight) {
+      cycleMinutesRemaining = 0; // Continuous ON during weekend daytime
     } else {
       const periodMs = (cycleOnMin + cycleOffMin) * 60 * 1000;
       const cycleOnMs = cycleOnMin * 60 * 1000;
@@ -354,6 +384,8 @@ class UpstairsPumpDriver {
       cycleOffMinutes: cycleOffMin,
       antiSeizeEnabled: settings.dhw_pump_anti_seize_enabled !== false,
       priceSetbackEnabled: settings.dhw_pump_price_setback_enabled !== false,
+      weekendContinuous,
+      isWeekend,
       deviceId: settings.dhw_pump_device_id || settings.upstairs_pump_device_id || this.deviceId,
     };
   }

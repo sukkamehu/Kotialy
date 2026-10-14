@@ -388,6 +388,17 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
                       230V Suorasyöttö (24/7)
                     </span>
                   )}
+                  {lkvPumpDevice?.isWeekend && lkvMode === 'auto' && !isLkvOverrideActive && (
+                    <span className="badge" style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      color: '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                    }}>
+                      Viikonlopputila
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                   {lkvReason}

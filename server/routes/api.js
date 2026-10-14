@@ -806,6 +806,11 @@ async function handlePumpSettings(req, res) {
       dbModule.updateApcSetting('dhw_pump_price_setback_enabled', val);
       dbModule.updateApcSetting('upstairs_pump_price_setback_enabled', val);
     }
+    if (weekend_continuous !== undefined) {
+      const val = weekend_continuous ? '1' : '0';
+      dbModule.updateApcSetting('dhw_pump_weekend_continuous', val);
+      dbModule.updateApcSetting('upstairs_pump_weekend_continuous', val);
+    }
 
     if (target_temp !== undefined && !isNaN(parseFloat(target_temp))) {
       dbModule.updateApcSetting('upstairs_pump_target_temp', parseFloat(target_temp));
