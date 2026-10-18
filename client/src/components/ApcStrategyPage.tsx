@@ -38,10 +38,10 @@ const STRATEGY_DETAILS: Record<ApcMode, {
     fullDesc: 'Reagoi herkemmin pieniinkin hintaeroihin (jo 1,8 snt/kWh erolla). Pudottaa menovettä voimakkaammin kalliilla tunneilla ja lataa laattaan maksimilämmön halvoilla tunneilla.',
     pros: [
       'Pienin mahdollinen sähkölasku',
-      'Hyödyntää betonilaatan massiivisen varaavuuden 100 %',
+      'Hyödyntää lattiarakenteen ja puskurisäiliön varaavuuden',
       'Käyttövesi ajetaan minimiin kalliilla tunneilla',
     ],
-    idealFor: 'Paksulaattaiset talot, kun halutaan puristaa sähkölasku minimiin.',
+    idealFor: 'Kun halutaan puristaa sähkölasku minimiin pörssihuippuja väistämällä.',
   },
   comfort: {
     label: 'Mukavuus',
@@ -798,7 +798,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                   style={{ width: '100%', accentColor: '#f59e0b', cursor: 'pointer' }}
                 />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Nostaa menoveden tavoitetta halvan sähkön aikana varaamaan lämpöä laattaan.
+                  Nostaa menoveden tavoitetta halvan sähkön aikana varaamaan lämpöä lattiaan ja puskuriin.
                 </div>
               </div>
 

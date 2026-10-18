@@ -265,9 +265,10 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
             <p style={{ margin: '0 0 6px 0' }}>
               <strong>Lattialämmityksen häiriytyminen:</strong> Vesikiertoisen lattialämmityksen (Panasonic 12 kW VILP)
-              hyötysuhde ja asumismukavuus perustuvat massiivisen betonilaatan tasaiseen lämpöön. Jos ILP puhaltaa ilmaa
-              lämpimäksi leudolla säällä, huonetermostaatit sulkeutuvat, lattiat kylmenevät ja VILP ajautuu epätaloudelliseen
-              katkokäyntiin (pätkäkäynti).
+              hyötysuhde ja asumismukavuus perustuvat puukoolatun kipsilattian tasaiseen lämmönjakoon. Puukoolatussa kipsirakenteessa
+              lämpökapasiteetti on maltillinen: jos ILP puhaltaa huoneilman liian lämpimäksi leudolla säällä, huonetermostaatit
+              sulkeutuvat ja lattia viilenee nopeasti jalkojen alla epämiellyttäväksi. Samalla kiertovesivirtaus katkeaa ja VILP ajautuu
+              epätaloudelliseen katkokäyntiin (pätkäkäynti).
             </p>
             <p style={{ margin: 0 }}>
               <strong>Kotiälyn Hybridi-strategia:</strong> ILP pidetään valmiustilassa ja käynnistetään lämmitykseen vain

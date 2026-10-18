@@ -34,7 +34,7 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     recommendedValue: '27 °C',
     allowedRange: '20 °C – 65 °C',
     previousValue: '26 °C @ +15 °C',
-    reason: 'Pitää laatan ja puskurin riittävän lämpimänä leudolla syyskelillä ja pidentää kompressorin käyntijaksoa ennen sammutusta.',
+    reason: 'Pitää puukoolatun kipsilattian ja puskurin riittävän lämpimänä leudolla syyskelillä ja pidentää kompressorin käyntijaksoa ennen sammutusta.',
     kotiAlyImpact: 'Luo tasaisen matalan pohjan, josta Kotiäly optimoi tehon ja puskurin latausjaksot.',
   },
   {
@@ -126,8 +126,8 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     recommendedValue: '03:00 – 04:00 (3–4 h)',
     allowedRange: '0:30 – 10:00',
     previousValue: 'Ei tiedossa',
-    reason: 'Varmistaa, että laatta ja työsäiliö saavat vähintään 3–4 tuntia yhtäjaksoista lämmitystä ennen seuraavaa mahdollista käyttövesisykliä.',
-    kotiAlyImpact: 'Lattialaatta ja työsäiliö ehtivät varata suuren määrän halpaa yölämpöä.',
+    reason: 'Varmistaa, että lattialämmitys ja puskurivaraaja saavat vähintään 3–4 tuntia yhtäjaksoista lämmitystä ennen seuraavaa mahdollista käyttövesisykliä.',
+    kotiAlyImpact: 'Lattiarakenne ja 100L puskurisäiliö ehtivät varata edullista yölämpöä.',
   },
   {
     id: 'dhw_target_temp',
