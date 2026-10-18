@@ -1,6 +1,5 @@
 import React from "react";
 import { TapoPlugsCard } from "./TapoPlugsCard";
-import { TuyaPlugCard } from "./TuyaPlugCard";
 import { OutdoorLightsCard } from "./OutdoorLightsCard";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useTapo } from "../hooks/useTapo";
@@ -41,7 +40,7 @@ export const PlugsPage: React.FC<PlugsPageProps> = ({
             <span>🔌</span> Älypistorasiat & Kytkimet
           </h2>
           <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 3 }}>
-            Energy+ Tuya & Tapo P115 -älypistorasiat sekä WiFi-mittausrele sähkönkulutuksen seurannalla ja hintakatkaisulla
+            Kaikki kodin älypistorasiat (Energy+ Tuya & Tapo P115) sekä WiFi-mittausrele yhtenäisessä pörssiohjauksessa
           </div>
         </div>
 
@@ -73,23 +72,7 @@ export const PlugsPage: React.FC<PlugsPageProps> = ({
         </div>
       </div>
 
-      {/* Tuya Energy+ Smart Plug Section */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>⚡</span>
-          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            Energy+ Älypistorasia (Hintaleikkuri)
-          </h3>
-          <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
-            Tuya Smart Life · Katkaisu &gt; 15,0 snt/kWh
-          </span>
-        </div>
-        <ErrorBoundary>
-          <TuyaPlugCard readOnly={readOnly} />
-        </ErrorBoundary>
-      </div>
-
-      {/* Tapo Smart Plugs Section */}
+      {/* Unified Smart Plugs Grid (Contains Tuya Energy+ and Tapo P115 plugs) */}
       <ErrorBoundary>
         <TapoPlugsCard onOpenTrend={onOpenTrend} readOnly={readOnly} />
       </ErrorBoundary>

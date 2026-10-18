@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTapo } from '../hooks/useTapo';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
 import { useTuya } from '../hooks/useTuya';
+import { useTuyaPlug } from '../hooks/useTuyaPlug';
 import type { TapoDevice } from '../types/tapo';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
@@ -167,23 +168,34 @@ const TapoSettingsModal: React.FC<TapoSettingsModalProps> = ({
               />
             </div>
 
-            {/* IP Address */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                IP-osoite (lähiverkko)
-              </label>
-              <input
-                type="text"
-                style={inputStyle}
-                value={formIp}
-                onChange={(e) => setFormIp(e.target.value)}
-                placeholder="192.168.68.xx"
-                required
-              />
-              <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Kiinteä tai DHCP-varattu paikallinen IP-osoite
-              </span>
-            </div>
+            {/* IP Address / Device Type */}
+            {device.id === 'tuya_energy_plug' ? (
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  Yhteystyyppi
+                </label>
+                <div style={{ ...inputStyle, background: 'rgba(255, 255, 255, 0.04)', color: 'var(--text-muted)' }}>
+                  Tuya Cloud / Smart Life (Malli: smart-PFW02-G)
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  IP-osoite (lähiverkko)
+                </label>
+                <input
+                  type="text"
+                  style={inputStyle}
+                  value={formIp}
+                  onChange={(e) => setFormIp(e.target.value)}
+                  placeholder="192.168.68.xx"
+                  required
+                />
+                <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Kiinteä tai DHCP-varattu paikallinen IP-osoite
+                </span>
+              </div>
+            )}
 
             {/* Operating Mode */}
             <div>
@@ -557,8 +569,37 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     totalPowerW,
     totalTodayEnergyKwh,
   } = useTapo();
+  const {
+    status: tuyaPlugStatus,
+    togglePower: toggleTuyaPower,
+    setOverride: setTuyaOverride,
+    updateSettings: updateTuyaSettings,
+  } = useTuyaPlug();
   const { priceCentsKWh } = useElectricityPrice();
   const { devices: tuyaDevices } = useTuya();
+
+  const tuyaDevice: TapoDevice | null = tuyaPlugStatus ? {
+    id: 'tuya_energy_plug',
+    name: tuyaPlugStatus.name || 'Energy+ Älypistorasia',
+    ip: 'Tuya Cloud',
+    type: 'general_plug',
+    state: tuyaPlugStatus.isOn ? 'ON' : 'OFF',
+    power_w: tuyaPlugStatus.telemetry?.power_w || 0,
+    today_energy_kwh: tuyaPlugStatus.telemetry?.today_energy_kwh || 0,
+    total_energy_kwh: tuyaPlugStatus.telemetry?.today_energy_kwh || 0,
+    voltage_v: tuyaPlugStatus.telemetry?.voltage_v || null,
+    current_a: tuyaPlugStatus.telemetry?.current_a || null,
+    auto_mode: (tuyaPlugStatus.mode as any) || 'auto',
+    max_price_cents: tuyaPlugStatus.maxPriceLimit ?? 15.0,
+    isOverrideActive: tuyaPlugStatus.overrideActive,
+    override_until: tuyaPlugStatus.overrideUntil,
+    override_state: tuyaPlugStatus.overrideState,
+    last_action_reason: tuyaPlugStatus.reason,
+  } : null;
+
+  const allDevices: TapoDevice[] = tuyaDevice ? [tuyaDevice, ...devices] : devices;
+  const combinedTotalPowerW = totalPowerW + (tuyaPlugStatus?.telemetry?.power_w || 0);
+  const combinedTotalTodayEnergyKwh = totalTodayEnergyKwh + (tuyaPlugStatus?.telemetry?.today_energy_kwh || 0);
 
   const [settingsDeviceId, setSettingsDeviceId] = useState<string | null>(null);
   const [overrideDeviceId, setOverrideDeviceId] = useState<string | null>(null);
@@ -576,16 +617,24 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const settingsDevice = devices.find((d) => d.id === settingsDeviceId) || null;
-  const overrideDevice = devices.find((d) => d.id === overrideDeviceId) || null;
+  const settingsDevice = allDevices.find((d) => d.id === settingsDeviceId) || null;
+  const overrideDevice = allDevices.find((d) => d.id === overrideDeviceId) || null;
 
   const handleSaveSettings = async (id: string, newSettings: Partial<TapoDevice>) => {
     setSavingId(id);
     try {
-      await updateSettings(id, newSettings);
+      if (id === 'tuya_energy_plug') {
+        await updateTuyaSettings({
+          name: newSettings.name,
+          mode: newSettings.auto_mode,
+          maxPriceLimit: newSettings.max_price_cents != null ? newSettings.max_price_cents : 15.0,
+        });
+      } else {
+        await updateSettings(id, newSettings);
+      }
       setSettingsDeviceId(null);
     } catch (err) {
-      console.error('Failed to update Tapo settings:', err);
+      console.error('Failed to update plug settings:', err);
     } finally {
       setSavingId(null);
     }
@@ -595,10 +644,15 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     if (readOnly || savingId) return;
     setSavingId(dev.id);
     try {
-      const nextState = dev.state === 'ON' ? 'OFF' : 'ON';
-      await togglePower(dev.id, nextState);
+      if (dev.id === 'tuya_energy_plug') {
+        const nextState = dev.state !== 'ON';
+        await toggleTuyaPower(nextState);
+      } else {
+        const nextState = dev.state === 'ON' ? 'OFF' : 'ON';
+        await togglePower(dev.id, nextState);
+      }
     } catch (err) {
-      console.error('Failed to toggle Tapo power:', err);
+      console.error('Failed to toggle plug power:', err);
     } finally {
       setSavingId(null);
     }
@@ -608,10 +662,14 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     if (readOnly || savingId) return;
     setSavingId(dev.id);
     try {
-      await setOverride(dev.id, state, hours);
+      if (dev.id === 'tuya_energy_plug') {
+        await setTuyaOverride(state, hours);
+      } else {
+        await setOverride(dev.id, state, hours);
+      }
       setOverrideDeviceId(null);
     } catch (err) {
-      console.error('Failed to set Tapo override:', err);
+      console.error('Failed to set plug override:', err);
     } finally {
       setSavingId(null);
     }
@@ -668,7 +726,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>
-                Tapo P115 Älypistorasiat
+                Älypistorasiat & Kuormanohjaus
               </h3>
               <span
                 style={{
@@ -681,11 +739,11 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                   border: '1px solid rgba(56, 189, 248, 0.25)',
                 }}
               >
-                Pörssisähköautomaatio & Mittaus
+                Tapo P115 & Tuya Energy+
               </span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Reaaliaikainen kulutus, kuormanohjaus ja hintarajojen automaattivalvonta
+              Kaikki kodin älypistorasiat yhtenäisessä seurannassa ja pörssiohjauksessa
             </p>
           </div>
         </div>
@@ -722,7 +780,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                 Yhteisteho 📈
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: totalPowerW > 10 ? '#38bdf8' : 'var(--text-primary)' }}>
-                {totalPowerW.toFixed(0)} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>W</span>
+                {combinedTotalPowerW.toFixed(0)} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>W</span>
               </div>
             </div>
             <div style={{ width: '1px', height: '24px', background: 'rgba(255, 255, 255, 0.1)' }} />
@@ -745,7 +803,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                 Tänään 📈
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: '#a78bfa' }}>
-                {totalTodayEnergyKwh.toFixed(2)} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>kWh</span>
+                {combinedTotalTodayEnergyKwh.toFixed(2)} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>kWh</span>
               </div>
             </div>
           </div>
@@ -780,7 +838,8 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
             gap: '14px',
           }}
         >
-          {devices.map((dev) => {
+          {allDevices.map((dev) => {
+            const isTuya = dev.id === 'tuya_energy_plug';
             const isStorage = dev.id === 'isovarasto' || dev.id === 'pikkuvarasto' || dev.type === 'storage_heating';
             const isWashing = dev.id === 'pesukone' || dev.type === 'appliance_washing_machine';
             const isDryer = dev.id === 'kuivausrumpu' || dev.type === 'appliance_dryer';
@@ -797,7 +856,10 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
             // Icon & Category text
             let icon = '⚡';
             let catLabel = 'Pistorasia';
-            if (dev.id === 'isovarasto') {
+            if (isTuya) {
+              icon = '🔌';
+              catLabel = 'Energy+ (Pörssiohjaus)';
+            } else if (dev.id === 'isovarasto') {
               icon = '🔥';
               catLabel = 'Isovarasto (Lämmitys)';
             } else if (dev.id === 'pikkuvarasto') {
@@ -857,7 +919,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                           {dev.name}
                         </h4>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <span>{dev.ip}</span>
+                          <span>{isTuya ? 'Tuya Smart Life' : dev.ip}</span>
                           {dev.auto_mode !== 'auto' && (
                             <span style={{ color: '#f59e0b', fontWeight: 600 }}>
                               • {dev.auto_mode === 'constant_on' ? 'Aina Päällä' : 'Aina Pois'}
