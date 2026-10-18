@@ -58,6 +58,11 @@ export interface ApcSettings {
   defrost_cable_temp_threshold?: number;
   defrost_cable_hard_freeze_temp?: number;
   defrost_cable_defrost_runover_min?: number;
+  tuya_plug_mode?: 'auto' | 'constant_on' | 'constant_off';
+  tuya_plug_max_price_cents?: number;
+  tuya_plug_device_id?: string;
+  tuya_plug_override_until?: number;
+  tuya_plug_override_state?: 'ON' | 'OFF' | null;
   defrost_cable_override_until?: number;
   defrost_cable_override_state?: 'ON' | 'OFF' | null;
   quiet_mode_auto_enabled?: boolean;

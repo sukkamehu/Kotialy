@@ -883,6 +883,48 @@ router.post('/apc/defrost-cable/settings', requireAdmin, express.json(), async (
   }
 });
 
+// ─── Energy+ Smart Plug (Tuya) Endpoints ────────────────────────────────────
+
+/**
+ * GET /api/apc/tuya-plug/status
+ */
+router.get('/apc/tuya-plug/status', (req, res) => {
+  const tuyaPlugDriver = require('../devices/tuya-plug-driver');
+  res.json(tuyaPlugDriver.getStatus());
+});
+
+/**
+ * POST /api/apc/tuya-plug/override
+ * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
+ */
+router.post('/apc/tuya-plug/override', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const tuyaPlugDriver = require('../devices/tuya-plug-driver');
+    const { state, duration_hours = 0 } = req.body || {};
+    const status = await tuyaPlugDriver.setManualOverride(state, duration_hours);
+    apcService.evaluate();
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/tuya-plug/settings
+ * Body: { mode, max_price_cents, device_id }
+ */
+router.post('/apc/tuya-plug/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const tuyaPlugDriver = require('../devices/tuya-plug-driver');
+    const { mode, max_price_cents, device_id } = req.body || {};
+    const status = await tuyaPlugDriver.setSettings({ mode, max_price_cents, device_id });
+    apcService.evaluate();
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── DHW Smart Sterilization Endpoints ──────────────────────────────────────
 
 /**
@@ -1427,6 +1469,24 @@ router.post('/tuya/light', requireAdmin, async (req, res) => {
       colorHsv,
       mode,
     });
+    res.json({ ok: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/tuya/switch
+ * Control any Tuya switch / plug power directly
+ * Body: { device_id, power }
+ */
+router.post('/tuya/switch', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { device_id, power } = req.body || {};
+    if (!device_id) {
+      return res.status(400).json({ error: 'device_id required' });
+    }
+    const result = await tuyaService.setSwitchPower(device_id, Boolean(power));
     res.json({ ok: true, result });
   } catch (err) {
     res.status(500).json({ error: err.message });

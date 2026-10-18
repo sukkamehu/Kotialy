@@ -773,6 +773,11 @@ function getApcSettings() {
     sterilization_max_days: 14,
     sterilization_target_c: 65,
     sterilization_hold_min: 10,
+    tuya_plug_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
+    tuya_plug_max_price_cents: 15.0,
+    tuya_plug_device_id: 'bf48a78786f87488b4otcg',
+    tuya_plug_override_until: 0,
+    tuya_plug_override_state: null,
   };
 
   for (const r of rows) {
@@ -818,7 +823,10 @@ function getApcSettings() {
       r.key === 'dhw_pump_override_state' ||
       r.key === 'dhw_pump_device_id' ||
       r.key === 'defrost_cable_mode' ||
-      r.key === 'defrost_cable_override_state'
+      r.key === 'defrost_cable_override_state' ||
+      r.key === 'tuya_plug_mode' ||
+      r.key === 'tuya_plug_override_state' ||
+      r.key === 'tuya_plug_device_id'
     ) {
       settings[r.key] = r.value;
       if (r.key === 'dhw_pump_mode') settings.upstairs_pump_mode = r.value;

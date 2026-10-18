@@ -121,9 +121,106 @@ export function SmartLifePanel() {
   const waterLeakSensors = devices.filter((d) => d.type === 'water_leak');
   const lightDevices = devices.filter((d) => d.type === 'light');
   const doorSensors = devices.filter((d) => d.type === 'door');
-  const otherDevices = devices.filter((d) => d.type !== 'climate' && d.type !== 'water_leak' && d.type !== 'door' && d.type !== 'light');
+  const smartPlugs = devices.filter(
+    (d) => (d.category === 'cz' || d.type === 'meter_switch') &&
+           !d.name.toLowerCase().includes('ulkovalot') &&
+           !d.name.toLowerCase().includes('wifi switch')
+  );
+  const otherDevices = devices.filter((d) => d.type !== 'climate' && d.type !== 'water_leak' && d.type !== 'door' && d.type !== 'light' && !smartPlugs.some(p => p.id === d.id));
 
   const [showIndividualSaunaLights, setShowIndividualSaunaLights] = useState(false);
+  const [plugStatus, setPlugStatus] = useState<any>(null);
+  const [currentPriceCents, setCurrentPriceCents] = useState<number | null>(null);
+  const [plugMaxPriceInput, setPlugMaxPriceInput] = useState<string>('15.0');
+  const [isUpdatingPlug, setIsUpdatingPlug] = useState(false);
+
+  const fetchPlugStatus = async () => {
+    try {
+      const res = await apiFetch('/api/apc/tuya-plug/status');
+      if (res.ok) {
+        const data = await res.json();
+        setPlugStatus(data);
+        if (data?.maxPriceLimit != null) {
+          setPlugMaxPriceInput(String(data.maxPriceLimit));
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch tuya-plug status:', err);
+    }
+  };
+
+  const fetchCurrentPrice = async () => {
+    try {
+      const res = await apiFetch('/api/nordpool/current');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.price != null) {
+          setCurrentPriceCents(Number((data.price / 10).toFixed(2)));
+        }
+      }
+    } catch { }
+  };
+
+  useEffect(() => {
+    fetchPlugStatus();
+    fetchCurrentPrice();
+    const interval = setInterval(() => {
+      fetchPlugStatus();
+      fetchCurrentPrice();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleTogglePlug = async (deviceId: string, turnOn: boolean) => {
+    try {
+      setIsUpdatingPlug(true);
+      await apiFetch('/api/tuya/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: deviceId, power: turnOn }),
+      });
+      await fetchPlugStatus();
+      refreshDevices();
+    } catch (err) {
+      console.error('Failed to toggle plug:', err);
+    } finally {
+      setIsUpdatingPlug(false);
+    }
+  };
+
+  const handleSetPlugMode = async (mode: string) => {
+    try {
+      setIsUpdatingPlug(true);
+      await apiFetch('/api/apc/tuya-plug/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      await fetchPlugStatus();
+    } catch (err) {
+      console.error('Failed to update plug mode:', err);
+    } finally {
+      setIsUpdatingPlug(false);
+    }
+  };
+
+  const handleSavePlugMaxPrice = async () => {
+    const val = parseFloat(plugMaxPriceInput);
+    if (isNaN(val)) return;
+    try {
+      setIsUpdatingPlug(true);
+      await apiFetch('/api/apc/tuya-plug/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_price_cents: val }),
+      });
+      await fetchPlugStatus();
+    } catch (err) {
+      console.error('Failed to update max price:', err);
+    } finally {
+      setIsUpdatingPlug(false);
+    }
+  };
 
   // Group lights by room/function
   const isSaunaLight = (d: TuyaDevice) => {
@@ -734,6 +831,344 @@ export function SmartLifePanel() {
                 </ResponsiveContainer>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 2b. Smart Plugs & Spot Price Load Control */}
+        {smartPlugs.length > 0 && (
+          <div
+            style={{
+              background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%)',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              borderRadius: 14,
+              padding: '18px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(168, 85, 247, 0.2))',
+                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 20,
+                  }}
+                >
+                  🔌
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Älypistorasiat & Kuormanohjaus
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        background: 'rgba(56, 189, 248, 0.15)',
+                        color: '#38bdf8',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                      }}
+                    >
+                      Pörssisähköautomaatio (≤ {plugStatus?.maxPriceLimit ?? 15.0} snt/kWh)
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Katkoo sähköt automaattisesti kalliina tunteina ja mittaa reaaliaikaista kulutusta
+                  </div>
+                </div>
+              </div>
+
+              {currentPriceCents != null && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: currentPriceCents > (plugStatus?.maxPriceLimit ?? 15.0) ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.12)',
+                    border: `1px solid ${currentPriceCents > (plugStatus?.maxPriceLimit ?? 15.0) ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.3)'}`,
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                  }}
+                >
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Pörssisähkö nyt:</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: currentPriceCents > (plugStatus?.maxPriceLimit ?? 15.0) ? '#f87171' : '#4ade80' }}>
+                    {currentPriceCents.toFixed(1)} snt/kWh
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: currentPriceCents > (plugStatus?.maxPriceLimit ?? 15.0) ? '#ef4444' : '#22c55e' }}>
+                    {currentPriceCents > (plugStatus?.maxPriceLimit ?? 15.0) ? '• Kallis' : '• Edullinen'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Smart Plugs Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
+              {smartPlugs.map((d: TuyaDevice) => {
+                const isOn = Boolean(d.properties.state ?? d.properties.switch_1 ?? plugStatus?.isOn);
+                const power = d.properties.power ?? plugStatus?.telemetry?.power_w ?? 0;
+                const voltage = d.properties.voltage ?? plugStatus?.telemetry?.voltage_v ?? 0;
+                const current = d.properties.current ?? plugStatus?.telemetry?.current_a ?? 0;
+                const energy = d.properties.energy ?? plugStatus?.telemetry?.today_energy_kwh ?? 0;
+                const isPriceCutoff = !isOn && (currentPriceCents != null && currentPriceCents > (plugStatus?.maxPriceLimit ?? 15.0));
+
+                return (
+                  <div
+                    key={d.id}
+                    style={{
+                      background: isOn
+                        ? 'linear-gradient(160deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%)'
+                        : 'rgba(15, 23, 42, 0.6)',
+                      border: isOn
+                        ? '1px solid rgba(56, 189, 248, 0.4)'
+                        : isPriceCutoff
+                        ? '1px solid rgba(239, 68, 68, 0.4)'
+                        : '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: 12,
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14,
+                      boxShadow: isOn ? '0 4px 20px rgba(56, 189, 248, 0.1)' : 'none',
+                    }}
+                  >
+                    {/* Header + Toggle Button */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 8,
+                            background: isOn ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 18,
+                          }}
+                        >
+                          🔌
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                            {d.name}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                            {d.model || 'Energy+ Tuya Smart Plug'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePlug(d.id, !isOn)}
+                        disabled={isUpdatingPlug}
+                        style={{
+                          background: isOn
+                            ? 'linear-gradient(135deg, #10b981, #059669)'
+                            : 'rgba(255, 255, 255, 0.08)',
+                          border: isOn ? '1px solid rgba(16, 185, 129, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)',
+                          color: '#fff',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '6px 14px',
+                          borderRadius: 8,
+                          cursor: isUpdatingPlug ? 'wait' : 'pointer',
+                          boxShadow: isOn ? '0 2px 10px rgba(16, 185, 129, 0.3)' : 'none',
+                        }}
+                      >
+                        {isOn ? '🟢 Päällä' : '⚫ Pois'}
+                      </button>
+                    </div>
+
+                    {/* Status & Reason Pill */}
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        background: isPriceCutoff
+                          ? 'rgba(239, 68, 68, 0.12)'
+                          : isOn
+                          ? 'rgba(34, 197, 94, 0.1)'
+                          : 'rgba(255, 255, 255, 0.03)',
+                        border: isPriceCutoff
+                          ? '1px solid rgba(239, 68, 68, 0.25)'
+                          : isOn
+                          ? '1px solid rgba(34, 197, 94, 0.2)'
+                          : '1px solid rgba(255, 255, 255, 0.06)',
+                        fontSize: 12,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 6,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{isPriceCutoff ? '🛑' : isOn ? '⚡' : '⏸️'}</span>
+                        <span style={{ fontWeight: 600, color: isPriceCutoff ? '#f87171' : isOn ? '#4ade80' : 'var(--text-secondary)' }}>
+                          {plugStatus?.reason || (isPriceCutoff ? 'Hintaraja ylittynyt · Sähköt katkaistu' : isOn ? 'Pörssisähkö edullista · Päällä' : 'Katkaistu')}
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: isPriceCutoff ? 'rgba(239, 68, 68, 0.2)' : 'rgba(56, 189, 248, 0.15)',
+                          color: isPriceCutoff ? '#fca5a5' : '#38bdf8',
+                        }}
+                      >
+                        {plugStatus?.mode === 'constant_on' ? 'Pakotettu ON' : plugStatus?.mode === 'constant_off' ? 'Pakotettu OFF' : 'Automaatio'}
+                      </span>
+                    </div>
+
+                    {/* Telemetry Metrics Bar */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                      <div style={{ background: 'rgba(0,0,0,0.25)', padding: '8px 10px', borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Teho</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: power > 0 ? '#38bdf8' : 'var(--text-primary)', marginTop: 2 }}>
+                          {power.toFixed(0)} W
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(0,0,0,0.25)', padding: '8px 10px', borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Kulutus</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#a855f7', marginTop: 2 }}>
+                          {energy.toFixed(1)} kWh
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(0,0,0,0.25)', padding: '8px 10px', borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Jännite</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {voltage > 0 ? `${voltage.toFixed(0)} V` : '--'}
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(0,0,0,0.25)', padding: '8px 10px', borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Virta</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {current > 0 ? `${current.toFixed(2)} A` : '--'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mode & Cutoff Setting */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderRadius: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                          Toimintatila & Hintakatkaisu:
+                        </span>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {[
+                            { id: 'auto', label: '⚡ Auto' },
+                            { id: 'constant_on', label: '🟢 Aina ON' },
+                            { id: 'constant_off', label: '🔴 Aina OFF' },
+                          ].map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => handleSetPlugMode(m.id)}
+                              disabled={isUpdatingPlug}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: (plugStatus?.mode ?? 'auto') === m.id ? 700 : 500,
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                border: (plugStatus?.mode ?? 'auto') === m.id ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+                                background: (plugStatus?.mode ?? 'auto') === m.id ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.04)',
+                                color: (plugStatus?.mode ?? 'auto') === m.id ? '#38bdf8' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hintaraja:</span>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="1"
+                          max="100"
+                          value={plugMaxPriceInput}
+                          onChange={(e) => setPlugMaxPriceInput(e.target.value)}
+                          style={{
+                            width: 65,
+                            padding: '3px 6px',
+                            borderRadius: 6,
+                            background: 'rgba(0,0,0,0.4)',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            color: '#fff',
+                            fontSize: 11,
+                            textAlign: 'right',
+                          }}
+                        />
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>snt/kWh</span>
+                        <button
+                          type="button"
+                          onClick={handleSavePlugMaxPrice}
+                          disabled={isUpdatingPlug}
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            background: 'rgba(56, 189, 248, 0.2)',
+                            border: '1px solid rgba(56, 189, 248, 0.4)',
+                            color: '#38bdf8',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Tallenna
+                        </button>
+
+                        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                          {['10', '12', '15', '20'].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                setPlugMaxPriceInput(preset);
+                                apiFetch('/api/apc/tuya-plug/settings', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ max_price_cents: parseFloat(preset) }),
+                                }).then(fetchPlugStatus);
+                              }}
+                              style={{
+                                fontSize: 9,
+                                padding: '2px 5px',
+                                borderRadius: 4,
+                                background: plugMaxPriceInput === preset ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                color: plugMaxPriceInput === preset ? '#38bdf8' : 'var(--text-muted)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {preset} snt
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

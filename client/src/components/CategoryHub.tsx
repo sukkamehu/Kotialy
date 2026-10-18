@@ -59,8 +59,15 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
     (d) => d.name.toLowerCase().includes('isovarasto') || d.name.toLowerCase().includes('varasto')
   );
   const isovarastoTemp = isovarastoClimate?.properties.temperature ?? null;
-  const activePlugsCount = tapoDevices.filter((d) => d.state === 'ON').length;
-  const totalPlugPower = tapoDevices.reduce((sum, d) => sum + (d.power_w || 0), 0) + (outdoorLightsStatus?.telemetry?.power_w || 0);
+  const tuyaPlugs = tuyaDevices.filter(
+    (d) => (d.category === 'cz' || d.type === 'meter_switch') &&
+           !d.name.toLowerCase().includes('ulkovalot') &&
+           !d.name.toLowerCase().includes('wifi switch')
+  );
+  const activeTuyaPlugsCount = tuyaPlugs.filter((d) => Boolean(d.properties?.state ?? d.properties?.switch_1)).length;
+  const tuyaPlugsPower = tuyaPlugs.reduce((sum, d) => sum + (d.properties?.power || 0), 0);
+  const activePlugsCount = tapoDevices.filter((d) => d.state === 'ON').length + activeTuyaPlugsCount;
+  const totalPlugPower = tapoDevices.reduce((sum, d) => sum + (d.power_w || 0), 0) + (outdoorLightsStatus?.telemetry?.power_w || 0) + tuyaPlugsPower;
 
   const categories = [
     {

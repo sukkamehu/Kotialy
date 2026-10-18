@@ -5,6 +5,7 @@ export type TuyaDeviceType =
   | 'door'
   | 'gateway'
   | 'switch'
+  | 'meter_switch'
   | 'light'
   | 'unknown';
 

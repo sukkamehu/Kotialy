@@ -75,6 +75,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     status,
     logs,
     saving,
+    refresh,
     toggleEnabled,
     setMode,
     updateSettings,
@@ -123,6 +124,9 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [indoorFeedbackEnabled, setIndoorFeedbackEnabled] = useState<boolean>(status?.settings?.indoor_feedback_enabled !== false);
   const [indoorTargetTemp, setIndoorTargetTemp] = useState<string>(String(status?.settings?.indoor_target_temp_c ?? 21.3));
   const [indoorMinTemp, setIndoorMinTemp] = useState<string>(String(status?.settings?.indoor_min_temp_c ?? 20.5));
+  const [tuyaPlugMode, setTuyaPlugModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
+  const [tuyaPlugMaxPrice, setTuyaPlugMaxPrice] = useState<string>('15.0');
+  const [tuyaPlugOverrideDuration, setTuyaPlugOverrideDuration] = useState<number>(1);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Sähkösopimus & Siirtohinnat state
@@ -195,6 +199,8 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setIndoorFeedbackEnabled(status.settings.indoor_feedback_enabled !== false);
       setIndoorTargetTemp(String(status.settings.indoor_target_temp_c ?? 21.3));
       setIndoorMinTemp(String(status.settings.indoor_min_temp_c ?? 20.5));
+      setTuyaPlugModeState(status.settings.tuya_plug_mode ?? 'auto');
+      setTuyaPlugMaxPrice(String(status.settings.tuya_plug_max_price_cents ?? 15.0));
     }
   }, [status?.settings]);
 
@@ -287,6 +293,8 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       indoor_feedback_enabled: Boolean(indoorFeedbackEnabled),
       indoor_target_temp_c: parseFloat(indoorTargetTemp) || 21.3,
       indoor_min_temp_c: parseFloat(indoorMinTemp) || 20.5,
+      tuya_plug_mode: tuyaPlugMode,
+      tuya_plug_max_price_cents: parseFloat(tuyaPlugMaxPrice) || 15.0,
     });
     if (ok) {
       setSaveSuccess(true);
@@ -2182,6 +2190,178 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     <strong style={{ color: 'var(--text-primary)' }}>Huuhtelu- ja jumiutumissuoja</strong>: Käynnistää kierron legionelladesinfioinnin yhteydessä ja ajaa 5 min huuhtelun päivittäin klo 13:00.
                   </span>
                 </label>
+              </div>
+            </div>
+
+            {/* Column G: Energy+ Älypistorasia (Tuya / Smart Life) */}
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(168, 85, 247, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 16 }}>🔌</span>
+                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#c084fc' }}>
+                    Energy+ Älypistorasia (Kuormanohjaus)
+                  </h3>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Katkoo sähköt automaattisesti aina kun pörssisähkön hinta ylittää asetetun hintakatkaisurajan.
+                </p>
+              </div>
+
+              {/* Mode Selection */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+                  Ohjaustila:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  {[
+                    { id: 'auto', label: '⚡ Auto', desc: 'Pörssiohjaus' },
+                    { id: 'constant_on', label: '🟢 Jatkuva ON', desc: 'Aina päällä' },
+                    { id: 'constant_off', label: '🔴 Jatkuva OFF', desc: 'Aina pois' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => !readOnly && setTuyaPlugModeState(m.id as any)}
+                      disabled={readOnly}
+                      style={{
+                        padding: '8px 4px',
+                        borderRadius: 8,
+                        border: tuyaPlugMode === m.id ? '1px solid #c084fc' : '1px solid rgba(255,255,255,0.1)',
+                        background: tuyaPlugMode === m.id ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.04)',
+                        color: tuyaPlugMode === m.id ? '#c084fc' : 'var(--text-secondary)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        cursor: readOnly ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      <div>{m.label}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price Cutoff Input */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Hintakatkaisuraja:
+                  </label>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#c084fc' }}>
+                    {tuyaPlugMaxPrice} snt/kWh
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="1"
+                  max="100"
+                  value={tuyaPlugMaxPrice}
+                  onChange={(e) => setTuyaPlugMaxPrice(e.target.value)}
+                  disabled={readOnly}
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                  }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Sähköt katkaistaan automaattisesti aina kun spot-hinta on tämän rajan yläpuolella (oletus 15.0 snt/kWh).
+                </div>
+              </div>
+
+              {/* Manual Override Quick Controls */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Pakkokytkentä / Ohitus:
+                  </label>
+                  <select
+                    value={tuyaPlugOverrideDuration}
+                    onChange={(e) => setTuyaPlugOverrideDuration(Number(e.target.value))}
+                    disabled={readOnly}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      fontSize: 11,
+                    }}
+                  >
+                    <option value="0">Toistaiseksi</option>
+                    <option value="1">1 tunti</option>
+                    <option value="2">2 tuntia</option>
+                    <option value="4">4 tuntia</option>
+                    <option value="8">8 tuntia</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-success"
+                    onClick={async () => {
+                      if (readOnly) return;
+                      await apiFetch('/api/apc/tuya-plug/override', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ state: 'ON', duration_hours: tuyaPlugOverrideDuration }),
+                      });
+                      refresh();
+                    }}
+                    disabled={readOnly || saving}
+                    style={{ flex: 1, fontSize: 12, padding: '7px 10px', borderRadius: 8 }}
+                  >
+                    🟢 Pakota ON
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-danger"
+                    onClick={async () => {
+                      if (readOnly) return;
+                      await apiFetch('/api/apc/tuya-plug/override', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ state: 'OFF', duration_hours: tuyaPlugOverrideDuration }),
+                      });
+                      refresh();
+                    }}
+                    disabled={readOnly || saving}
+                    style={{ flex: 1, fontSize: 12, padding: '7px 10px', borderRadius: 8 }}
+                  >
+                    🔴 Pakota OFF
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={async () => {
+                      if (readOnly) return;
+                      await apiFetch('/api/apc/tuya-plug/override', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ state: null, duration_hours: 0 }),
+                      });
+                      refresh();
+                    }}
+                    disabled={readOnly || saving}
+                    style={{ flex: 1, fontSize: 12, padding: '7px 10px', borderRadius: 8 }}
+                  >
+                    Palauta
+                  </button>
+                </div>
               </div>
             </div>
           </div>
