@@ -1,10 +1,12 @@
-import React from 'react';
-import { TapoPlugsCard } from './TapoPlugsCard';
-import { OutdoorLightsCard } from './OutdoorLightsCard';
-import { ErrorBoundary } from './ErrorBoundary';
-import { useTapo } from '../hooks/useTapo';
-import { useOutdoorLights } from '../hooks/useOutdoorLights';
-import type { TrendTopicTarget } from './VariableTrendModal';
+import React from "react";
+import { TapoPlugsCard } from "./TapoPlugsCard";
+import { TuyaPlugCard } from "./TuyaPlugCard";
+import { OutdoorLightsCard } from "./OutdoorLightsCard";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { useTapo } from "../hooks/useTapo";
+import { useTuyaPlug } from "../hooks/useTuyaPlug";
+import { useOutdoorLights } from "../hooks/useOutdoorLights";
+import type { TrendTopicTarget } from "./VariableTrendModal";
 
 interface PlugsPageProps {
   onOpenTrend?: (target: TrendTopicTarget) => void;
@@ -16,55 +18,75 @@ export const PlugsPage: React.FC<PlugsPageProps> = ({
   readOnly = false,
 }) => {
   const { devices: tapoDevices } = useTapo();
+  const { status: tuyaPlugStatus } = useTuyaPlug();
   const { status: outdoorLightsStatus } = useOutdoorLights();
 
   // Total monitored plug and smart switch power
   const tapoPower = tapoDevices.reduce((sum, d) => sum + (d.power_w || 0), 0);
+  const tuyaPower = tuyaPlugStatus?.telemetry?.power_w ?? 0;
   const relayPower = outdoorLightsStatus?.telemetry?.power_w ?? 0;
-  const totalPowerW = tapoPower + relayPower;
-  const activeTapoCount = tapoDevices.filter((d) => d.state === 'ON').length;
+  const totalPowerW = tapoPower + tuyaPower + relayPower;
+
+  const activeTapoCount = tapoDevices.filter((d) => d.state === "ON").length;
+  const isTuyaOn = tuyaPlugStatus?.isOn ?? false;
   const isRelayOn = outdoorLightsStatus?.isOn ?? false;
-  const totalActiveDevices = activeTapoCount + (isRelayOn ? 1 : 0);
+  const totalActiveDevices = activeTapoCount + (isTuyaOn ? 1 : 0) + (isRelayOn ? 1 : 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 40 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 40 }}>
       {/* Category Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 style={{ fontSize: "1.45rem", fontWeight: 800, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 10 }}>
             <span>🔌</span> Älypistorasiat & Kytkimet
           </h2>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 3 }}>
-            Tapo P115 -älypistorasiat ja WiFi-mittausrele (ulkovalaistus) sähkönkulutuksen seurannalla ja pörssiohjauksella
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 3 }}>
+            Energy+ Tuya & Tapo P115 -älypistorasiat sekä WiFi-mittausrele sähkönkulutuksen seurannalla ja hintakatkaisulla
           </div>
         </div>
 
         {/* Global Plug & Relay Load Badge */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
+            display: "flex",
+            alignItems: "center",
             gap: 12,
-            background: 'rgba(56, 189, 248, 0.08)',
-            border: '1px solid rgba(56, 189, 248, 0.25)',
+            background: "rgba(56, 189, 248, 0.08)",
+            border: "1px solid rgba(56, 189, 248, 0.25)",
             borderRadius: 14,
-            padding: '8px 16px',
+            padding: "8px 16px",
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Yhteiskuorma nyt</span>
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#38bdf8' }}>
-              {totalPowerW > 0 ? totalPowerW.toFixed(1) : '0'} W
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Yhteiskuorma nyt</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#38bdf8" }}>
+              {totalPowerW > 0 ? totalPowerW.toFixed(1) : "0"} W
             </span>
           </div>
-          <div style={{ width: 1, height: 24, background: 'rgba(255, 255, 255, 0.1)' }} />
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Päällä</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: totalActiveDevices > 0 ? '#4ade80' : 'var(--text-secondary)' }}>
+          <div style={{ width: 1, height: 24, background: "rgba(255, 255, 255, 0.1)" }} />
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Päällä</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: totalActiveDevices > 0 ? "#4ade80" : "var(--text-secondary)" }}>
               {totalActiveDevices} kpl
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Tuya Energy+ Smart Plug Section */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 18 }}>⚡</span>
+          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            Energy+ Älypistorasia (Hintaleikkuri)
+          </h3>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
+            Tuya Smart Life · Katkaisu &gt; 15,0 snt/kWh
+          </span>
+        </div>
+        <ErrorBoundary>
+          <TuyaPlugCard readOnly={readOnly} />
+        </ErrorBoundary>
       </div>
 
       {/* Tapo Smart Plugs Section */}
@@ -74,12 +96,12 @@ export const PlugsPage: React.FC<PlugsPageProps> = ({
 
       {/* WiFi Switch / Smart Metering Relay Section */}
       <div style={{ marginTop: 8 }}>
-        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 18 }}>💡</span>
-          <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>
             WiFi-Mittausrele (Ulkovalaistus)
           </h3>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
             Tuya 1P-Mtrg WiFi Switch energiamittauksella
           </span>
         </div>
@@ -90,4 +112,3 @@ export const PlugsPage: React.FC<PlugsPageProps> = ({
     </div>
   );
 };
-

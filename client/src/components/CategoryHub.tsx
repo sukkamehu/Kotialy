@@ -173,7 +173,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
     {
       id: 'plugs' as CategoryId,
       title: 'Älypistorasiat',
-      subtitle: 'Tapo P115, Kuormat & Isovaraston Lämpömittari',
+      subtitle: 'Energy+ Tuya & Tapo P115, Kuormat & Hintaleikkuri',
       icon: '🔌',
       color: '#38bdf8',
       glow: 'rgba(56, 189, 248, 0.25)',
@@ -193,7 +193,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
           bg: 'rgba(56, 189, 248, 0.12)',
         },
       ],
-      description: 'Isovaraston ja pikkuvaraston pakkassuojaus/varaava lämmitys, pesukone & kuivausrumpu.',
+      description: 'Energy+ älypistorasia (15 snt hintakatkaisu), Isovaraston ja pikkuvaraston pakkassuojaus, pesukone & kuivausrumpu.',
     },
     {
       id: 'trends' as CategoryId,
