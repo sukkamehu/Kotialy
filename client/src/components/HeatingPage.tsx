@@ -5,6 +5,7 @@ import { DHWCard } from './DHWCard';
 import { BufferTankCard } from './BufferTankCard';
 import { OutdoorCard } from './OutdoorCard';
 import { CameraCard } from './CameraCard';
+import { MitsubishiCard } from './MitsubishiCard';
 import { UnifiedForecastCard } from './UnifiedForecastCard';
 import { ErrorBoundary } from './ErrorBoundary';
 import type { TrendTopicTarget } from './VariableTrendModal';
@@ -63,6 +64,13 @@ export const HeatingPage: React.FC<HeatingPageProps> = ({
         </ErrorBoundary>
         <ErrorBoundary>
           <CameraCard />
+        </ErrorBoundary>
+      </div>
+
+      {/* Row 2.5: Mitsubishi Air-to-Air Heat Pumps (ILP) */}
+      <div>
+        <ErrorBoundary>
+          <MitsubishiCard readOnly={readOnly} />
         </ErrorBoundary>
       </div>
 

@@ -18,6 +18,7 @@ const herrforsClient = require('./herrfors-client');
 const tapoService = require('./devices/tapo-service');
 const tuyaService = require('./devices/tuya-service');
 const outdoorLightsDriver = require('./devices/outdoor-lights-driver');
+const { driver: mitsubishiDriver } = require('./devices/mitsubishi-driver');
 const sterilizationService = require('./services/sterilization-service');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
@@ -105,6 +106,7 @@ wss.on('connection', (ws, req) => {
           sauna: tuyaService.getSaunaStatus(),
         },
         outdoorLights: outdoorLightsDriver.getStatus(),
+        mitsubishi: mitsubishiDriver.getStatus(),
         ts: Date.now(),
       })
     );
@@ -192,6 +194,9 @@ tapoService.start();
 // ─── Outdoor Lights Driver (Astronomical Dusk / Dawn) ──────────────────────
 outdoorLightsDriver.setWsBroadcast(wsBroadcast);
 outdoorLightsDriver.start();
+
+// ─── Mitsubishi ILP Driver ──────────────────────────────────────────────────
+mitsubishiDriver.setWsBroadcast(wsBroadcast);
 
 // ─── Smart Sterilization Service (Legionella Protection) ───────────────────
 sterilizationService.init(wsBroadcast);

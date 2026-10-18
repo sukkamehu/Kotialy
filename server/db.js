@@ -776,6 +776,13 @@ function getApcSettings() {
     tuya_plug_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
     tuya_plug_max_price_cents: 15.0,
     tuya_plug_device_id: 'bf48a78786f87488b4otcg',
+    mitsu_mode: 'smart_assist', // 'smart_assist' | 'fan_only' | 'cool' | 'heat' | 'off'
+    mitsu_frost_assist_temp: -12.0,
+    mitsu_max_price_cents: 20.0,
+    mitsu_heat_target_c: 21.0,
+    mitsu_cool_target_c: 23.0,
+    mitsu_override_until: 0,
+    mitsu_override_state: null,
     tuya_plug_override_until: 0,
     tuya_plug_override_state: null,
   };

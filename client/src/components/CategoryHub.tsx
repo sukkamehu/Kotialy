@@ -73,7 +73,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
     {
       id: 'heating' as CategoryId,
       title: 'Lämmitys',
-      subtitle: 'VILP 12kW, LKV, Puskurivaraaja, Venttiili & Kamera',
+      subtitle: 'VILP 12kW, Mitsubishi ILP, LKV, Puskurivaraaja & Kamera',
       icon: '🔥',
       color: '#f59e0b',
       glow: 'rgba(245, 158, 11, 0.25)',
@@ -93,7 +93,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
           bg: 'rgba(16, 185, 129, 0.15)',
         },
       ],
-      description: 'Lämpöpumpun tila, menovedet, puskurin lämmöt, kiertovesipumppu ja teknisen tilan kamera.',
+      description: 'Panasonic VILP, Mitsubishi ILP hybridi-ohjaus, menovedet, puskurin lämmöt, kiertovesipumppu ja valvontakamera.',
     },
     {
       id: 'temperatures' as CategoryId,

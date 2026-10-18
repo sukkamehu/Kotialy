@@ -925,6 +925,66 @@ router.post('/apc/tuya-plug/settings', requireAdmin, express.json(), async (req,
   }
 });
 
+// ─── Mitsubishi Air-to-Air Heat Pump (ILP) Endpoints ─────────────────────────
+
+/**
+ * GET /api/mitsu/status
+ */
+router.get('/mitsu/status', (req, res) => {
+  const { driver } = require('../devices/mitsubishi-driver');
+  res.json(driver.getStatus());
+});
+
+/**
+ * POST /api/mitsu/control
+ * Body: { unitId: 'mitsubishi_ylakerta' | 'mitsubishi_alakerta', mode, target_temperature, fan_mode, swing_mode }
+ */
+router.post('/mitsu/control', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { driver } = require('../devices/mitsubishi-driver');
+    const { unitId, mode, target_temperature, fan_mode, swing_mode } = req.body || {};
+    const unit = driver.units.find((u) => u.id === unitId) || driver.units[1];
+    if (!unit) {
+      return res.status(404).json({ error: 'Laitetta ei löydy' });
+    }
+    await unit.setClimate({ mode, target_temperature, fan_mode, swing_mode });
+    res.json({ ok: true, status: unit.getStatus() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/mitsu/settings
+ * Body: { mitsu_mode, mitsu_frost_assist_temp, mitsu_max_price_cents, mitsu_heat_target_c, mitsu_cool_target_c }
+ */
+router.post('/mitsu/settings', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { driver } = require('../devices/mitsubishi-driver');
+    const status = await driver.setSettings(req.body || {});
+    apcService.evaluate();
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/mitsu/override
+ * Body: { mode: 'HEAT'|'COOL'|'FAN_ONLY'|'OFF'|null, duration_hours: 0|1|2|4|8, target_temperature?: number }
+ */
+router.post('/mitsu/override', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { driver } = require('../devices/mitsubishi-driver');
+    const { mode, duration_hours = 0, target_temperature } = req.body || {};
+    const status = await driver.setManualOverride(mode, duration_hours, target_temperature);
+    apcService.evaluate();
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── DHW Smart Sterilization Endpoints ──────────────────────────────────────
 
 /**
