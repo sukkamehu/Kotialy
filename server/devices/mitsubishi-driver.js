@@ -139,10 +139,22 @@ class MitsubishiUnit {
           res.on('data', (c) => (data += c));
           res.on('end', () => {
             log(`Sent command to ${this.name} (${this.host}): ${queryString} (Status: ${res.statusCode})`);
-            if (mode) this.mode = mode.toUpperCase();
-            if (target_temperature != null) this.targetTemp = Number(target_temperature);
-            if (fan_mode) this.fanMode = fan_mode.toUpperCase();
-            if (swing_mode) this.swingMode = swing_mode.toUpperCase();
+            if (mode) {
+              this.mode = mode.toUpperCase();
+              db.updateState(`mitsubishi/${this.id}/mode`, this.mode);
+            }
+            if (target_temperature != null) {
+              this.targetTemp = Number(target_temperature);
+              db.updateState(`mitsubishi/${this.id}/target_temperature`, String(this.targetTemp));
+            }
+            if (fan_mode) {
+              this.fanMode = fan_mode.toUpperCase();
+              db.updateState(`mitsubishi/${this.id}/fan_mode`, this.fanMode);
+            }
+            if (swing_mode) {
+              this.swingMode = swing_mode.toUpperCase();
+              db.updateState(`mitsubishi/${this.id}/swing_mode`, this.swingMode);
+            }
             resolve({ ok: true, status: res.statusCode });
           });
         }
@@ -251,8 +263,8 @@ class MitsubishiManager {
     const coolTarget = settings.mitsu_cool_target_c != null ? Number(settings.mitsu_cool_target_c) : 23.0;
 
     const overrideUntil = Number(settings.mitsu_override_until || 0);
-    const overrideState = settings.mitsu_override_state || null;
-    const isOverrideActive = overrideUntil > now && overrideState != null;
+    const rawOverrideState = settings.mitsu_override_state || null;
+    const isOverrideActive = overrideUntil > now && Boolean(rawOverrideState);
 
     let targetMode = 'OFF';
     let targetTemp = heatTarget;
@@ -262,22 +274,20 @@ class MitsubishiManager {
     // ── 1. Manual Override takes highest precedence ─────────────────────────────
     if (isOverrideActive) {
       const minLeft = Math.ceil((overrideUntil - now) / 60000);
-      let overrideMode = 'OFF';
-      let overrideTemp = heatTarget;
-      let overrideFan = 'AUTO';
-
-      if (typeof overrideState === 'object') {
-        overrideMode = overrideState.mode || 'HEAT';
-        overrideTemp = overrideState.target_temp || (overrideMode === 'COOL' ? coolTarget : heatTarget);
-        overrideFan = overrideState.fan_mode || 'AUTO';
-      } else if (typeof overrideState === 'string') {
-        overrideMode = overrideState.toUpperCase();
-        overrideTemp = overrideMode === 'COOL' ? coolTarget : heatTarget;
+      let parsed = null;
+      if (typeof rawOverrideState === 'object') {
+        parsed = rawOverrideState;
+      } else {
+        try {
+          parsed = JSON.parse(rawOverrideState);
+        } catch {
+          parsed = { mode: String(rawOverrideState).toUpperCase() };
+        }
       }
 
-      targetMode = overrideMode;
-      targetTemp = overrideTemp;
-      targetFan = overrideFan;
+      targetMode = (parsed?.mode || 'HEAT').toUpperCase();
+      targetTemp = parsed?.target_temp != null ? Number(parsed.target_temp) : (targetMode === 'COOL' ? coolTarget : heatTarget);
+      targetFan = parsed?.fan_mode || 'AUTO';
       reason = `Manuaalinen ohitus aktiivinen (${targetMode} ${targetTemp}°C · jäljellä ~${minLeft} min)`;
     }
     // ── 2. Fixed Constant Modes ────────────────────────────────────────────────
@@ -298,10 +308,6 @@ class MitsubishiManager {
       reason = `Jatkuva lämmitys pakotettu päälle (pyynti ${heatTarget.toFixed(1)}°C)`;
     }
     // ── 3. Intelligent Hybrid Strategy ('smart_assist') ────────────────────────
-    // Philosophy: Hydronic underfloor heating with Panasonic VILP is the primary heating system.
-    // In mild weather (> -12 °C), heating with ILP would close floor thermostats, cool the concrete slabs,
-    // and cause the VILP to short-cycle. ILP only assists in deep frost (< -12 °C) to prevent
-    // 3-9 kW direct electric immersion heaters (vastukset) from kicking in.
     else {
       const fullState = db.getFullState();
       const outdoorTemp = context?.outdoorTemp != null
@@ -341,7 +347,7 @@ class MitsubishiManager {
         try {
           await unit.setClimate({
             mode: targetMode,
-            target_temperature: targetMode !== 'OFF' ? targetTemp : undefined,
+            target_temperature: targetMode !== 'OFF' && targetMode !== 'FAN_ONLY' ? targetTemp : undefined,
             fan_mode: targetMode !== 'OFF' ? targetFan : undefined,
           });
         } catch (err) {
@@ -389,14 +395,17 @@ class MitsubishiManager {
     db.updateApcSetting('mitsu_override_state', overrideState ? JSON.stringify(overrideState) : '');
     db.updateApcSetting('mitsu_override_until', String(overrideUntil));
 
-    // Poll and apply to connected units
     for (const unit of this.units) {
-      if (overrideState) {
-        await unit.setClimate({
-          mode: overrideState.mode,
-          target_temperature: overrideState.target_temp,
-          fan_mode: overrideState.fan_mode,
-        }).catch(() => {});
+      if (unit.connected) {
+        if (overrideState) {
+          await unit.setClimate({
+            mode: overrideState.mode,
+            target_temperature: overrideState.mode !== 'FAN_ONLY' ? overrideState.target_temp : undefined,
+            fan_mode: overrideState.fan_mode,
+          }).catch(() => {});
+        } else {
+          await this.applyDirectiveForUnit(unit, 'NORMAL', {});
+        }
       }
     }
 
@@ -406,6 +415,9 @@ class MitsubishiManager {
   async setSettings({ mitsu_mode, mitsu_frost_assist_temp, mitsu_max_price_cents, mitsu_heat_target_c, mitsu_cool_target_c }) {
     if (mitsu_mode && ['smart_assist', 'fan_only', 'cool', 'heat', 'off'].includes(mitsu_mode)) {
       db.updateApcSetting('mitsu_mode', mitsu_mode);
+      // When explicitly choosing a global mode, clear any manual override
+      db.updateApcSetting('mitsu_override_state', '');
+      db.updateApcSetting('mitsu_override_until', '0');
     }
     if (mitsu_frost_assist_temp != null) {
       const t = parseFloat(mitsu_frost_assist_temp);
@@ -423,6 +435,13 @@ class MitsubishiManager {
       const t = parseFloat(mitsu_cool_target_c);
       if (!isNaN(t)) db.updateApcSetting('mitsu_cool_target_c', String(t));
     }
+
+    for (const unit of this.units) {
+      if (unit.connected) {
+        await this.applyDirectiveForUnit(unit, 'NORMAL', {});
+      }
+    }
+
     return this.getStatus();
   }
 
@@ -436,9 +455,11 @@ class MitsubishiManager {
     let parsedOverrideState = null;
     if (settings.mitsu_override_state) {
       try {
-        parsedOverrideState = JSON.parse(settings.mitsu_override_state);
+        parsedOverrideState = typeof settings.mitsu_override_state === 'object'
+          ? settings.mitsu_override_state
+          : JSON.parse(settings.mitsu_override_state);
       } catch (e) {
-        parsedOverrideState = settings.mitsu_override_state;
+        parsedOverrideState = { mode: settings.mitsu_override_state };
       }
     }
 

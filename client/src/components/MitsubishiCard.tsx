@@ -50,6 +50,13 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
     await updateSettings({ mitsu_mode: mode });
   };
 
+  const handleUnitModeSelect = async (unitId: string, mode: string) => {
+    if (readOnly) return;
+    const unit = units.find((u) => u.id === unitId);
+    const targetTemp = unit?.targetTemperature ?? (mode === 'COOL' ? 23 : 21);
+    await setControl({ unitId, mode, target_temperature: targetTemp });
+  };
+
   const handleSaveSettings = async () => {
     if (readOnly) return;
     const frost = parseFloat(frostTempInput);
@@ -73,10 +80,14 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
     await setOverride(mode, hours, temp);
   };
 
-  const handleTempAdjust = async (unitId: string, currentTarget: number | null, delta: number) => {
+  const handleTempAdjust = async (unitId: string, currentTarget: number | null, delta: number, currentUnitMode?: string) => {
     if (readOnly || currentTarget == null) return;
     const newTarget = Math.round((currentTarget + delta) * 2) / 2;
-    await setControl({ unitId, target_temperature: newTarget });
+    if (currentUnitMode === 'OFF') {
+      await setControl({ unitId, mode: 'HEAT', target_temperature: newTarget });
+    } else {
+      await setControl({ unitId, target_temperature: newTarget });
+    }
   };
 
   const handleFanSelect = async (unitId: string, fan_mode: string) => {
@@ -246,7 +257,7 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
             color: '#38bdf8',
           }}
         >
-          <span>💡 Miksi ILP:iä ei kannata käyttää jatkuvaan lämmitykseen?</span>
+          <span>💡 Miksi ILP ei lämmitä leudolla säällä?</span>
           <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{showRationale ? 'Piilota ▲' : 'Näytä ▼'}</span>
         </div>
 
@@ -346,7 +357,7 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                 {!readOnly && (
                   <button
-                    onClick={() => handleTempAdjust('mitsubishi_ylakerta', ylakertaUnit?.targetTemperature ?? 21, -0.5)}
+                    onClick={() => handleTempAdjust('mitsubishi_ylakerta', ylakertaUnit?.targetTemperature ?? 21, -0.5, ylakertaUnit?.mode)}
                     disabled={saving}
                     style={{
                       width: 28,
@@ -369,7 +380,7 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
                 </span>
                 {!readOnly && (
                   <button
-                    onClick={() => handleTempAdjust('mitsubishi_ylakerta', ylakertaUnit?.targetTemperature ?? 21, 0.5)}
+                    onClick={() => handleTempAdjust('mitsubishi_ylakerta', ylakertaUnit?.targetTemperature ?? 21, 0.5, ylakertaUnit?.mode)}
                     disabled={saving}
                     style={{
                       width: 28,
@@ -388,6 +399,45 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
               </div>
             </div>
           </div>
+
+          {/* Direct Unit Mode Buttons (HEAT, COOL, FAN, OFF) */}
+          {!readOnly && ylakertaUnit?.connected && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                Aseta laitteen tila suoraan:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {[
+                  { mode: 'HEAT', label: '♨️ Lämpö', color: '#ef4444' },
+                  { mode: 'COOL', label: '❄️ Viileä', color: '#06b6d4' },
+                  { mode: 'FAN_ONLY', label: '🔥 Puhallus', color: '#f97316' },
+                  { mode: 'OFF', label: '⏹️ Pois', color: '#94a3b8' },
+                ].map((btn) => {
+                  const isActive = ylakertaUnit?.mode === btn.mode;
+                  return (
+                    <button
+                      key={btn.mode}
+                      onClick={() => handleUnitModeSelect('mitsubishi_ylakerta', btn.mode)}
+                      disabled={saving}
+                      style={{
+                        padding: '7px 4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        borderRadius: 8,
+                        border: isActive ? `1.5px solid ${btn.color}` : '1px solid rgba(255, 255, 255, 0.1)',
+                        background: isActive ? `${btn.color}25` : 'rgba(255, 255, 255, 0.04)',
+                        color: isActive ? 'white' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {btn.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Current State Badges */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>

@@ -833,7 +833,9 @@ function getApcSettings() {
       r.key === 'defrost_cable_override_state' ||
       r.key === 'tuya_plug_mode' ||
       r.key === 'tuya_plug_override_state' ||
-      r.key === 'tuya_plug_device_id'
+      r.key === 'tuya_plug_device_id' ||
+      r.key === 'mitsu_mode' ||
+      r.key === 'mitsu_override_state'
     ) {
       settings[r.key] = r.value;
       if (r.key === 'dhw_pump_mode') settings.upstairs_pump_mode = r.value;

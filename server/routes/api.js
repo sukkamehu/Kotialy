@@ -947,6 +947,23 @@ router.post('/mitsu/control', requireAdmin, express.json(), async (req, res) => 
     if (!unit) {
       return res.status(404).json({ error: 'Laitetta ei löydy' });
     }
+
+    if (mode && ['HEAT', 'COOL', 'FAN_ONLY', 'OFF'].includes(mode.toUpperCase())) {
+      if (mode.toUpperCase() === 'OFF') {
+        await driver.setManualOverride('OFF', 2);
+      } else {
+        await driver.setManualOverride(mode.toUpperCase(), 2, target_temperature || unit.targetTemp);
+      }
+    } else if (target_temperature != null) {
+      const db = require('../db');
+      const settings = db.getApcSettings();
+      if (settings.mitsu_override_until > Date.now() && settings.mitsu_override_state) {
+        let parsed = {};
+        try { parsed = JSON.parse(settings.mitsu_override_state); } catch {}
+        await driver.setManualOverride(parsed.mode || 'HEAT', 2, target_temperature);
+      }
+    }
+
     await unit.setClimate({ mode, target_temperature, fan_mode, swing_mode });
     res.json({ ok: true, status: unit.getStatus() });
   } catch (err) {
