@@ -589,6 +589,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
     total_energy_kwh: tuyaPlugStatus.telemetry?.today_energy_kwh || 0,
     voltage_v: tuyaPlugStatus.telemetry?.voltage_v || null,
     current_a: tuyaPlugStatus.telemetry?.current_a || null,
+    has_power_metering: false,
     auto_mode: (tuyaPlugStatus.mode as any) || 'auto',
     max_price_cents: tuyaPlugStatus.maxPriceLimit ?? 15.0,
     isOverrideActive: tuyaPlugStatus.overrideActive,
@@ -957,7 +958,38 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                     </div>
                   </div>
 
-                  {/* Power Readout Block (Clickable for Trend) */}
+                  {/* Power Readout Block (Clickable for Trend) or Relay Mode Indicator */}
+                  {dev.has_power_metering === false ? (
+                    <div
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Kytkintyyppi
+                        </div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                          ON/OFF Kytkinrele (16A)
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Mittaus
+                        </div>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Ei tehomittausta
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
                   <div
                     style={{
                       background: 'rgba(0, 0, 0, 0.25)',
@@ -1050,6 +1082,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                       />
                     </div>
                   </div>
+                  )}
 
                   {/* Isovarasto / Storage Temperature & Humidity Sensor Block */}
                   {isStorage && (() => {

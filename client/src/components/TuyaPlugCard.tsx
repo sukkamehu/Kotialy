@@ -277,7 +277,43 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
         )}
       </div>
 
-      {/* 4-Metric Realtime Telemetry Grid */}
+      {/* Telemetry or No-metering notice */}
+      {powerW === 0 && voltageV === 0 ? (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: "14px 16px",
+            borderRadius: 12,
+            background: "rgba(0, 0, 0, 0.35)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: "1.5rem" }}>🔌</span>
+            <div>
+              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                16A ON/OFF -kytkinrele (Ei virtamittausta)
+              </div>
+              <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>
+                Malli: Energy+ Smart-PFW02-G · Rele ohjaa virtaa pörssisähkön hinnan mukaan.
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
+              Toimintatila
+            </div>
+            <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#38bdf8", marginTop: 2 }}>
+              Pörssiohjaus aktiivinen
+            </div>
+          </div>
+        </div>
+      ) : (
       <div
         style={{
           display: "grid",
@@ -362,6 +398,7 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
           </span>
         </div>
       </div>
+      )}
 
       {/* Control Panel: Mode Selector, Price Threshold, Manual Override */}
       <div

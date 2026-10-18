@@ -17,6 +17,7 @@ export interface TapoDevice {
   total_energy_kwh: number;
   voltage_v?: number | null;
   current_a?: number | null;
+  has_power_metering?: boolean;
   auto_mode: TapoAutoMode;
   max_price_cents?: number | null;
   min_temp_c?: number | null;

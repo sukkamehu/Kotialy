@@ -22,6 +22,7 @@ export interface TuyaPlugStatus {
   overrideUntil: number;
   overrideState: 'ON' | 'OFF' | null;
   overrideMinutesRemaining: number;
+  hasPowerMetering?: boolean;
   reason: string;
   lastAppliedAt: number;
   telemetry: TuyaPlugTelemetry;

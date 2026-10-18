@@ -234,6 +234,7 @@ class TuyaPlugDriver {
       overrideUntil,
       overrideState,
       overrideMinutesRemaining: overrideMinRemaining,
+      hasPowerMetering: Boolean(dev?.properties?.has_power_metering),
       reason: this.currentReason,
       lastAppliedAt: this.lastAppliedAt,
       telemetry: {

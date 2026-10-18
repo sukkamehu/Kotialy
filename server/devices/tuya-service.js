@@ -335,7 +335,9 @@ class TuyaService {
     }
     // 6. Metering switch / Circuit Breaker / Outdoor lights WiFi switch (dlq, cz, or with cur_power/cur_voltage)
     else if (category === 'dlq' || category === 'cz' || statusMap.cur_power !== undefined || statusMap.cur_voltage !== undefined) {
-      type = 'meter_switch';
+      const hasMetering = statusMap.cur_power !== undefined || statusMap.cur_voltage !== undefined || statusMap.add_ele !== undefined || category === 'dlq';
+      type = hasMetering ? 'meter_switch' : 'switch';
+      properties.has_power_metering = hasMetering;
       properties.switch_1 = statusMap.switch_1 === true || statusMap.switch === true;
       properties.state = properties.switch_1;
       // In Tuya, dlq (1P-Mtrg) and cz report cur_power in deciwatts (0.1 W), e.g. 533 -> 53.3 W
