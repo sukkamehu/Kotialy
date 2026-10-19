@@ -31,6 +31,12 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'main/Pump_Flow', label: 'Virtaus', color: '#34d399', unit: 'L/min', yAxisId: 'right', category: 'vilp' },
   { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3', category: 'vilp' },
 
+  // ─── Mitsubishi ILP Ilmalämpöpumput ───────────────────────────
+  { key: 'mitsubishi/mitsubishi_alakerta/current_temperature', label: '🛋️ ILP Alakerta huonelämpö', color: '#38bdf8', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'mitsubishi/mitsubishi_alakerta/target_temperature', label: '🎯 ILP Alakerta pyynti', color: '#0284c7', unit: '°C', yAxisId: 'left', dash: '3 3', category: 'smartlife' },
+  { key: 'mitsubishi/mitsubishi_ylakerta/current_temperature', label: '🏠 ILP Yläkerta huonelämpö', color: '#c084fc', unit: '°C', yAxisId: 'left', category: 'smartlife' },
+  { key: 'mitsubishi/mitsubishi_ylakerta/target_temperature', label: '🎯 ILP Yläkerta pyynti', color: '#9333ea', unit: '°C', yAxisId: 'left', dash: '3 3', category: 'smartlife' },
+
   // ─── Smart Life / Tuya Huone- ja ulkoanturit ──────────────────
   { key: 'tuya/sauna/temperature', label: '🧖‍♂️ Sauna lämpötila', color: '#f97316', unit: '°C', yAxisId: 'left', category: 'smartlife' },
   { key: 'tuya/sauna/humidity', label: '🧖‍♂️ Sauna kosteus', color: '#06b6d4', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },

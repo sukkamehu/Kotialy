@@ -5,6 +5,7 @@ import { useElectricityPrice } from '../hooks/useElectricityPrice';
 import { useTuya } from '../hooks/useTuya';
 import { useOutdoorLights } from '../hooks/useOutdoorLights';
 import { useTapo } from '../hooks/useTapo';
+import { useMitsubishi } from '../hooks/useMitsubishi';
 
 export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'apc';
 
@@ -21,6 +22,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const { sauna, devices: tuyaDevices } = useTuya();
   const { status: outdoorLightsStatus } = useOutdoorLights();
   const { devices: tapoDevices } = useTapo();
+  const { status: mitsuStatus } = useMitsubishi();
 
   // Metrics for quick summary badges
   const outsideTemp = numVal(state, 'main/Outside_Temp');
@@ -30,13 +32,18 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const heatPumpState = state['main/Heatpump_State']?.value === '1';
   const flowRate = numVal(state, 'main/Pump_Flow');
 
-  // Climate info
+  // Climate info (Tuya & Mitsubishi ILP)
   const climateSensors = tuyaDevices.filter((d) => d.type === 'climate');
   const alakertaClimate = climateSensors.find((d) => d.name.toLowerCase().includes('alakerta'));
   const ylakertaClimate = climateSensors.find(
     (d) => d.name.toLowerCase().includes('ylakerta') || d.name.toLowerCase().includes('tyohuone')
   );
-  const houseTemps = [alakertaClimate?.properties.temperature, ylakertaClimate?.properties.temperature].filter(
+  const mitsuAlakerta = mitsuStatus?.units.find((u) => u.id === 'mitsubishi_alakerta');
+  const mitsuYlakerta = mitsuStatus?.units.find((u) => u.id === 'mitsubishi_ylakerta');
+
+  const alakertaTemp = alakertaClimate?.properties.temperature ?? mitsuAlakerta?.currentTemperature;
+  const ylakertaTemp = ylakertaClimate?.properties.temperature ?? mitsuYlakerta?.currentTemperature;
+  const houseTemps = [alakertaTemp, ylakertaTemp].filter(
     (t): t is number => typeof t === 'number'
   );
   const houseAvgTemp = houseTemps.length > 0 ? houseTemps.reduce((a, b) => a + b, 0) / houseTemps.length : null;
@@ -113,7 +120,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
         },
         {
           label: 'Anturit',
-          value: `${climateSensors.length} kpl live`,
+          value: `${climateSensors.length + (mitsuStatus?.units.length || 0)} kpl live`,
           color: '#4ade80',
           bg: 'rgba(34, 197, 94, 0.12)',
         },

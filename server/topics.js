@@ -698,6 +698,30 @@ const TOPICS = {
     category: 'energy',
     type: 'number',
   },
+  'mitsubishi/mitsubishi_alakerta/current_temperature': {
+    label: 'Mitsubishi ILP Alakerta Lämpötila',
+    unit: '°C',
+    category: 'temperature',
+    type: 'number',
+  },
+  'mitsubishi/mitsubishi_alakerta/target_temperature': {
+    label: 'Mitsubishi ILP Alakerta Pyynti',
+    unit: '°C',
+    category: 'temperature',
+    type: 'number',
+  },
+  'mitsubishi/mitsubishi_ylakerta/current_temperature': {
+    label: 'Mitsubishi ILP Yläkerta Lämpötila',
+    unit: '°C',
+    category: 'temperature',
+    type: 'number',
+  },
+  'mitsubishi/mitsubishi_ylakerta/target_temperature': {
+    label: 'Mitsubishi ILP Yläkerta Pyynti',
+    unit: '°C',
+    category: 'temperature',
+    type: 'number',
+  },
 };
 
 // Topics that are chartable (numeric, interesting to plot over time)
@@ -719,6 +743,10 @@ const CHART_TOPICS = [
   'extra/Heat_Power_Production',
   'extra/DHW_Power_Consumption',
   'extra/DHW_Power_Production',
+  'mitsubishi/mitsubishi_alakerta/current_temperature',
+  'mitsubishi/mitsubishi_alakerta/target_temperature',
+  'mitsubishi/mitsubishi_ylakerta/current_temperature',
+  'mitsubishi/mitsubishi_ylakerta/target_temperature',
   'tapo/total_power',
   'tapo/total_today_energy',
   'tapo/isovarasto/power',

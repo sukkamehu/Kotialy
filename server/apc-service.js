@@ -64,11 +64,16 @@ class ApcService {
     const heatpumpState = state['main/Heatpump_State']?.value !== undefined ? parseInt(state['main/Heatpump_State'].value, 10) : 1;
     const threeWayValve = state['main/ThreeWay_Valve_State']?.value !== undefined ? parseInt(state['main/ThreeWay_Valve_State'].value, 10) : 0;
 
-    // Sisälämpötila-anturit (Pääkiinteistö: alakerta & yläkerran työhuone)
-    const alakertaTemp = state['tuya/alakerta/temperature']?.value ? parseFloat(state['tuya/alakerta/temperature'].value) : null;
-    const ylakertaTemp = (state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
+    // Sisälämpötila-anturit (Pääkiinteistö: alakerta & yläkerran työhuone / Mitsubishi ILP)
+    const alakertaTemp = (state['tuya/alakerta/temperature']?.value ? parseFloat(state['tuya/alakerta/temperature'].value) : null)
+      ?? (state['mitsubishi/mitsubishi_alakerta/current_temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_alakerta/current_temperature'].value) : null)
+      ?? (state['mitsubishi/mitsubishi_alakerta/temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_alakerta/temperature'].value) : null);
+
+    const ylakertaTemp = ((state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
       ? parseFloat(state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
-      : null;
+      : null)
+      ?? (state['mitsubishi/mitsubishi_ylakerta/current_temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_ylakerta/current_temperature'].value) : null)
+      ?? (state['mitsubishi/mitsubishi_ylakerta/temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_ylakerta/temperature'].value) : null);
 
     let indoorTemp = null;
     if (alakertaTemp != null && ylakertaTemp != null) {

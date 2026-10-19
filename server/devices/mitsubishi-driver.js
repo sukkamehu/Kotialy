@@ -87,10 +87,14 @@ class MitsubishiUnit {
                 if (parsed.current_temperature != null) {
                   this.currentTemp = parseFloat(parsed.current_temperature);
                   db.updateState(`mitsubishi/${this.id}/current_temperature`, String(this.currentTemp));
+                  db.updateState(`mitsubishi/${this.id}/temperature`, String(this.currentTemp));
+                  db.maybeAppendHistory(`mitsubishi/${this.id}/current_temperature`, this.currentTemp, 60000);
+                  db.maybeAppendHistory(`mitsubishi/${this.id}/temperature`, this.currentTemp, 60000);
                 }
                 if (parsed.target_temperature != null) {
                   this.targetTemp = parseFloat(parsed.target_temperature);
                   db.updateState(`mitsubishi/${this.id}/target_temperature`, String(this.targetTemp));
+                  db.maybeAppendHistory(`mitsubishi/${this.id}/target_temperature`, this.targetTemp, 60000);
                 }
                 if (parsed.mode) {
                   this.mode = parsed.mode;
@@ -170,6 +174,7 @@ class MitsubishiUnit {
             if (target_temperature != null) {
               this.targetTemp = Number(target_temperature);
               db.updateState(`mitsubishi/${this.id}/target_temperature`, String(this.targetTemp));
+              db.maybeAppendHistory(`mitsubishi/${this.id}/target_temperature`, this.targetTemp, 60000);
             }
             if (fan_mode) {
               this.fanMode = fan_mode.toUpperCase();

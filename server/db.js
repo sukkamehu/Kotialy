@@ -464,10 +464,12 @@ function sanitizeSensorValue(topic, value) {
       return null; // Corrupt packet / anomalous spike rejected
     }
 
-    // Spike filter: If sensor jumps by >= 10 °C in < 3 minutes compared to recent reading, reject glitch
+    // Spike filter: If ambient sensor jumps by >= 10 °C in < 3 minutes compared to recent reading, reject glitch
+    // (Skip spike rejection for target/setpoint topics)
+    const isTarget = lower.includes('target') || lower.includes('set');
     const now = Date.now();
     const prev = recentNumericReadings.get(topic);
-    if (prev && now - prev.ts < 3 * 60 * 1000) {
+    if (!isTarget && prev && now - prev.ts < 3 * 60 * 1000) {
       const delta = Math.abs(val - prev.value);
       if (delta >= 10.0) {
         console.warn(`[DB] Spike rejected for ${topic}: ${val}°C (prev ${prev.value}°C, Δ=${delta.toFixed(1)}°C)`);

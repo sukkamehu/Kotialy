@@ -260,7 +260,11 @@ export function Dashboard({
           {/* VIEW 2: LÄMPÖMITTARIT & SISÄILMA */}
           {activeTab === 'temperatures' && (
             <ErrorBoundary>
-              <TemperaturesPage state={state} readOnly={readOnly} />
+              <TemperaturesPage
+                state={state}
+                readOnly={readOnly}
+                onNavigateTab={(tab) => setActiveTab(tab as DashboardTab)}
+              />
             </ErrorBoundary>
           )}
 
