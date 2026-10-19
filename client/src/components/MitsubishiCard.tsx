@@ -81,8 +81,9 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
   };
 
   const handleTempAdjust = async (unitId: string, currentTarget: number | null, delta: number, currentUnitMode?: string) => {
-    if (readOnly || currentTarget == null) return;
-    const newTarget = Math.round((currentTarget + delta) * 2) / 2;
+    if (readOnly) return;
+    const current = currentTarget ?? 21;
+    const newTarget = Math.round((current + delta) * 2) / 2;
     if (currentUnitMode === 'OFF') {
       await setControl({ unitId, mode: 'HEAT', target_temperature: newTarget });
     } else {
@@ -177,19 +178,36 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
             </div>
           </div>
 
-          <span
-            style={{
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              color: isConnected ? '#4ade80' : '#f87171',
-              background: isConnected ? 'rgba(74, 222, 128, 0.15)' : 'rgba(248, 113, 113, 0.15)',
-              padding: '2px 8px',
-              borderRadius: 12,
-              border: `1px solid ${isConnected ? 'rgba(74, 222, 128, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
-            }}
-          >
-            {isConnected ? '● Yhdistetty (Live)' : '○ Ei yhteyttä'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {unit?.overrideActive && (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: '#f59e0b',
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                }}
+              >
+                ⚡ Ohitus (~{unit.overrideMinutesRemaining} min)
+              </span>
+            )}
+            <span
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                color: isConnected ? '#4ade80' : '#f87171',
+                background: isConnected ? 'rgba(74, 222, 128, 0.15)' : 'rgba(248, 113, 113, 0.15)',
+                padding: '2px 8px',
+                borderRadius: 12,
+                border: `1px solid ${isConnected ? 'rgba(74, 222, 128, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
+              }}
+            >
+              {isConnected ? '● Yhdistetty' : '○ Ei yhteyttä'}
+            </span>
+          </div>
         </div>
 
         {isConnected ? (
@@ -389,6 +407,23 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Unit Status Reason */}
+            {unit?.reason && (
+              <div
+                style={{
+                  fontSize: '0.7rem',
+                  color: 'var(--text-muted)',
+                  marginTop: 10,
+                  fontStyle: 'italic',
+                  lineHeight: 1.3,
+                  borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                  paddingTop: 6,
+                }}
+              >
+                {unit.reason}
               </div>
             )}
           </>

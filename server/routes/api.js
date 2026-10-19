@@ -937,35 +937,26 @@ router.get('/mitsu/status', (req, res) => {
 
 /**
  * POST /api/mitsu/control
- * Body: { unitId: 'mitsubishi_ylakerta' | 'mitsubishi_alakerta', mode, target_temperature, fan_mode, swing_mode }
+ * Body: { unitId: 'mitsubishi_ylakerta' | 'mitsubishi_alakerta', mode, target_temperature, fan_mode, swing_mode, duration_hours }
  */
 router.post('/mitsu/control', requireAdmin, express.json(), async (req, res) => {
   try {
     const { driver } = require('../devices/mitsubishi-driver');
-    const { unitId, mode, target_temperature, fan_mode, swing_mode } = req.body || {};
-    const unit = driver.units.find((u) => u.id === unitId) || driver.units[1];
+    const { unitId, mode, target_temperature, fan_mode, swing_mode, duration_hours } = req.body || {};
+    const unit = driver.units.find((u) => u.id === unitId);
     if (!unit) {
       return res.status(404).json({ error: 'Laitetta ei löydy' });
     }
 
-    if (mode && ['HEAT', 'COOL', 'FAN_ONLY', 'OFF'].includes(mode.toUpperCase())) {
-      if (mode.toUpperCase() === 'OFF') {
-        await driver.setManualOverride('OFF', 2);
-      } else {
-        await driver.setManualOverride(mode.toUpperCase(), 2, target_temperature || unit.targetTemp);
-      }
-    } else if (target_temperature != null) {
-      const db = require('../db');
-      const settings = db.getApcSettings();
-      if (settings.mitsu_override_until > Date.now() && settings.mitsu_override_state) {
-        let parsed = {};
-        try { parsed = JSON.parse(settings.mitsu_override_state); } catch {}
-        await driver.setManualOverride(parsed.mode || 'HEAT', 2, target_temperature);
-      }
-    }
+    const status = await driver.setUnitControl(unit.id, {
+      mode,
+      target_temperature,
+      fan_mode,
+      swing_mode,
+      durationHours: duration_hours || 2,
+    });
 
-    await unit.setClimate({ mode, target_temperature, fan_mode, swing_mode });
-    res.json({ ok: true, status: unit.getStatus() });
+    res.json({ ok: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

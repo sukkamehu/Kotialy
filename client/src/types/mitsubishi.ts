@@ -16,6 +16,14 @@ export interface MitsubishiUnitStatus {
   lastDirective: string | null;
   lastAppliedAt: number;
   reason: string;
+  overrideActive?: boolean;
+  overrideUntil?: number;
+  overrideState?: {
+    mode: string;
+    target_temp: number;
+    fan_mode: string;
+  } | null;
+  overrideMinutesRemaining?: number;
 }
 
 export interface MitsubishiSettings {

@@ -36,6 +36,30 @@ class MitsubishiUnit {
     this.lastDirective = null;
     this.lastAppliedAt = 0;
     this.currentReason = 'Odottaa alustusta...';
+
+    this.overrideUntil = 0;
+    this.overrideState = null;
+
+    // Restore persisted state from DB
+    try {
+      const fullState = db.getFullState();
+      const savedTemp = parseFloat(fullState[`mitsubishi/${this.id}/target_temperature`]?.value);
+      if (!isNaN(savedTemp) && savedTemp >= 16 && savedTemp <= 31) {
+        this.targetTemp = savedTemp;
+      }
+      const savedUntil = parseInt(fullState[`mitsubishi/${this.id}/override_until`]?.value, 10);
+      const savedState = fullState[`mitsubishi/${this.id}/override_state`]?.value;
+      if (!isNaN(savedUntil) && savedUntil > Date.now() && savedState) {
+        this.overrideUntil = savedUntil;
+        try {
+          this.overrideState = JSON.parse(savedState);
+        } catch {
+          this.overrideState = null;
+        }
+      }
+    } catch {
+      // Ignore during initial boot
+    }
   }
 
   async poll() {
@@ -179,6 +203,10 @@ class MitsubishiUnit {
   }
 
   getStatus() {
+    const now = Date.now();
+    const isOverrideActive = this.overrideUntil > now && Boolean(this.overrideState);
+    const overrideMinRemaining = isOverrideActive ? Math.ceil((this.overrideUntil - now) / 60000) : 0;
+
     return {
       id: this.id,
       name: this.name,
@@ -195,6 +223,10 @@ class MitsubishiUnit {
       lastDirective: this.lastDirective,
       lastAppliedAt: this.lastAppliedAt,
       reason: this.currentReason,
+      overrideActive: isOverrideActive,
+      overrideUntil: this.overrideUntil,
+      overrideState: this.overrideState,
+      overrideMinutesRemaining: overrideMinRemaining,
     };
   }
 }
@@ -256,58 +288,64 @@ class MitsubishiManager {
     const settings = db.getApcSettings();
     const now = Date.now();
 
-    const mode = settings.mitsu_mode || 'smart_assist'; // 'smart_assist' | 'fan_only' | 'cool' | 'heat' | 'off'
+    const globalMode = settings.mitsu_mode || 'smart_assist'; // 'smart_assist' | 'fan_only' | 'cool' | 'heat' | 'off'
     const frostAssistTemp = settings.mitsu_frost_assist_temp != null ? Number(settings.mitsu_frost_assist_temp) : -12.0;
     const maxPriceLimit = settings.mitsu_max_price_cents != null ? Number(settings.mitsu_max_price_cents) : 20.0;
     const heatTarget = settings.mitsu_heat_target_c != null ? Number(settings.mitsu_heat_target_c) : 21.0;
     const coolTarget = settings.mitsu_cool_target_c != null ? Number(settings.mitsu_cool_target_c) : 23.0;
 
-    const overrideUntil = Number(settings.mitsu_override_until || 0);
-    const rawOverrideState = settings.mitsu_override_state || null;
-    const isOverrideActive = overrideUntil > now && Boolean(rawOverrideState);
+    const globalOverrideUntil = Number(settings.mitsu_override_until || 0);
+    const rawGlobalOverrideState = settings.mitsu_override_state || null;
+    const isGlobalOverrideActive = globalOverrideUntil > now && Boolean(rawGlobalOverrideState);
+
+    const isUnitOverrideActive = unit.overrideUntil > now && Boolean(unit.overrideState);
 
     let targetMode = 'OFF';
-    let targetTemp = heatTarget;
-    let targetFan = 'AUTO';
+    let targetTemp = unit.targetTemp || heatTarget;
+    let targetFan = unit.fanMode || 'AUTO';
     let reason = '';
 
-    // ── 1. Manual Override takes highest precedence ─────────────────────────────
-    if (isOverrideActive) {
-      const minLeft = Math.ceil((overrideUntil - now) / 60000);
-      let parsed = null;
-      if (typeof rawOverrideState === 'object') {
-        parsed = rawOverrideState;
-      } else {
-        try {
-          parsed = JSON.parse(rawOverrideState);
-        } catch {
-          parsed = { mode: String(rawOverrideState).toUpperCase() };
-        }
-      }
-
-      targetMode = (parsed?.mode || 'HEAT').toUpperCase();
-      targetTemp = parsed?.target_temp != null ? Number(parsed.target_temp) : (targetMode === 'COOL' ? coolTarget : heatTarget);
-      targetFan = parsed?.fan_mode || 'AUTO';
+    // ── 1. Unit-specific Manual Override (Highest priority for this pump) ───────
+    if (isUnitOverrideActive) {
+      const minLeft = Math.ceil((unit.overrideUntil - now) / 60000);
+      const parsed = unit.overrideState;
+      targetMode = (parsed.mode || 'HEAT').toUpperCase();
+      targetTemp = parsed.target_temp != null ? Number(parsed.target_temp) : (targetMode === 'COOL' ? coolTarget : (unit.targetTemp || heatTarget));
+      targetFan = parsed.fan_mode || unit.fanMode || 'AUTO';
       reason = `Manuaalinen ohitus aktiivinen (${targetMode} ${targetTemp}°C · jäljellä ~${minLeft} min)`;
     }
-    // ── 2. Fixed Constant Modes ────────────────────────────────────────────────
-    else if (mode === 'off') {
+    // ── 2. Global House-wide Override ───────────────────────────────────────────
+    else if (isGlobalOverrideActive) {
+      const minLeft = Math.ceil((globalOverrideUntil - now) / 60000);
+      let parsed = null;
+      try {
+        parsed = typeof rawGlobalOverrideState === 'object' ? rawGlobalOverrideState : JSON.parse(rawGlobalOverrideState);
+      } catch {
+        parsed = { mode: String(rawGlobalOverrideState).toUpperCase() };
+      }
+      targetMode = (parsed?.mode || 'HEAT').toUpperCase();
+      targetTemp = parsed?.target_temp != null ? Number(parsed.target_temp) : (targetMode === 'COOL' ? coolTarget : (unit.targetTemp || heatTarget));
+      targetFan = parsed?.fan_mode || 'AUTO';
+      reason = `Yleinen pika-ohitus aktiivinen (${targetMode} ${targetTemp}°C · jäljellä ~${minLeft} min)`;
+    }
+    // ── 3. Global Fixed Modes ──────────────────────────────────────────────────
+    else if (globalMode === 'off') {
       targetMode = 'OFF';
       reason = 'Sammutettu (Käyttäjän asetus)';
-    } else if (mode === 'fan_only') {
+    } else if (globalMode === 'fan_only') {
       targetMode = 'FAN_ONLY';
-      targetFan = 'MEDIUM';
+      targetFan = unit.fanMode && unit.fanMode !== 'AUTO' ? unit.fanMode : 'MEDIUM';
       reason = 'Takkatoiminto / Ilmankierto aktiivinen · Kompressori sammutettu, kierrättää lämpöä';
-    } else if (mode === 'cool') {
+    } else if (globalMode === 'cool') {
       targetMode = 'COOL';
-      targetTemp = coolTarget;
-      reason = `Kesäviilennys aktiivinen (pyynti ${coolTarget.toFixed(1)}°C)`;
-    } else if (mode === 'heat') {
+      targetTemp = unit.targetTemp || coolTarget;
+      reason = `Kesäviilennys aktiivinen (pyynti ${targetTemp.toFixed(1)}°C)`;
+    } else if (globalMode === 'heat') {
       targetMode = 'HEAT';
-      targetTemp = heatTarget;
-      reason = `Jatkuva lämmitys pakotettu päälle (pyynti ${heatTarget.toFixed(1)}°C)`;
+      targetTemp = unit.targetTemp || heatTarget;
+      reason = `Jatkuva lämmitys pakotettu päälle (pyynti ${targetTemp.toFixed(1)}°C)`;
     }
-    // ── 3. Intelligent Hybrid Strategy ('smart_assist') ────────────────────────
+    // ── 4. Intelligent Hybrid Strategy ('smart_assist') ────────────────────────
     else {
       const fullState = db.getFullState();
       const outdoorTemp = context?.outdoorTemp != null
@@ -321,8 +359,8 @@ class MitsubishiManager {
           reason = `Pakkasavustus valmiudessa (${outdoorTemp.toFixed(1)}°C ≤ ${frostAssistTemp.toFixed(1)}°C), mutta pörssisähkö liian kallista (${currentPriceCents.toFixed(1)} > ${maxPriceLimit.toFixed(1)} snt/kWh) · Ei herätetä`;
         } else {
           targetMode = 'HEAT';
-          targetTemp = heatTarget;
-          targetFan = 'MEDIUM';
+          targetTemp = unit.targetTemp || heatTarget;
+          targetFan = unit.fanMode && unit.fanMode !== 'AUTO' ? unit.fanMode : 'MEDIUM';
           const priceStr = currentPriceCents != null ? `${currentPriceCents.toFixed(1)} snt/kWh` : '';
           reason = `🛡️ Pakkasavustus aktiivinen (${outdoorTemp.toFixed(1)}°C ≤ ${frostAssistTemp.toFixed(1)}°C ${priceStr}) · Korvaa kalliit sähkövastukset ja tukee VILP-pumppua`;
         }
@@ -334,12 +372,11 @@ class MitsubishiManager {
     }
 
     unit.currentReason = reason;
-    this.currentReason = reason;
 
     // Apply command to unit if connected and differs
     if (unit.connected) {
       const modeDiffers = unit.mode !== targetMode;
-      const tempDiffers = targetMode !== 'OFF' && Math.abs((unit.targetTemp || 0) - targetTemp) >= 0.5;
+      const tempDiffers = targetMode !== 'OFF' && targetMode !== 'FAN_ONLY' && Math.abs((unit.targetTemp || 0) - targetTemp) >= 0.5;
       const fanDiffers = targetMode !== 'OFF' && targetFan !== 'AUTO' && unit.fanMode !== targetFan;
 
       if (modeDiffers || tempDiffers || fanDiffers) {
@@ -356,8 +393,9 @@ class MitsubishiManager {
       }
     }
 
-    db.updateState('apc/mitsu/reason', reason);
-    db.updateState('apc/mitsu/mode', mode);
+    this.currentReason = this.units.map((u) => `${u.name.replace('Mitsubishi ILP ', '')}: ${u.currentReason}`).join(' · ');
+    db.updateState('apc/mitsu/reason', this.currentReason);
+    db.updateState('apc/mitsu/mode', globalMode);
     db.updateState('apc/mitsu/frost_assist_temp', String(frostAssistTemp));
     db.updateState('apc/mitsu/max_price_cents', String(maxPriceLimit));
 
@@ -371,10 +409,51 @@ class MitsubishiManager {
       connected: unit.connected,
       state: targetMode,
       targetTemp,
-      mode,
+      mode: globalMode,
       reason,
-      overrideActive: isOverrideActive,
+      overrideActive: isUnitOverrideActive || isGlobalOverrideActive,
     };
+  }
+
+  async setUnitControl(unitId, { mode, target_temperature, fan_mode, swing_mode, durationHours = 2 }) {
+    const unit = this.units.find((u) => u.id === unitId);
+    if (!unit) {
+      throw new Error(`Laitetta ei löydy: ${unitId}`);
+    }
+
+    const now = Date.now();
+    const nextMode = mode ? mode.toUpperCase() : (unit.mode || 'OFF');
+    const nextTarget = target_temperature != null ? Number(target_temperature) : (unit.targetTemp || 21.0);
+    const nextFan = fan_mode ? fan_mode.toUpperCase() : (unit.fanMode || 'AUTO');
+
+    const hours = Number(durationHours) || 2;
+    unit.overrideUntil = now + hours * 3600 * 1000;
+    unit.overrideState = {
+      mode: nextMode,
+      target_temp: nextTarget,
+      fan_mode: nextFan,
+    };
+
+    db.updateState(`mitsubishi/${unit.id}/override_until`, String(unit.overrideUntil));
+    db.updateState(`mitsubishi/${unit.id}/override_state`, JSON.stringify(unit.overrideState));
+
+    if (target_temperature != null) {
+      unit.targetTemp = nextTarget;
+      db.updateState(`mitsubishi/${unit.id}/target_temperature`, String(nextTarget));
+    }
+
+    await unit.setClimate({
+      mode: mode ? nextMode : undefined,
+      target_temperature: target_temperature != null ? nextTarget : undefined,
+      fan_mode: fan_mode ? nextFan : undefined,
+      swing_mode,
+    });
+
+    unit.currentReason = `Yksilöllinen ohitus aktiivinen (${nextMode} ${nextTarget}°C · jäljellä ~${Math.ceil((unit.overrideUntil - now) / 60000)} min)`;
+    this.currentReason = this.units.map((u) => `${u.name.replace('Mitsubishi ILP ', '')}: ${u.currentReason}`).join(' · ');
+    db.updateState('apc/mitsu/reason', this.currentReason);
+
+    return unit.getStatus();
   }
 
   async setManualOverride(mode, durationHours = 0, targetTemp = null) {
@@ -383,7 +462,7 @@ class MitsubishiManager {
     let overrideState = null;
 
     if (mode && ['HEAT', 'COOL', 'FAN_ONLY', 'OFF'].includes(mode.toUpperCase())) {
-      const hours = Number(durationHours) || 0;
+      const hours = Number(durationHours) || 2;
       overrideUntil = hours > 0 ? now + hours * 3600 * 1000 : now + 24 * 3600 * 1000;
       overrideState = {
         mode: mode.toUpperCase(),
@@ -396,6 +475,12 @@ class MitsubishiManager {
     db.updateApcSetting('mitsu_override_until', String(overrideUntil));
 
     for (const unit of this.units) {
+      // Clear unit-level overrides so global override / automation reset applies cleanly
+      unit.overrideUntil = 0;
+      unit.overrideState = null;
+      db.updateState(`mitsubishi/${unit.id}/override_until`, '0');
+      db.updateState(`mitsubishi/${unit.id}/override_state`, '');
+
       if (unit.connected) {
         if (overrideState) {
           await unit.setClimate({
@@ -418,6 +503,13 @@ class MitsubishiManager {
       // When explicitly choosing a global mode, clear any manual override
       db.updateApcSetting('mitsu_override_state', '');
       db.updateApcSetting('mitsu_override_until', '0');
+
+      for (const unit of this.units) {
+        unit.overrideUntil = 0;
+        unit.overrideState = null;
+        db.updateState(`mitsubishi/${unit.id}/override_until`, '0');
+        db.updateState(`mitsubishi/${unit.id}/override_state`, '');
+      }
     }
     if (mitsu_frost_assist_temp != null) {
       const t = parseFloat(mitsu_frost_assist_temp);
@@ -449,8 +541,15 @@ class MitsubishiManager {
     const settings = db.getApcSettings();
     const now = Date.now();
     const overrideUntil = Number(settings.mitsu_override_until || 0);
-    const isOverrideActive = overrideUntil > now && Boolean(settings.mitsu_override_state);
-    const overrideMinRemaining = isOverrideActive ? Math.ceil((overrideUntil - now) / 60000) : 0;
+    const isGlobalOverrideActive = overrideUntil > now && Boolean(settings.mitsu_override_state);
+    const isAnyUnitOverrideActive = this.units.some((u) => u.overrideUntil > now && Boolean(u.overrideState));
+    const isOverrideActive = isGlobalOverrideActive || isAnyUnitOverrideActive;
+
+    let maxOverrideUntil = overrideUntil;
+    for (const u of this.units) {
+      if (u.overrideUntil > maxOverrideUntil) maxOverrideUntil = u.overrideUntil;
+    }
+    const overrideMinRemaining = maxOverrideUntil > now ? Math.ceil((maxOverrideUntil - now) / 60000) : 0;
 
     let parsedOverrideState = null;
     if (settings.mitsu_override_state) {
@@ -461,6 +560,9 @@ class MitsubishiManager {
       } catch (e) {
         parsedOverrideState = { mode: settings.mitsu_override_state };
       }
+    } else if (isAnyUnitOverrideActive) {
+      const activeUnit = this.units.find((u) => u.overrideUntil > now && Boolean(u.overrideState));
+      parsedOverrideState = activeUnit ? activeUnit.overrideState : null;
     }
 
     const fullState = db.getFullState();
@@ -478,7 +580,7 @@ class MitsubishiManager {
         coolTarget: settings.mitsu_cool_target_c != null ? Number(settings.mitsu_cool_target_c) : 23.0,
       },
       overrideActive: isOverrideActive,
-      overrideUntil,
+      overrideUntil: maxOverrideUntil,
       overrideState: parsedOverrideState,
       overrideMinutesRemaining: overrideMinRemaining,
       reason: this.currentReason,
