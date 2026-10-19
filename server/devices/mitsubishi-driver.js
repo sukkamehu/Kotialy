@@ -207,7 +207,7 @@ class MitsubishiManager {
       new MitsubishiUnit({
         id: 'mitsubishi_alakerta',
         name: 'Mitsubishi ILP Alakerta',
-        host: process.env.MITSU_ALAKERTA_HOST || 'mitsubishi-alakerta.local',
+        host: process.env.MITSU_ALAKERTA_HOST || '192.168.68.65',
         climateName: 'Mitsubishi Alakerta',
         defaultTarget: 21.0,
         manager: this,
