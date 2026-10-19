@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMitsubishi } from '../hooks/useMitsubishi';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
-import type { MitsubishiOperatingMode } from '../types/mitsubishi';
+import type { MitsubishiOperatingMode, MitsubishiUnitStatus } from '../types/mitsubishi';
 
 interface MitsubishiCardProps {
   readOnly?: boolean;
@@ -140,6 +140,280 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
     badgeBorder = 'rgba(148, 163, 184, 0.25)';
   }
 
+  const renderUnitCard = (
+    unit: MitsubishiUnitStatus | undefined,
+    fallbackId: string,
+    fallbackName: string,
+    fallbackHost: string,
+    icon: string
+  ) => {
+    const isConnected = unit?.connected ?? false;
+    const unitId = unit?.id || fallbackId;
+    const unitName = unit?.name || fallbackName;
+    const unitHost = unit?.host || fallbackHost;
+
+    return (
+      <div
+        key={unitId}
+        style={{
+          background: 'rgba(0, 0, 0, 0.35)',
+          border: isConnected
+            ? '1px solid rgba(74, 222, 128, 0.3)'
+            : '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '1.2rem' }}>{icon}</span>
+            <div>
+              <strong style={{ fontSize: '0.98rem', color: 'var(--text-primary)' }}>
+                {unitName}
+              </strong>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                {unitHost}
+              </div>
+            </div>
+          </div>
+
+          <span
+            style={{
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              color: isConnected ? '#4ade80' : '#f87171',
+              background: isConnected ? 'rgba(74, 222, 128, 0.15)' : 'rgba(248, 113, 113, 0.15)',
+              padding: '2px 8px',
+              borderRadius: 12,
+              border: `1px solid ${isConnected ? 'rgba(74, 222, 128, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
+            }}
+          >
+            {isConnected ? '● Yhdistetty (Live)' : '○ Ei yhteyttä'}
+          </span>
+        </div>
+
+        {isConnected ? (
+          <>
+            {/* Temperature & Action Row */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Huonelämpö
+                </div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#38bdf8' }}>
+                  {unit?.currentTemperature != null
+                    ? `${unit.currentTemperature.toFixed(1)} °C`
+                    : '--'}
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Tavoitelämpö
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  {!readOnly && (
+                    <button
+                      onClick={() => handleTempAdjust(unitId, unit?.targetTemperature ?? 21, -0.5, unit?.mode)}
+                      disabled={saving}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: 'white',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      -
+                    </button>
+                  )}
+                  <span style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-primary)', minWidth: 55, textAlign: 'center' }}>
+                    {unit?.targetTemperature != null
+                      ? `${unit.targetTemperature.toFixed(1)}°`
+                      : '--'}
+                  </span>
+                  {!readOnly && (
+                    <button
+                      onClick={() => handleTempAdjust(unitId, unit?.targetTemperature ?? 21, 0.5, unit?.mode)}
+                      disabled={saving}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: 'white',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Direct Unit Mode Buttons (HEAT, COOL, FAN, OFF) */}
+            {!readOnly && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                  Aseta laitteen tila suoraan:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                  {[
+                    { mode: 'HEAT', label: '♨️ Lämpö', color: '#ef4444' },
+                    { mode: 'COOL', label: '❄️ Viileä', color: '#06b6d4' },
+                    { mode: 'FAN_ONLY', label: '🔥 Puhallus', color: '#f97316' },
+                    { mode: 'OFF', label: '⏹️ Pois', color: '#94a3b8' },
+                  ].map((btn) => {
+                    const isActive = unit?.mode === btn.mode;
+                    return (
+                      <button
+                        key={btn.mode}
+                        onClick={() => handleUnitModeSelect(unitId, btn.mode)}
+                        disabled={saving}
+                        style={{
+                          padding: '7px 4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          borderRadius: 8,
+                          border: isActive ? `1.5px solid ${btn.color}` : '1px solid rgba(255, 255, 255, 0.1)',
+                          background: isActive ? `${btn.color}25` : 'rgba(255, 255, 255, 0.04)',
+                          color: isActive ? 'white' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {btn.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Current State Badges */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 90,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  borderRadius: 8,
+                  padding: '6px 10px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tila</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {unit?.mode || 'OFF'}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 90,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  borderRadius: 8,
+                  padding: '6px 10px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Toiminta</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>
+                  {unit?.action || 'IDLE'}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 90,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  borderRadius: 8,
+                  padding: '6px 10px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Puhallin</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#a78bfa' }}>
+                  {unit?.fanMode || 'AUTO'}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Fan Control Bar */}
+            {!readOnly && (
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                  Puhallinnopeus:
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {['AUTO', 'QUIET', 'LOW', 'MEDIUM', 'HIGH'].map((fan) => (
+                    <button
+                      key={fan}
+                      onClick={() => handleFanSelect(unitId, fan)}
+                      disabled={saving}
+                      style={{
+                        flex: 1,
+                        padding: '5px 2px',
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        borderRadius: 6,
+                        border: unit?.fanMode === fan
+                          ? '1px solid #38bdf8'
+                          : '1px solid rgba(255, 255, 255, 0.1)',
+                        background: unit?.fanMode === fan
+                          ? 'rgba(56, 189, 248, 0.25)'
+                          : 'rgba(255, 255, 255, 0.04)',
+                        color: unit?.fanMode === fan ? 'white' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {fan}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div
+            style={{
+              padding: '24px 14px',
+              background: 'rgba(255, 255, 255, 0.02)',
+              borderRadius: 10,
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+              fontSize: '0.82rem',
+              lineHeight: 1.4,
+            }}
+          >
+            <div>Laite offline-tilassa tai yhteys katkennut.</div>
+            <div style={{ fontSize: '0.74rem', marginTop: 4, color: '#94a3b8' }}>
+              Tarkista virrat ja verkkoyhteys ({unitHost}).
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div
       className="card"
@@ -217,7 +491,7 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
               </span>
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 3 }}>
-              ESPHome CN105 Suora Ohjaus · Yläkerta (192.168.68.64) & Alakerta · Hybridi-automaatio
+              ESPHome CN105 Suora Ohjaus · Yläkerta (192.168.68.64) & Alakerta (192.168.68.65) · Hybridi-automaatio
             </div>
           </div>
         </div>
@@ -289,309 +563,8 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
           marginBottom: 20,
         }}
       >
-        {/* Unit: Yläkerta */}
-        <div
-          style={{
-            background: 'rgba(0, 0, 0, 0.35)',
-            border: ylakertaUnit?.connected
-              ? '1px solid rgba(74, 222, 128, 0.3)'
-              : '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: 14,
-            padding: 16,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '1.2rem' }}>🏠</span>
-              <div>
-                <strong style={{ fontSize: '0.98rem', color: 'var(--text-primary)' }}>
-                  {ylakertaUnit?.name || 'Mitsubishi Yläkerta'}
-                </strong>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  {ylakertaUnit?.host || '192.168.68.64'}
-                </div>
-              </div>
-            </div>
-
-            <span
-              style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: ylakertaUnit?.connected ? '#4ade80' : '#f87171',
-                background: ylakertaUnit?.connected ? 'rgba(74, 222, 128, 0.15)' : 'rgba(248, 113, 113, 0.15)',
-                padding: '2px 8px',
-                borderRadius: 12,
-                border: `1px solid ${ylakertaUnit?.connected ? 'rgba(74, 222, 128, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
-              }}
-            >
-              {ylakertaUnit?.connected ? '● Yhdistetty (Live)' : '○ Ei yhteyttä'}
-            </span>
-          </div>
-
-          {/* Temperature & Action Row */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              background: 'rgba(255, 255, 255, 0.03)',
-              borderRadius: 10,
-              padding: '12px 14px',
-              marginBottom: 12,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Huonelämpö
-              </div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#38bdf8' }}>
-                {ylakertaUnit?.currentTemperature != null
-                  ? `${ylakertaUnit.currentTemperature.toFixed(1)} °C`
-                  : '--'}
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Tavoitelämpö
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                {!readOnly && (
-                  <button
-                    onClick={() => handleTempAdjust('mitsubishi_ylakerta', ylakertaUnit?.targetTemperature ?? 21, -0.5, ylakertaUnit?.mode)}
-                    disabled={saving}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 6,
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: 'none',
-                      color: 'white',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    -
-                  </button>
-                )}
-                <span style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-primary)', minWidth: 55, textAlign: 'center' }}>
-                  {ylakertaUnit?.targetTemperature != null
-                    ? `${ylakertaUnit.targetTemperature.toFixed(1)}°`
-                    : '--'}
-                </span>
-                {!readOnly && (
-                  <button
-                    onClick={() => handleTempAdjust('mitsubishi_ylakerta', ylakertaUnit?.targetTemperature ?? 21, 0.5, ylakertaUnit?.mode)}
-                    disabled={saving}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 6,
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: 'none',
-                      color: 'white',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    +
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Direct Unit Mode Buttons (HEAT, COOL, FAN, OFF) */}
-          {!readOnly && ylakertaUnit?.connected && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                Aseta laitteen tila suoraan:
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                {[
-                  { mode: 'HEAT', label: '♨️ Lämpö', color: '#ef4444' },
-                  { mode: 'COOL', label: '❄️ Viileä', color: '#06b6d4' },
-                  { mode: 'FAN_ONLY', label: '🔥 Puhallus', color: '#f97316' },
-                  { mode: 'OFF', label: '⏹️ Pois', color: '#94a3b8' },
-                ].map((btn) => {
-                  const isActive = ylakertaUnit?.mode === btn.mode;
-                  return (
-                    <button
-                      key={btn.mode}
-                      onClick={() => handleUnitModeSelect('mitsubishi_ylakerta', btn.mode)}
-                      disabled={saving}
-                      style={{
-                        padding: '7px 4px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        borderRadius: 8,
-                        border: isActive ? `1.5px solid ${btn.color}` : '1px solid rgba(255, 255, 255, 0.1)',
-                        background: isActive ? `${btn.color}25` : 'rgba(255, 255, 255, 0.04)',
-                        color: isActive ? 'white' : 'var(--text-muted)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {btn.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Current State Badges */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <div
-              style={{
-                flex: 1,
-                minWidth: 90,
-                background: 'rgba(255, 255, 255, 0.04)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tila</div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                {ylakertaUnit?.mode || 'OFF'}
-              </div>
-            </div>
-
-            <div
-              style={{
-                flex: 1,
-                minWidth: 90,
-                background: 'rgba(255, 255, 255, 0.04)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Toiminta</div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>
-                {ylakertaUnit?.action || 'IDLE'}
-              </div>
-            </div>
-
-            <div
-              style={{
-                flex: 1,
-                minWidth: 90,
-                background: 'rgba(255, 255, 255, 0.04)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Puhallin</div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#a78bfa' }}>
-                {ylakertaUnit?.fanMode || 'AUTO'}
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Fan Control Bar */}
-          {!readOnly && ylakertaUnit?.connected && (
-            <div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                Puhallinnopeus:
-              </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {['AUTO', 'QUIET', 'LOW', 'MEDIUM', 'HIGH'].map((fan) => (
-                  <button
-                    key={fan}
-                    onClick={() => handleFanSelect('mitsubishi_ylakerta', fan)}
-                    disabled={saving}
-                    style={{
-                      flex: 1,
-                      padding: '5px 2px',
-                      fontSize: '0.68rem',
-                      fontWeight: 600,
-                      borderRadius: 6,
-                      border: ylakertaUnit?.fanMode === fan
-                        ? '1px solid #38bdf8'
-                        : '1px solid rgba(255, 255, 255, 0.1)',
-                      background: ylakertaUnit?.fanMode === fan
-                        ? 'rgba(56, 189, 248, 0.25)'
-                        : 'rgba(255, 255, 255, 0.04)',
-                      color: ylakertaUnit?.fanMode === fan ? 'white' : 'var(--text-muted)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {fan}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Unit: Alakerta */}
-        <div
-          style={{
-            background: 'rgba(0, 0, 0, 0.35)',
-            border: alakertaUnit?.connected
-              ? '1px solid rgba(74, 222, 128, 0.3)'
-              : '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 14,
-            padding: 16,
-            opacity: alakertaUnit?.connected ? 1 : 0.75,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '1.2rem' }}>🛋️</span>
-              <div>
-                <strong style={{ fontSize: '0.98rem', color: 'var(--text-primary)' }}>
-                  {alakertaUnit?.name || 'Mitsubishi Alakerta'}
-                </strong>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  {alakertaUnit?.host || 'mitsubishi-alakerta.local'}
-                </div>
-              </div>
-            </div>
-
-            <span
-              style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: alakertaUnit?.connected ? '#4ade80' : '#94a3b8',
-                background: alakertaUnit?.connected ? 'rgba(74, 222, 128, 0.15)' : 'rgba(148, 163, 184, 0.1)',
-                padding: '2px 8px',
-                borderRadius: 12,
-                border: `1px solid ${alakertaUnit?.connected ? 'rgba(74, 222, 128, 0.3)' : 'rgba(148, 163, 184, 0.2)'}`,
-              }}
-            >
-              {alakertaUnit?.connected ? '● Yhdistetty' : '○ Valmiustilassa'}
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: '20px 14px',
-              background: 'rgba(255, 255, 255, 0.02)',
-              borderRadius: 10,
-              textAlign: 'center',
-              color: 'var(--text-muted)',
-              fontSize: '0.82rem',
-              lineHeight: 1.4,
-            }}
-          >
-            {alakertaUnit?.connected ? (
-              <div style={{ color: 'var(--text-primary)' }}>
-                Lämpötila: {alakertaUnit?.currentTemperature != null ? `${alakertaUnit.currentTemperature.toFixed(1)} °C` : '--'}
-              </div>
-            ) : (
-              <>
-                <div>ESP-sovitin valmiiksi konfiguroitu (<code>mitsubishi-alakerta.yaml</code>).</div>
-                <div style={{ fontSize: '0.74rem', marginTop: 4 }}>
-                  Kytkeytyy automaattisesti kotiälyyn heti kun laite kytketään verkkoon.
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        {renderUnitCard(ylakertaUnit, 'mitsubishi_ylakerta', 'Mitsubishi ILP Yläkerta', '192.168.68.64', '🏠')}
+        {renderUnitCard(alakertaUnit, 'mitsubishi_alakerta', 'Mitsubishi ILP Alakerta', '192.168.68.65', '🛋️')}
       </div>
 
       {/* APC Mode Selector */}
