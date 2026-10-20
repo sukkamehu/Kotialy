@@ -33,6 +33,8 @@ export function useMitsubishi() {
     target_temperature?: number;
     fan_mode?: string;
     swing_mode?: string;
+    duration_hours?: number;
+    clearOverride?: boolean;
   }) => {
     setSaving(true);
     try {

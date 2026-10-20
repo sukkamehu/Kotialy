@@ -180,19 +180,40 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {unit?.overrideActive && (
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  color: '#f59e0b',
-                  background: 'rgba(245, 158, 11, 0.15)',
-                  padding: '2px 8px',
-                  borderRadius: 12,
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
-                }}
-              >
-                ⚡ Ohitus (~{unit.overrideMinutesRemaining} min)
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    color: '#f59e0b',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                  }}
+                >
+                  ⚡ Ohitus (~{unit.overrideMinutesRemaining} min)
+                </span>
+                {!readOnly && (
+                  <button
+                    onClick={() => setControl({ unitId, clearOverride: true })}
+                    disabled={saving}
+                    title="Palauta laite automaatioon"
+                    style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      color: '#94a3b8',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      padding: '2px 6px',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕ Automaatio
+                  </button>
+                )}
+              </div>
             )}
             <span
               style={{

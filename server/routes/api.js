@@ -942,7 +942,7 @@ router.get('/mitsu/status', (req, res) => {
 router.post('/mitsu/control', requireAdmin, express.json(), async (req, res) => {
   try {
     const { driver } = require('../devices/mitsubishi-driver');
-    const { unitId, mode, target_temperature, fan_mode, swing_mode, duration_hours } = req.body || {};
+    const { unitId, mode, target_temperature, fan_mode, swing_mode, duration_hours, clearOverride } = req.body || {};
     const unit = driver.units.find((u) => u.id === unitId);
     if (!unit) {
       return res.status(404).json({ error: 'Laitetta ei löydy' });
@@ -953,7 +953,8 @@ router.post('/mitsu/control', requireAdmin, express.json(), async (req, res) => 
       target_temperature,
       fan_mode,
       swing_mode,
-      durationHours: duration_hours || 2,
+      durationHours: duration_hours != null ? duration_hours : 2,
+      clearOverride: Boolean(clearOverride),
     });
 
     res.json({ ok: true, status });

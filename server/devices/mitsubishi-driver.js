@@ -39,6 +39,7 @@ class MitsubishiUnit {
 
     this.overrideUntil = 0;
     this.overrideState = null;
+    this.lastCommandSentAt = 0;
 
     // Restore persisted state from DB
     try {
@@ -82,8 +83,12 @@ class MitsubishiUnit {
             if (res.statusCode === 200) {
               try {
                 const parsed = JSON.parse(data);
+                const wasConnected = this.connected;
+                const hadSeenBefore = this.lastSeen > 0;
                 this.connected = true;
-                this.lastSeen = Date.now();
+                const now = Date.now();
+                this.lastSeen = now;
+
                 if (parsed.current_temperature != null) {
                   this.currentTemp = parseFloat(parsed.current_temperature);
                   db.updateState(`mitsubishi/${this.id}/current_temperature`, String(this.currentTemp));
@@ -91,6 +96,59 @@ class MitsubishiUnit {
                   db.maybeAppendHistory(`mitsubishi/${this.id}/current_temperature`, this.currentTemp, 60000);
                   db.maybeAppendHistory(`mitsubishi/${this.id}/temperature`, this.currentTemp, 60000);
                 }
+
+                const prevMode = this.mode;
+                const prevTarget = this.targetTemp;
+                const prevFan = this.fanMode;
+
+                const newMode = parsed.mode ? parsed.mode.toUpperCase() : this.mode;
+                const newTarget = parsed.target_temperature != null ? parseFloat(parsed.target_temperature) : this.targetTemp;
+                const newFan = parsed.fan_mode ? parsed.fan_mode.toUpperCase() : this.fanMode;
+
+                // ── External IR Remote Controller & Web UI Change Detection ──────
+                const isRecentKotiälyCommand = (now - this.lastCommandSentAt) < 25000;
+                if (hadSeenBefore && wasConnected && !isRecentKotiälyCommand && prevMode) {
+                  const modeChanged = prevMode !== newMode;
+                  const tempChanged = prevTarget != null && newTarget != null && Math.abs(prevTarget - newTarget) >= 0.5 && newMode !== 'FAN_ONLY' && newMode !== 'OFF';
+                  const fanChanged = prevFan && newFan && prevFan !== newFan && newMode !== 'OFF';
+
+                  if (prevMode === 'OFF' && newMode !== 'OFF') {
+                    // Pumppu käynnistetty kaukosäätimellä tai ESPHome-sivulta!
+                    // Lukitaan 3 tunnin manuaaliohitus, jotta Kotiälyn APC ei sammuta sitä heti minuutin kuluttua.
+                    this.overrideUntil = now + 3 * 3600 * 1000;
+                    this.overrideState = {
+                      mode: newMode,
+                      target_temp: newTarget,
+                      fan_mode: newFan,
+                      source: 'remote',
+                    };
+                    db.updateState(`mitsubishi/${this.id}/override_until`, String(this.overrideUntil));
+                    db.updateState(`mitsubishi/${this.id}/override_state`, JSON.stringify(this.overrideState));
+                    log(`📱 Kaukosäädin havaittu (${this.name}): käynnistetty tilaan ${newMode} (${newTarget}°C, ${newFan}) -> Lukitaan ohitus 3h`);
+                  } else if (prevMode !== 'OFF' && newMode === 'OFF') {
+                    // Pumppu sammutettu kaukosäätimellä
+                    if (this.overrideUntil > now) {
+                      this.overrideUntil = 0;
+                      this.overrideState = null;
+                      db.updateState(`mitsubishi/${this.id}/override_until`, '0');
+                      db.updateState(`mitsubishi/${this.id}/override_state`, '');
+                      log(`📱 Kaukosäädin havaittu (${this.name}): sammutettu kaukosäätimellä -> Ohitus vapautettu`);
+                    }
+                  } else if (newMode !== 'OFF' && (modeChanged || tempChanged || fanChanged)) {
+                    // Käynnissä olevan pumpun asetuksia muutettu kaukosäätimellä
+                    this.overrideUntil = now + 3 * 3600 * 1000;
+                    this.overrideState = {
+                      mode: newMode,
+                      target_temp: newTarget,
+                      fan_mode: newFan,
+                      source: 'remote',
+                    };
+                    db.updateState(`mitsubishi/${this.id}/override_until`, String(this.overrideUntil));
+                    db.updateState(`mitsubishi/${this.id}/override_state`, JSON.stringify(this.overrideState));
+                    log(`📱 Kaukosäädin havaittu (${this.name}): tila/asetus muutettu -> ${newMode} (${newTarget}°C, ${newFan}) -> Lukitaan ohitus 3h`);
+                  }
+                }
+
                 if (parsed.target_temperature != null) {
                   this.targetTemp = parseFloat(parsed.target_temperature);
                   db.updateState(`mitsubishi/${this.id}/target_temperature`, String(this.targetTemp));
@@ -144,6 +202,7 @@ class MitsubishiUnit {
   }
 
   async setClimate({ mode, target_temperature, fan_mode, swing_mode }) {
+    this.lastCommandSentAt = Date.now();
     const params = new URLSearchParams();
     if (mode) params.append('mode', mode.toUpperCase());
     if (target_temperature != null) params.append('target_temperature', String(target_temperature));
@@ -317,7 +376,14 @@ class MitsubishiManager {
       targetMode = (parsed.mode || 'HEAT').toUpperCase();
       targetTemp = parsed.target_temp != null ? Number(parsed.target_temp) : (targetMode === 'COOL' ? coolTarget : (unit.targetTemp || heatTarget));
       targetFan = parsed.fan_mode || unit.fanMode || 'AUTO';
-      reason = `Manuaalinen ohitus aktiivinen (${targetMode} ${targetTemp}°C · jäljellä ~${minLeft} min)`;
+      const sourceLabel = parsed.source === 'remote' ? 'Kaukosäädin' : 'Manuaalinen ohitus';
+      if (targetMode === 'FAN_ONLY') {
+        reason = `${sourceLabel} aktiivinen (Puhallus / Takkakierto · jäljellä ~${minLeft} min)`;
+      } else if (targetMode === 'OFF') {
+        reason = `${sourceLabel} aktiivinen (Pois päältä · jäljellä ~${minLeft} min)`;
+      } else {
+        reason = `${sourceLabel} aktiivinen (${targetMode} ${targetTemp}°C · jäljellä ~${minLeft} min)`;
+      }
     }
     // ── 2. Global House-wide Override ───────────────────────────────────────────
     else if (isGlobalOverrideActive) {
@@ -360,8 +426,14 @@ class MitsubishiManager {
 
       if (outdoorTemp != null && outdoorTemp <= frostAssistTemp) {
         if (currentPriceCents != null && currentPriceCents > maxPriceLimit) {
-          targetMode = 'OFF';
-          reason = `Pakkasavustus valmiudessa (${outdoorTemp.toFixed(1)}°C ≤ ${frostAssistTemp.toFixed(1)}°C), mutta pörssisähkö liian kallista (${currentPriceCents.toFixed(1)} > ${maxPriceLimit.toFixed(1)} snt/kWh) · Ei herätetä`;
+          if (unit.mode === 'FAN_ONLY') {
+            targetMode = 'FAN_ONLY';
+            targetFan = unit.fanMode || 'AUTO';
+            reason = '🌀 Takkatoiminto / Ilmankierto käynnissä · Kierrättää takan lämpöä ilman kompressoria';
+          } else {
+            targetMode = 'OFF';
+            reason = `Pakkasavustus valmiudessa (${outdoorTemp.toFixed(1)}°C ≤ ${frostAssistTemp.toFixed(1)}°C), mutta pörssisähkö liian kallista (${currentPriceCents.toFixed(1)} > ${maxPriceLimit.toFixed(1)} snt/kWh) · Ei herätetä`;
+          }
         } else {
           targetMode = 'HEAT';
           targetTemp = unit.targetTemp || heatTarget;
@@ -370,9 +442,17 @@ class MitsubishiManager {
           reason = `🛡️ Pakkasavustus aktiivinen (${outdoorTemp.toFixed(1)}°C ≤ ${frostAssistTemp.toFixed(1)}°C ${priceStr}) · Korvaa kalliit sähkövastukset ja tukee VILP-pumppua`;
         }
       } else {
-        targetMode = 'OFF';
-        const tempStr = outdoorTemp != null ? `${outdoorTemp.toFixed(1)}°C > ${frostAssistTemp.toFixed(1)}°C` : 'lauha sää';
-        reason = `⏸️ Valmiustila · Vesikiertoinen lattialämmitys (VILP) ensisijainen (${tempStr}). Estetään lattiatermostaattien sulkeutuminen ja VILP-katkokäynti`;
+        // Leuto sää (> -12°C): VILP hoitaa lämmityksen.
+        // Takkatoiminnossa (FAN_ONLY) kompressori on pois päältä, joten annetaan puhalluksen kierrättää ilmaa!
+        if (unit.mode === 'FAN_ONLY') {
+          targetMode = 'FAN_ONLY';
+          targetFan = unit.fanMode || 'AUTO';
+          reason = '🌀 Takkatoiminto / Ilmankierto käynnissä · Kierrättää takan lämpöä ilman kompressoria (VILP ensisijainen)';
+        } else {
+          targetMode = 'OFF';
+          const tempStr = outdoorTemp != null ? `${outdoorTemp.toFixed(1)}°C > ${frostAssistTemp.toFixed(1)}°C` : 'lauha sää';
+          reason = `⏸️ Valmiustila · Vesikiertoinen lattialämmitys (VILP) ensisijainen (${tempStr}). Estetään lattiatermostaattien sulkeutuminen ja VILP-katkokäynti`;
+        }
       }
     }
 
@@ -420,13 +500,23 @@ class MitsubishiManager {
     };
   }
 
-  async setUnitControl(unitId, { mode, target_temperature, fan_mode, swing_mode, durationHours = 2 }) {
+  async setUnitControl(unitId, { mode, target_temperature, fan_mode, swing_mode, durationHours = 2, clearOverride = false }) {
     const unit = this.units.find((u) => u.id === unitId);
     if (!unit) {
       throw new Error(`Laitetta ei löydy: ${unitId}`);
     }
 
     const now = Date.now();
+
+    if (clearOverride || durationHours === 0 || mode === 'AUTO') {
+      unit.overrideUntil = 0;
+      unit.overrideState = null;
+      db.updateState(`mitsubishi/${unit.id}/override_until`, '0');
+      db.updateState(`mitsubishi/${unit.id}/override_state`, '');
+      await this.applyDirectiveForUnit(unit, 'NORMAL', {});
+      return unit.getStatus();
+    }
+
     const nextMode = mode ? mode.toUpperCase() : (unit.mode || 'OFF');
     const nextTarget = target_temperature != null ? Number(target_temperature) : (unit.targetTemp || 21.0);
     const nextFan = fan_mode ? fan_mode.toUpperCase() : (unit.fanMode || 'AUTO');
@@ -437,6 +527,7 @@ class MitsubishiManager {
       mode: nextMode,
       target_temp: nextTarget,
       fan_mode: nextFan,
+      source: 'web',
     };
 
     db.updateState(`mitsubishi/${unit.id}/override_until`, String(unit.overrideUntil));
