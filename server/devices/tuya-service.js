@@ -1,6 +1,7 @@
 require('dotenv').config();
 const crypto = require('crypto');
 const db = require('../db');
+const tuyaLocal = require('./tuya-local');
 
 class TuyaService {
   constructor() {
@@ -820,12 +821,32 @@ class TuyaService {
 
   /**
    * Control any Tuya switch / relay (supports 'switch' and 'switch_1')
+   * Prioritizes 100% direct local LAN TCP socket control if device key is known.
    */
   async setSwitchPower(deviceId, turnOn) {
     if (!deviceId) throw new Error('Device ID required');
     const val = Boolean(turnOn);
     console.log(`[TUYA] Kytkimen ohjaus (${deviceId}) -> ${val ? 'PÄÄLLE' : 'POIS'}`);
 
+    // 1. Try local LAN control first (zero cloud dependency)
+    if (tuyaLocal.isDeviceSupportedLocally(deviceId)) {
+      try {
+        const localRes = await tuyaLocal.setSwitch(deviceId, val);
+        if (localRes && localRes.success) {
+          const dev = this.devicesById?.get(deviceId);
+          if (dev) {
+            dev.properties.state = val;
+            dev.properties.switch_1 = val;
+            this.syncDeviceToDb(dev);
+          }
+          return { success: true, state: val, local: true };
+        }
+      } catch (localErr) {
+        console.warn(`[TUYA:LOCAL] Paikallisohjaus varoitus (${deviceId}): ${localErr.message}. Kokeillaan pilveä...`);
+      }
+    }
+
+    // 2. Fallback to Tuya OpenAPI Cloud
     let res = await this.request(`/v1.0/devices/${deviceId}/commands`, 'POST', {
       commands: [
         { code: 'switch', value: val },
@@ -923,8 +944,8 @@ class TuyaService {
       console.error('[TUYA] Initial device fetch failed:', err.message);
     });
 
-    // Poll every 60 seconds for sensor updates (gentle background polling)
-    const pollInterval = parseInt(process.env.TUYA_POLL_INTERVAL_MS) || 60000;
+    // Poll every 180 seconds for sensor updates (gentle background polling to protect API quotas)
+    const pollInterval = parseInt(process.env.TUYA_POLL_INTERVAL_MS) || 180000;
     this.pollTimer = setInterval(() => {
       this.fetchDevices().catch(() => { });
     }, pollInterval);
