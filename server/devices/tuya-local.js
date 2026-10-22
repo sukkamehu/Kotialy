@@ -12,10 +12,11 @@ class TuyaLocalService {
     this.offlineDevices = new Map();
 
     // Default known IP addresses and protocol versions for home devices
+    this.registerKnownDevice('bfc6974c07151a07e7fa3g', '192.168.68.73', '3.5'); // Sauna Breaker (WiFi Switch / 1P-Mtrg)
+    this.registerKnownDevice('bf7a39a3a10e38a52engat', '192.168.68.74', '3.5'); // Ulkovalot 1 (WiFi Switch / 1P-Mtrg)
     this.registerKnownDevice('bfee1ec43ebb997b0c12ru', '192.168.68.78', '3.5'); // Ulkovalot 2 (迷你MINI通断器1路)
     this.registerKnownDevice('bfb6ed442015162bc97kca', '192.168.68.58', '3.5'); // Kiertovesipumppu
     this.registerKnownDevice('bf48a78786f87488b4otcg', '192.168.68.62', '3.4'); // Energy+ Älypistorasia Home Connect IP20
-    this.registerKnownDevice('bfc6974c07151a07e7fa3g', '192.168.68.70', '3.3'); // Sauna Breaker (WiFi Switch / 1P-Mtrg)
 
     this.loadKeys();
   }

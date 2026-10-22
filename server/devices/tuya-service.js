@@ -479,34 +479,55 @@ class TuyaService {
     this.lastCommandAt = Date.now();
     this.lastCommandState = Boolean(turnOn);
 
-    const commandBody = {
-      commands: [
-        {
-          code: 'switch',
-          value: Boolean(turnOn),
-        },
-        {
-          code: 'switch_1',
-          value: Boolean(turnOn),
-        },
-      ],
-    };
+    let switched = false;
 
-    let res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', commandBody);
-    if (!res.success) {
-      // Try single command with code: switch
-      res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', {
-        commands: [{ code: 'switch', value: Boolean(turnOn) }]
-      });
-      if (!res.success) {
-        // Try single command with code: switch_1
-        res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', {
-          commands: [{ code: 'switch_1', value: Boolean(turnOn) }]
-        });
+    // 1. Try local LAN control first (instant, bypasses Tuya Cloud & exhausted trial quota)
+    if (this.saunaDeviceId && tuyaLocal.isDeviceSupportedLocally(this.saunaDeviceId)) {
+      try {
+        console.log(`[TUYA:LOCAL] Ohjataan saunaa (${this.saunaDeviceId}) suoraan lähiverkossa -> ${turnOn ? 'PÄÄLLE' : 'POIS'}`);
+        await tuyaLocal.setSwitch(this.saunaDeviceId, Boolean(turnOn));
+        switched = true;
+        console.log(`[TUYA:LOCAL] ✅ Saunan rele kytketty paikallisesti onnistuneesti!`);
+      } catch (localErr) {
+        console.warn(`[TUYA:LOCAL] Saunan paikallisohjaus epäonnistui (${localErr.message}). Kokeillaan pilveä...`);
       }
     }
-    if (!res.success) {
-      throw new Error(`Saunan kytkentä epäonnistui: ${res.msg || JSON.stringify(res)}`);
+
+    // 2. Fallback to Cloud if local control was not possible or failed
+    if (!switched) {
+      if (Date.now() < this.cloudQuotaExhaustedUntil) {
+        throw new Error(`Saunan kytkentä epäonnistui: Rele ei vastannut lähiverkossa ja Tuya Cloud -kiintiö on vanhentunut (IoT Core trial quota is exhausted).`);
+      }
+
+      const commandBody = {
+        commands: [
+          {
+            code: 'switch',
+            value: Boolean(turnOn),
+          },
+          {
+            code: 'switch_1',
+            value: Boolean(turnOn),
+          },
+        ],
+      };
+
+      let res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', commandBody);
+      if (!res.success) {
+        // Try single command with code: switch
+        res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', {
+          commands: [{ code: 'switch', value: Boolean(turnOn) }]
+        });
+        if (!res.success) {
+          // Try single command with code: switch_1
+          res = await this.request(`/v1.0/devices/${this.saunaDeviceId}/commands`, 'POST', {
+            commands: [{ code: 'switch_1', value: Boolean(turnOn) }]
+          });
+        }
+      }
+      if (!res.success) {
+        throw new Error(`Saunan kytkentä epäonnistui: ${res.msg || JSON.stringify(res)}`);
+      }
     }
 
     // Clear any pending scheduled start
