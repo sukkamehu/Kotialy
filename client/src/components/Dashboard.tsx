@@ -19,6 +19,8 @@ import { NotificationsModal } from './NotificationsModal';
 import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
 
+import { BatteryDiagramPage } from './BatteryDiagramPage';
+
 interface DashboardProps {
   state: HeishamonState;
   mqtt: MqttStatus;
@@ -44,6 +46,7 @@ export type DashboardTab =
   | 'plugs'
   | 'trends'
   | 'technical'
+  | 'battery'
   | 'apc';
 
 const VALID_TABS: DashboardTab[] = [
@@ -55,6 +58,7 @@ const VALID_TABS: DashboardTab[] = [
   'plugs',
   'trends',
   'technical',
+  'battery',
   'apc',
 ];
 
@@ -67,6 +71,7 @@ function normalizeTab(raw: string): DashboardTab {
   if (raw === 'smartlife' || raw === 'temperature' || raw === 'climate') return 'temperatures';
   if (raw === 'herrfors' || raw === 'history') return 'trends';
   if (raw === 'hydraulics' || raw === 'heatpump_guide') return 'technical';
+  if (raw === 'battery' || raw === 'akku' || raw === 'sahkokaavio' || raw === 'akkujarjestelma') return 'battery';
   if (raw === 'apc_strategy') return 'apc';
   return 'hub';
 }
@@ -158,6 +163,7 @@ export function Dashboard({
     { id: 'plugs', label: 'Älypistorasiat', icon: '🔌', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
     { id: 'trends', label: 'Trendit & Kulutus', icon: '📈', activeColor: '#c084fc', activeBg: 'rgba(192, 132, 252, 0.2)' },
     { id: 'technical', label: 'Tekninen tila', icon: '🛠️', activeColor: '#22d3ee', activeBg: 'rgba(34, 211, 238, 0.2)' },
+    { id: 'battery', label: 'Akkujärjestelmä', icon: '🔋', activeColor: '#10b981', activeBg: 'rgba(16, 185, 129, 0.2)' },
     { id: 'apc', label: 'APC-Strategia', icon: '⚡', activeColor: '#10b981', activeBg: 'rgba(16, 185, 129, 0.2)' },
   ];
 
@@ -307,7 +313,14 @@ export function Dashboard({
             </ErrorBoundary>
           )}
 
-          {/* VIEW 8: APC-AUTOMAATIOSTRATEGIA */}
+          {/* VIEW 8: AKKUJÄRJESTELMÄ & SÄHKÖKAAVIO (12kW Hybrid, 15kWh LiFePO4, ATS & EPS) */}
+          {activeTab === 'battery' && (
+            <ErrorBoundary>
+              <BatteryDiagramPage />
+            </ErrorBoundary>
+          )}
+
+          {/* VIEW 9: APC-AUTOMAATIOSTRATEGIA */}
           {activeTab === 'apc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
               <ErrorBoundary>

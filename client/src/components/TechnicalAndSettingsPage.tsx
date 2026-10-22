@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { HydraulicDiagramPage } from './HydraulicDiagramPage';
 import { PanasonicSettingsCard } from './PanasonicSettingsCard';
+import { BatteryDiagramPage } from './BatteryDiagramPage';
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface TechnicalAndSettingsPageProps {
@@ -13,7 +14,7 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
   state,
   readOnly = false,
 }) => {
-  const [subTab, setSubTab] = useState<'hydraulics' | 'settings'>('hydraulics');
+  const [subTab, setSubTab] = useState<'hydraulics' | 'battery' | 'settings'>('hydraulics');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 36 }}>
@@ -21,10 +22,10 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span>🛠️</span> Tekninen tila & Asetusmuistio
+            <span>🛠️</span> Tekninen tila & Kaaviot
           </h2>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            Putkiston hydraulikaavio, reaaliaikaiset virtausanturit ja Panasonic Aquarea -asetusmuistio
+            Putkiston hydraulikaavio, 3-vaiheinen akkujärjestelmän sähkökaavio ja Panasonic-asetukset
           </div>
         </div>
 
@@ -37,6 +38,7 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
             borderRadius: 12,
             border: '1px solid rgba(255, 255, 255, 0.08)',
             gap: 4,
+            flexWrap: 'wrap',
           }}
         >
           <button
@@ -62,6 +64,27 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
 
           <button
             type="button"
+            onClick={() => setSubTab('battery')}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              border: 'none',
+              background: subTab === 'battery' ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
+              color: subTab === 'battery' ? '#10b981' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>🔋</span> Sähkö- ja akkukaavio
+          </button>
+
+          <button
+            type="button"
             onClick={() => setSubTab('settings')}
             style={{
               padding: '7px 16px',
@@ -69,8 +92,8 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
               fontSize: 13,
               fontWeight: 600,
               border: 'none',
-              background: subTab === 'settings' ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
-              color: subTab === 'settings' ? '#6ee7b7' : 'var(--text-secondary)',
+              background: subTab === 'settings' ? 'rgba(168, 85, 247, 0.25)' : 'transparent',
+              color: subTab === 'settings' ? '#c084fc' : 'var(--text-secondary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -90,7 +113,14 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
         </ErrorBoundary>
       )}
 
-      {/* View 2: Panasonic Settings Memo */}
+      {/* View 2: Interactive Battery & Electrical Schematic */}
+      {subTab === 'battery' && (
+        <ErrorBoundary>
+          <BatteryDiagramPage />
+        </ErrorBoundary>
+      )}
+
+      {/* View 3: Panasonic Settings Memo */}
       {subTab === 'settings' && (
         <ErrorBoundary>
           <PanasonicSettingsCard />

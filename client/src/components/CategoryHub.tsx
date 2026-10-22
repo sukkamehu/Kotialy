@@ -7,7 +7,7 @@ import { useOutdoorLights } from '../hooks/useOutdoorLights';
 import { useTapo } from '../hooks/useTapo';
 import { useMitsubishi } from '../hooks/useMitsubishi';
 
-export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'apc';
+export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'battery' | 'apc';
 
 interface CategoryHubProps {
   state: HeishamonState;
@@ -251,6 +251,31 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
         },
       ],
       description: 'Interaktiivinen kytkentäkaavio ja putkistolämmöt yhdistettynä Panasonic-asetusmuistioon.',
+    },
+    {
+      id: 'battery' as CategoryId,
+      title: 'Akkujärjestelmä & Sähkökaavio',
+      subtitle: '12 kW Hybridi, 15 kWh LiFePO4, ATS-erotus & EPS',
+      icon: '🔋',
+      color: '#10b981',
+      glow: 'rgba(16, 185, 129, 0.25)',
+      gradient: 'linear-gradient(145deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%)',
+      borderColor: 'rgba(16, 185, 129, 0.35)',
+      badges: [
+        {
+          label: 'Järjestelmä',
+          value: '12 kW 3N~ 400V',
+          color: '#10b981',
+          bg: 'rgba(16, 185, 129, 0.15)',
+        },
+        {
+          label: 'Akkukapasiteetti',
+          value: '15 kWh LiFePO4',
+          color: '#38bdf8',
+          bg: 'rgba(56, 189, 248, 0.12)',
+        },
+      ],
+      description: 'Täydellinen 3-vaiheinen sähkökaavio, ATS-verkonerotus, varavoimasyöttö (EPS), kaapeloinnit ja EMS-ohjauslogiikka.',
     },
     {
       id: 'apc' as CategoryId,
