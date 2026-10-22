@@ -246,25 +246,34 @@ class OutdoorLightsDriver {
         reason2 = `Yleinen manuaalinen ohitus: ${targetState2} (${minsLeft} min jäljellä)`;
       }
 
-      // ── 3. Apply state changes to physical Tuya relays ─────────────────────
+      // ── 3. Apply state changes to physical Tuya relays in parallel ────────
+      const applyTasks = [];
       if (deviceId1 && this.lastAppliedState1 !== targetState1) {
-        log(`Rele 1 tilamuutos (${deviceId1}): ${this.lastAppliedState1 || 'NULL'} -> ${targetState1} (${reason1})`);
-        try {
-          await tuyaService.setSwitchPower(deviceId1, targetState1 === 'ON');
-          this.lastAppliedState1 = targetState1;
-        } catch (err) {
-          warn(`Tuya-kytkimen 1 ohjaus epäonnistui: ${err.message}`);
-        }
+        applyTasks.push((async () => {
+          log(`Rele 1 tilamuutos (${deviceId1}): ${this.lastAppliedState1 || 'NULL'} -> ${targetState1} (${reason1})`);
+          try {
+            await tuyaService.setSwitchPower(deviceId1, targetState1 === 'ON');
+            this.lastAppliedState1 = targetState1;
+          } catch (err) {
+            warn(`Tuya-kytkimen 1 ohjaus epäonnistui: ${err.message}`);
+          }
+        })());
       }
 
       if (deviceId2 && this.lastAppliedState2 !== targetState2) {
-        log(`Rele 2 tilamuutos (${deviceId2}): ${this.lastAppliedState2 || 'NULL'} -> ${targetState2} (${reason2})`);
-        try {
-          await tuyaService.setSwitchPower(deviceId2, targetState2 === 'ON');
-          this.lastAppliedState2 = targetState2;
-        } catch (err) {
-          warn(`Tuya-kytkimen 2 ohjaus epäonnistui: ${err.message}`);
-        }
+        applyTasks.push((async () => {
+          log(`Rele 2 tilamuutos (${deviceId2}): ${this.lastAppliedState2 || 'NULL'} -> ${targetState2} (${reason2})`);
+          try {
+            await tuyaService.setSwitchPower(deviceId2, targetState2 === 'ON');
+            this.lastAppliedState2 = targetState2;
+          } catch (err) {
+            warn(`Tuya-kytkimen 2 ohjaus epäonnistui: ${err.message}`);
+          }
+        })());
+      }
+
+      if (applyTasks.length > 0) {
+        await Promise.allSettled(applyTasks);
       }
 
       this.lastAppliedState = targetState1;
@@ -364,12 +373,10 @@ class OutdoorLightsDriver {
         db.updateOutdoorLightsSetting('override_relay1_until', '0');
         db.updateOutdoorLightsSetting('override_relay2_state', '');
         db.updateOutdoorLightsSetting('override_relay2_until', '0');
-        try {
-          if (deviceId1) await tuyaService.setSwitchPower(deviceId1, val === 'ON');
-          if (deviceId2) await tuyaService.setSwitchPower(deviceId2, val === 'ON');
-        } catch (e) {
-          warn(`Tuya-ohjaus epäonnistui: ${e.message}`);
-        }
+        const tasks = [];
+        if (deviceId1) tasks.push(tuyaService.setSwitchPower(deviceId1, val === 'ON').catch(e => warn(`Tuya-ohjaus 1 epäonnistui: ${e.message}`)));
+        if (deviceId2) tasks.push(tuyaService.setSwitchPower(deviceId2, val === 'ON').catch(e => warn(`Tuya-ohjaus 2 epäonnistui: ${e.message}`)));
+        if (tasks.length > 0) await Promise.allSettled(tasks);
       }
       this.lastAppliedState1 = null;
       this.lastAppliedState2 = null;

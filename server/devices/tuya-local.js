@@ -15,6 +15,9 @@ class TuyaLocalService {
     this.registerKnownDevice('bf48a78786f87488b4otcg', '192.168.68.62', '3.4'); // Energy+ Älypistorasia Home Connect IP20
     this.registerKnownDevice('bfc6974c07151a07e7fa3g', '192.168.68.70', '3.3'); // Sauna Breaker (WiFi Switch / 1P-Mtrg)
 
+    this.offlineCooldownMs = 60000;
+    this.offlineDevices = new Map();
+
     this.loadKeys();
   }
 
@@ -22,6 +25,7 @@ class TuyaLocalService {
     if (id && ip) {
       this.knownDevices.set(id, ip);
       this.deviceVersions.set(id, version);
+      this.offlineDevices.delete(id);
     }
   }
 
@@ -88,6 +92,14 @@ class TuyaLocalService {
     let ip = options.ip || this.knownDevices.get(deviceId) || null;
     let version = options.version || this.deviceVersions.get(deviceId) || '3.3';
 
+    // If IP is not known and device recently failed discovery, skip immediately to prevent lagging
+    if (!ip) {
+      const offlineUntil = this.offlineDevices.get(deviceId) || 0;
+      if (Date.now() < offlineUntil) {
+        throw new Error(`Laite ${this.getName(deviceId)} ei vastaa lähiverkossa (offline-tila)`);
+      }
+    }
+
     const dev = new TuyAPI({
       id: deviceId,
       key,
@@ -99,19 +111,24 @@ class TuyaLocalService {
     dev.on('error', () => { });
 
     try {
-      // If IP is not known, discover via local UDP
+      // If IP is not known, discover via local UDP with short 1.5s timeout
       if (!ip) {
         console.log(`[TUYA:LOCAL] Etsitään laitetta ${this.getName(deviceId)} (${deviceId}) lähiverkosta...`);
-        await dev.find({ timeout: 5 });
-        ip = dev.device.ip;
-        version = dev.device.version || '3.3';
-        this.registerKnownDevice(deviceId, ip, version);
+        try {
+          await dev.find({ timeout: 1.5 });
+          ip = dev.device.ip;
+          version = dev.device.version || '3.3';
+          this.registerKnownDevice(deviceId, ip, version);
+        } catch (findErr) {
+          this.offlineDevices.set(deviceId, Date.now() + this.offlineCooldownMs);
+          throw findErr;
+        }
       }
 
-      // Connect with 3.5s timeout
+      // Connect with 1.8s timeout
       await Promise.race([
         dev.connect(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Yhteysaikakatkaisu')), 3500)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Yhteysaikakatkaisu')), 1800)),
       ]);
 
       // Most Tuya smart switches use DPS 1 for relay power state
@@ -123,7 +140,7 @@ class TuyaLocalService {
       // Graceful disconnect
       setTimeout(() => {
         try { dev.disconnect(); } catch (_) { }
-      }, 500);
+      }, 300);
 
       return {
         success: true,
