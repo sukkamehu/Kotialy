@@ -382,7 +382,8 @@ class OutdoorLightsDriver {
       this.lastAppliedState2 = null;
     }
 
-    await this.evaluate();
+    // Trigger evaluate asynchronously in background so UI button responds instantly (<100ms)
+    this.evaluate().catch(e => warn('Tausta-arviointivirhe:', e.message));
     return this.getStatus();
   }
 

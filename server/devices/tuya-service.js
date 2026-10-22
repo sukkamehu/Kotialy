@@ -25,6 +25,7 @@ class TuyaService {
     this.lastCommandState = null;
     this.lastGlowKey = null;
     this.lastGlowOn = false;
+    this.cloudQuotaExhaustedUntil = 0;
 
     // Sauna safety state
     this.saunaState = {
@@ -96,6 +97,10 @@ class TuyaService {
     });
 
     const data = await res.json();
+    if (data.code === 28841004) {
+      this.cloudQuotaExhaustedUntil = Date.now() + 5 * 60 * 1000;
+    }
+
     if (!data.success && (data.code === 1010 || data.code === 1004)) {
       // Token expired or invalid sign, clear and retry once
       this.token = null;
@@ -846,7 +851,11 @@ class TuyaService {
       }
     }
 
-    // 2. Fallback to Tuya OpenAPI Cloud
+    // 2. Fallback to Tuya OpenAPI Cloud (skip if cloud quota is exhausted to avoid lag)
+    if (Date.now() < this.cloudQuotaExhaustedUntil) {
+      throw new Error(`Tuya-laite ei vastaa lähiverkossa ja pilvikiintiö on täynnä (IoT Core trial quota is exhausted)`);
+    }
+
     let res = await this.request(`/v1.0/devices/${deviceId}/commands`, 'POST', {
       commands: [
         { code: 'switch', value: val },
