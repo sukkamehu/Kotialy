@@ -36,7 +36,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const climateSensors = tuyaDevices.filter((d) => d.type === 'climate');
   const alakertaClimate = climateSensors.find((d) => d.name.toLowerCase().includes('alakerta'));
   const ylakertaClimate = climateSensors.find(
-    (d) => d.name.toLowerCase().includes('ylakerta') || d.name.toLowerCase().includes('tyohuone')
+    (d) => d.name.toLowerCase().includes('ylakerta') || d.name.toLowerCase().includes('tyohuone') || d.name.toLowerCase().includes('työhuone')
   );
   const mitsuAlakerta = mitsuStatus?.units.find((u) => u.id === 'mitsubishi_alakerta');
   const mitsuYlakerta = mitsuStatus?.units.find((u) => u.id === 'mitsubishi_ylakerta');

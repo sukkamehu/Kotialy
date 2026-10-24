@@ -109,13 +109,14 @@ function processSensorMessage(friendlyName, rawPayload) {
     }
 
     // Bridge common sensors to tuya/* topics so APC, dashboards and alerts receive live Zigbee telemetry
-    const lower = friendlyName.toLowerCase();
+    const norm = friendlyName.toLowerCase().replace(/[äå]/g, 'a').replace(/[ö]/g, 'o').trim();
     let aliasSlug = null;
-    if (lower === 'sauna') aliasSlug = 'sauna';
-    else if (lower === 'alakerta') aliasSlug = 'alakerta';
-    else if (lower.includes('ylakerta') || lower.includes('tyohuone')) aliasSlug = 'ylakerran_tyohuone';
-    else if (lower.includes('autotalli')) aliasSlug = 'autotalli';
-    else if (lower.includes('ulko')) aliasSlug = 'ulkolampotila';
+    if (norm.includes('sauna')) aliasSlug = 'sauna';
+    else if (norm.includes('alakerta')) aliasSlug = 'alakerta';
+    else if (norm.includes('ylakerta') || norm.includes('tyohuone')) aliasSlug = 'ylakerran_tyohuone';
+    else if (norm.includes('autotalli')) aliasSlug = 'autotalli';
+    else if (norm.includes('pikkuvarasto')) aliasSlug = 'pikkuvarasto';
+    else if (norm.includes('isovarasto') || norm === 'varasto') aliasSlug = 'isovarasto';
 
     if (aliasSlug) {
       const aliasTopic = `tuya/${aliasSlug}/${prop}`;
@@ -123,9 +124,22 @@ function processSensorMessage(friendlyName, rawPayload) {
       if (NUMERIC_PROPS.has(prop) && typeof val === 'number') {
         maybeAppendHistory(aliasTopic, val, HISTORY_INTERVAL_MS);
       }
+
+      // Also set legacy ASCII topic for ylakerran_tyohuone (tuya/yl_kerran_ty_huone/*)
+      if (aliasSlug === 'ylakerran_tyohuone') {
+        updateState(`tuya/yl_kerran_ty_huone/${prop}`, strVal);
+      }
+
+      // Synchronize into tuya-service in-memory device list
+      try {
+        const tuyaService = require('./devices/tuya-service');
+        if (tuyaService?.syncSensorUpdate) {
+          tuyaService.syncSensorUpdate(aliasSlug, friendlyName, prop, val);
+        }
+      } catch (err) {}
     }
 
-    if (lower === 'sauna') {
+    if (aliasSlug === 'sauna') {
       try {
         const tuyaService = require('./devices/tuya-service');
         if (tuyaService?.updateSaunaClimate) {

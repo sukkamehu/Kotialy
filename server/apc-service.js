@@ -70,7 +70,9 @@ class ApcService {
       ?? (state['mitsubishi/mitsubishi_alakerta/current_temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_alakerta/current_temperature'].value) : null)
       ?? (state['mitsubishi/mitsubishi_alakerta/temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_alakerta/temperature'].value) : null);
 
-    const ylakertaTemp = (state['zigbee/Ylakerran_tyohuone/temperature']?.value ? parseFloat(state['zigbee/Ylakerran_tyohuone/temperature'].value) : null)
+    const ylakertaTemp = (state['zigbee/Työhuone/temperature']?.value ? parseFloat(state['zigbee/Työhuone/temperature'].value) : null)
+      ?? (state['zigbee/Tyohuone/temperature']?.value ? parseFloat(state['zigbee/Tyohuone/temperature'].value) : null)
+      ?? (state['zigbee/Ylakerran_tyohuone/temperature']?.value ? parseFloat(state['zigbee/Ylakerran_tyohuone/temperature'].value) : null)
       ?? (state['zigbee/ylakerran_tyohuone/temperature']?.value ? parseFloat(state['zigbee/ylakerran_tyohuone/temperature'].value) : null)
       ?? ((state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
         ? parseFloat(state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)

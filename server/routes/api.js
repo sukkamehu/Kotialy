@@ -1376,7 +1376,7 @@ router.get('/tuya/devices', (req, res) => {
   res.json({
     ok: true,
     configured: tuyaService.isConfigured(),
-    devices: tuyaService.devices,
+    devices: tuyaService.getEnrichedDevices ? tuyaService.getEnrichedDevices() : tuyaService.devices,
     sauna: tuyaService.getSaunaStatus(),
     ts: Date.now(),
   });

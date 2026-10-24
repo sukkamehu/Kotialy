@@ -1082,11 +1082,17 @@ class TuyaService {
         else if (category === 'dj' || category === 'dd') type = 'light';
         else if (category === 'tdq') type = 'switch';
 
-        const cleanName = this.cleanTopicName(info.name);
+        let deviceName = info.name;
+        // The former outdoor temperature sensor was relocated to Pikkuvarasto
+        if (this.cleanTopicName(deviceName).includes('ulko') && (category === 'wsdcg' || info.product?.includes('Temperature'))) {
+          deviceName = 'Pikkuvarasto';
+        }
+
+        const cleanName = this.cleanTopicName(deviceName);
         const prefix = `tuya/${cleanName}/`;
         const properties = {};
 
-        // Extract known states from DB
+        // Extract known states from DB (both tuya/* and zigbee/*)
         for (const [top, row] of Object.entries(fullState)) {
           if (top.startsWith(prefix)) {
             const prop = top.slice(prefix.length);
@@ -1097,11 +1103,11 @@ class TuyaService {
 
         loaded.push({
           id,
-          name: info.name,
+          name: deviceName,
           type,
           category,
           model: info.product || 'SmartLife',
-          product_name: info.product || info.name,
+          product_name: info.product || deviceName,
           online: true,
           ip: tuyaLocal.knownDevices?.get(id) || undefined,
           properties,
@@ -1119,6 +1125,125 @@ class TuyaService {
     } catch (e) {
       console.warn('[TUYA:LOCAL] loadLocalDeviceRegistry varoitus:', e.message);
     }
+  }
+
+  /**
+   * Sync sensor update from Zigbee client directly to memory device registry
+   */
+  syncSensorUpdate(slug, friendlyName, prop, val) {
+    if (!slug) return;
+    const numVal = typeof val === 'number' ? val : (isNaN(Number(val)) ? val : Number(val));
+
+    const displayNames = {
+      sauna: 'Sauna',
+      alakerta: 'Alakerta',
+      ylakerran_tyohuone: 'Yläkerran työhuone',
+      autotalli: 'Autotalli',
+      isovarasto: 'Isovarasto',
+      pikkuvarasto: 'Pikkuvarasto',
+    };
+
+    let dev = this.devices.find((d) => {
+      const norm = this.cleanTopicName(d.name);
+      return norm === slug || (slug === 'ylakerran_tyohuone' && (norm.includes('ylakerta') || norm.includes('tyohuone')));
+    });
+
+    if (!dev && slug === 'pikkuvarasto') {
+      const oldUlko = this.devices.find((d) => this.cleanTopicName(d.name).includes('ulko') && d.type === 'climate');
+      if (oldUlko) {
+        oldUlko.name = 'Pikkuvarasto';
+        oldUlko.product_name = 'Zigbee Temperature and Humidity Sensor';
+        dev = oldUlko;
+      }
+    }
+
+    if (!dev) {
+      dev = {
+        id: `zigbee_${slug}`,
+        name: displayNames[slug] || friendlyName,
+        type: 'climate',
+        category: 'wsdcg',
+        model: 'TH01',
+        product_name: 'Zigbee Temperature & Humidity Sensor',
+        online: true,
+        properties: {},
+        update_time: Date.now(),
+      };
+      this.devices.push(dev);
+      this.devicesById.set(dev.id, dev);
+    }
+
+    dev.online = true;
+    dev.update_time = Date.now();
+    dev.properties[prop] = numVal;
+
+    if (slug === 'sauna') {
+      if (prop === 'temperature' && typeof numVal === 'number') {
+        this.updateSaunaClimate(numVal, null);
+      } else if (prop === 'humidity' && typeof numVal === 'number') {
+        this.updateSaunaClimate(null, numVal);
+      }
+    }
+  }
+
+  /**
+   * Returns devices enriched with latest SQLite sensor states and guarantees
+   * all Zigbee room & storage sensors are populated.
+   */
+  getEnrichedDevices() {
+    const fullState = db.getFullState();
+
+    const knownSensors = [
+      { slug: 'sauna', name: 'Sauna', zigbeeKey: 'Sauna' },
+      { slug: 'alakerta', name: 'Alakerta', zigbeeKey: 'Alakerta' },
+      { slug: 'ylakerran_tyohuone', name: 'Yläkerran työhuone', zigbeeKey: 'Työhuone' },
+      { slug: 'autotalli', name: 'Autotalli', zigbeeKey: 'Autotalli' },
+      { slug: 'isovarasto', name: 'Isovarasto', zigbeeKey: 'Isovarasto' },
+      { slug: 'pikkuvarasto', name: 'Pikkuvarasto', zigbeeKey: 'Pikkuvarasto' },
+    ];
+
+    for (const s of knownSensors) {
+      let dev = this.devices.find((d) => {
+        const norm = this.cleanTopicName(d.name);
+        return norm === s.slug || (s.slug === 'ylakerran_tyohuone' && (norm.includes('ylakerta') || norm.includes('tyohuone')));
+      });
+
+      if (!dev && s.slug === 'pikkuvarasto') {
+        const oldUlko = this.devices.find((d) => this.cleanTopicName(d.name).includes('ulko') && d.type === 'climate');
+        if (oldUlko) {
+          oldUlko.name = 'Pikkuvarasto';
+          oldUlko.product_name = 'Zigbee Temperature & Humidity Sensor';
+          dev = oldUlko;
+        }
+      }
+
+      if (!dev) {
+        dev = {
+          id: `zigbee_${s.slug}`,
+          name: s.name,
+          type: 'climate',
+          category: 'wsdcg',
+          model: 'TH01',
+          product_name: 'Zigbee Temperature & Humidity Sensor',
+          online: true,
+          properties: {},
+          update_time: Date.now(),
+        };
+        this.devices.push(dev);
+        this.devicesById.set(dev.id, dev);
+      }
+
+      const tempVal = fullState[`zigbee/${s.zigbeeKey}/temperature`]?.value ?? fullState[`tuya/${s.slug}/temperature`]?.value;
+      const humidVal = fullState[`zigbee/${s.zigbeeKey}/humidity`]?.value ?? fullState[`tuya/${s.slug}/humidity`]?.value;
+      const battVal = fullState[`zigbee/${s.zigbeeKey}/battery`]?.value ?? fullState[`tuya/${s.slug}/battery`]?.value;
+
+      if (tempVal != null && !isNaN(Number(tempVal))) dev.properties.temperature = Number(tempVal);
+      if (humidVal != null && !isNaN(Number(humidVal))) dev.properties.humidity = Number(humidVal);
+      if (battVal != null && !isNaN(Number(battVal))) dev.properties.battery = Number(battVal);
+    }
+
+    // Filter out old Ulkolämpötila climate device if any, because outdoor temp comes from Panasonic VILP
+    return this.devices.filter(d => !(d.type === 'climate' && this.cleanTopicName(d.name).includes('ulko')));
   }
 
   /**

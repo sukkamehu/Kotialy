@@ -110,17 +110,22 @@ ssh juuso@192.168.68.54 "cd ~/Dev/kotialy && docker compose up -d --build"
 
 ---
 
-## 🌡️ Lämpötila-anturit ja niiden sijainnit
+## 🌡️ Lämpötila-anturit ja niiden sijainnit (Zigbee2MQTT & VILP)
+
+Kaikki lämpömittarit on migroitu omalle paikalliselle MQTT/Zigbee2MQTT-palvelimelle (`kotialy-zigbee2mqtt`).
 
 - **Pääkiinteistön sisälämpötila (omakotitalo):**
-  - `tuya/alakerta/temperature` (**Alakerta**) — Edustaa alakerran sisälämpötilaa.
-  - `tuya/ylakerran_tyohuone/temperature` (**Yläkerran työhuone**) — Edustaa yläkerran sisälämpötilaa.
+  - `zigbee/Alakerta/temperature` & `tuya/alakerta/temperature` (**Alakerta**) — Edustaa alakerran sisälämpötilaa.
+  - `zigbee/Työhuone/temperature` & `tuya/ylakerran_tyohuone/temperature` (**Yläkerran työhuone**) — Edustaa yläkerran sisälämpötilaa.
   - *Näiden kahden anturin keskiarvo / lukemat kuvaavat asunnon todellista sisälämpötilaa (tavoite ~21,3 °C).*
-- **Muut tilat ja etäkohteet:**
+- **Ulkolämpötila:**
+  - `main/Outside_Temp` (**Panasonic VILP WH-MXC12J9E8**) — **Ensisijainen ja luotettava ulkolämpötilan mittaus**.
+- **Muut tilat ja varastot:**
+  - `zigbee/Pikkuvarasto/temperature` & `tuya/pikkuvarasto/temperature` (**Pikkuvarasto**) — Entinen ulkolämpötilamittari, joka on siirretty pikkuvarastoon pakkassuojaukseen ja valvontaan.
+  - `zigbee/Isovarasto/temperature` & `tuya/isovarasto/temperature` (**Isovarasto**) — Isovaraston lämpötila ja pakkassuojaus.
+  - `zigbee/Autotalli/temperature` & `tuya/autotalli/temperature` (**Autotalli**) — Autotallin lämpötila.
+  - `zigbee/Sauna/temperature` & `tuya/sauna/temperature` (**Sauna**) — Saunan löylytilan lämpötila ja kosteus.
   - `tuya/naytollinen/temperature` (**Näytöllinen mittari**) — **Sijaitsee eri talossa (sijoitusasunnossa)**. Pidetään mukana UI:ssa/seurannassa, mutta **EI** edusta pääkiinteistön sisälämpötilaa.
-  - `tuya/autotalli/temperature` — Autotallin lämpötila.
-  - `tuya/sauna/temperature` — Saunan lämpötila.
-  - `tuya/ulko/temperature` ja `main/Outside_Temp` — Ulkolämpötila.
 
 
 

@@ -90,17 +90,20 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
   const mitsuAlakerta = mitsuStatus?.units.find((u) => u.id === 'mitsubishi_alakerta');
   const mitsuYlakerta = mitsuStatus?.units.find((u) => u.id === 'mitsubishi_ylakerta');
 
-  // Key Tuya sensors
+  // Key Tuya & Zigbee sensors
   const alakertaSensor = climateSensors.find((d) => d.name.toLowerCase().includes('alakerta'));
   const ylakertaSensor = climateSensors.find(
-    (d) => d.name.toLowerCase().includes('ylakerta') || d.name.toLowerCase().includes('tyohuone')
+    (d) => d.name.toLowerCase().includes('ylakerta') || d.name.toLowerCase().includes('tyohuone') || d.name.toLowerCase().includes('työhuone')
   );
   const ulkoSensor = climateSensors.find(
     (d) => d.name.toLowerCase().includes('ulko') || d.name.toLowerCase().includes('ulkolampotila')
   );
   const saunaSensor = climateSensors.find((d) => d.name.toLowerCase().includes('sauna'));
   const isovarastoSensor = climateSensors.find(
-    (d) => d.name.toLowerCase().includes('isovarasto') || d.name.toLowerCase().includes('varasto')
+    (d) => d.name.toLowerCase().includes('isovarasto')
+  );
+  const pikkuvarastoSensor = climateSensors.find(
+    (d) => d.name.toLowerCase().includes('pikkuvarasto')
   );
   const autotalliSensor = climateSensors.find((d) => d.name.toLowerCase().includes('autotalli'));
   const naytollinenSensor = climateSensors.find(
@@ -151,11 +154,28 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
       });
     }
 
-    // 3. Tuya climate sensors
+    // 3. Tuya & Zigbee climate sensors
     for (const d of climateSensors) {
+      const lower = d.name.toLowerCase();
+      // Skip redundant outdoor battery sensor entry if present (outdoor temp is measured by Panasonic VILP)
+      if (lower.includes('ulko') || lower.includes('ulkolampotila')) continue;
+
       const slug = cleanTopicName(d.name);
       const legacySlug = d.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-      const isApartment = d.name.toLowerCase().includes('naytollinen') || d.name.toLowerCase().includes('sijoitus');
+      const isApartment = lower.includes('naytollinen') || lower.includes('sijoitus');
+      const isPikku = lower.includes('pikkuvarasto');
+      const isIso = lower.includes('isovarasto');
+      const isTyohuone = lower.includes('työhuone') || lower.includes('tyohuone');
+
+      let badge = 'Zigbee';
+      if (isApartment) badge = 'Etäkohde';
+      else if (isPikku) badge = 'Pikkuvarasto';
+      else if (isIso) badge = 'Isovarasto';
+      else if (lower.includes('sauna')) badge = 'Sauna';
+      else if (lower.includes('autotalli')) badge = 'Autotalli';
+      else if (lower.includes('alakerta')) badge = 'Alakerta';
+      else if (isTyohuone) badge = 'Työhuone';
+
       list.push({
         id: d.id,
         name: d.name,
@@ -164,7 +184,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
         temperature: d.properties.temperature ?? null,
         humidity: d.properties.humidity ?? null,
         battery: d.properties.battery ?? null,
-        badge: isApartment ? 'Etäkohde' : 'Tuya Zigbee',
+        badge,
         tempTopic: `tuya/${slug}/temperature`,
         humidTopic: `tuya/${slug}/humidity`,
         legacyTempTopic: `tuya/${legacySlug}/temperature`,
@@ -198,9 +218,9 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
     };
   }, [alakertaSensor, ylakertaSensor, mitsuAlakerta, mitsuYlakerta]);
 
-  // Outside temperature (from Tuya or Panasonic VILP)
+  // Outside temperature: Panasonic VILP is the primary reliable measurement
   const panasonicOutsideTemp = state ? numVal(state, 'main/Outside_Temp') : null;
-  const outsideDisplayTemp = ulkoSensor?.properties.temperature ?? panasonicOutsideTemp;
+  const outsideDisplayTemp = panasonicOutsideTemp ?? ulkoSensor?.properties.temperature;
 
   // Auto-select first sensor (prefer Alakerta)
   useEffect(() => {
@@ -300,11 +320,18 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
         selectedSensor.targetTempTopic,
       ].filter(Boolean).join(',');
     } else {
+      const zName = selectedSensor.name;
+      const norm = zName.toLowerCase();
+      const isTyohuone = norm.includes('tyohuone') || norm.includes('työhuone');
       allTopics = Array.from(new Set([
         selectedSensor.tempTopic,
         selectedSensor.humidTopic,
         selectedSensor.legacyTempTopic,
         selectedSensor.legacyHumidTopic,
+        `zigbee/${zName}/temperature`,
+        `zigbee/${zName}/humidity`,
+        isTyohuone ? 'zigbee/Työhuone/temperature' : null,
+        isTyohuone ? 'zigbee/Työhuone/humidity' : null,
       ])).filter(Boolean).join(',');
     }
 
@@ -340,8 +367,19 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
           }
         } else {
           const isSauna = selectedSensor.name.toLowerCase().includes('sauna');
-          const tempRows = (dataMap[selectedSensor.tempTopic] || (selectedSensor.legacyTempTopic ? dataMap[selectedSensor.legacyTempTopic] : null) || []);
-          const humidRows = ((selectedSensor.humidTopic ? dataMap[selectedSensor.humidTopic] : null) || (selectedSensor.legacyHumidTopic ? dataMap[selectedSensor.legacyHumidTopic] : null) || []);
+          const isTyohuone = selectedSensor.name.toLowerCase().includes('tyohuone') || selectedSensor.name.toLowerCase().includes('työhuone');
+          const tempRows = [
+            ...(dataMap[selectedSensor.tempTopic] || []),
+            ...(selectedSensor.legacyTempTopic && selectedSensor.legacyTempTopic !== selectedSensor.tempTopic ? dataMap[selectedSensor.legacyTempTopic] || [] : []),
+            ...(dataMap[`zigbee/${selectedSensor.name}/temperature`] || []),
+            ...(isTyohuone && dataMap['zigbee/Työhuone/temperature'] ? dataMap['zigbee/Työhuone/temperature'] : []),
+          ];
+          const humidRows = [
+            ...(selectedSensor.humidTopic ? dataMap[selectedSensor.humidTopic] || [] : []),
+            ...(selectedSensor.legacyHumidTopic && selectedSensor.legacyHumidTopic !== selectedSensor.humidTopic ? dataMap[selectedSensor.legacyHumidTopic] || [] : []),
+            ...(dataMap[`zigbee/${selectedSensor.name}/humidity`] || []),
+            ...(isTyohuone && dataMap['zigbee/Työhuone/humidity'] ? dataMap['zigbee/Työhuone/humidity'] : []),
+          ];
 
           for (const r of tempRows) {
             let v = Number(r.value);
@@ -721,7 +759,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                   Ulkolämpötila
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Piha-anturi & VILP
+                  Panasonic VILP
                 </div>
               </div>
             </div>
@@ -736,32 +774,38 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                 border: '1px solid rgba(34, 197, 94, 0.3)',
               }}
             >
-              Ulkoilma
+              Panasonic VILP
             </span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
             <div>
               <span style={{ fontSize: '2rem', fontWeight: 800, color: '#4ade80', letterSpacing: '-0.02em' }}>
-                {outsideDisplayTemp !== null ? `${outsideDisplayTemp.toFixed(1)} °C` : '--'}
+                {panasonicOutsideTemp !== null ? `${panasonicOutsideTemp.toFixed(1)} °C` : (outsideDisplayTemp != null ? `${outsideDisplayTemp.toFixed(1)} °C` : '--')}
               </span>
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
-              {ulkoSensor?.properties.humidity != null ? `💧 ${ulkoSensor.properties.humidity} % RH` : ''}
+            <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>
+              {panasonicOutsideTemp !== null ? '● Luotettava VILP' : ''}
             </div>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-            <span>Tuya: {ulkoSensor?.properties.temperature != null ? `${ulkoSensor.properties.temperature}°C` : '--'}</span>
-            <span>VILP: {panasonicOutsideTemp !== null ? `${panasonicOutsideTemp.toFixed(1)}°C` : '--'}</span>
+            <span>Lähde: WH-MXC12J9E8</span>
+            <span style={{ color: panasonicOutsideTemp !== null ? '#4ade80' : 'var(--text-muted)' }}>
+              {panasonicOutsideTemp !== null ? '● Aktiivinen' : '○ Ei dataa'}
+            </span>
           </div>
         </div>
 
         {/* 5. Isovarasto */}
         <div
+          onClick={() => {
+            const s = unifiedSensors.find((x) => x.name.toLowerCase().includes('isovarasto'));
+            if (s) setSelectedSensor(s);
+          }}
           style={{
             background: 'linear-gradient(145deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
+            border: selectedSensor?.name.toLowerCase().includes('isovarasto') ? '2px solid #fbbf24' : '1px solid rgba(245, 158, 11, 0.3)',
             borderRadius: 16,
             padding: '16px 18px',
             boxShadow: '0 8px 24px rgba(245, 158, 11, 0.1)',
@@ -769,6 +813,8 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             flexDirection: 'column',
             justifyContent: 'space-between',
             gap: 10,
+            cursor: 'pointer',
+            transition: 'all 0.18s ease',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -794,7 +840,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                 border: '1px solid rgba(245, 158, 11, 0.3)',
               }}
             >
-              Varasto
+              Isovarasto
             </span>
           </div>
 
@@ -815,11 +861,15 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
           </div>
         </div>
 
-        {/* 6. Sauna */}
+        {/* 6. Pikkuvarasto */}
         <div
+          onClick={() => {
+            const s = unifiedSensors.find((x) => x.name.toLowerCase().includes('pikkuvarasto'));
+            if (s) setSelectedSensor(s);
+          }}
           style={{
             background: 'linear-gradient(145deg, rgba(249, 115, 22, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)',
-            border: '1px solid rgba(249, 115, 22, 0.3)',
+            border: selectedSensor?.name.toLowerCase().includes('pikkuvarasto') ? '2px solid #f97316' : '1px solid rgba(249, 115, 22, 0.3)',
             borderRadius: 16,
             padding: '16px 18px',
             boxShadow: '0 8px 24px rgba(249, 115, 22, 0.1)',
@@ -827,6 +877,72 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             flexDirection: 'column',
             justifyContent: 'space-between',
             gap: 10,
+            cursor: 'pointer',
+            transition: 'all 0.18s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>📦</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Pikkuvarasto
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Pakkassuojaus & Lämpöpatteri
+                </div>
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 12,
+                background: 'rgba(249, 115, 22, 0.2)',
+                color: '#f97316',
+                border: '1px solid rgba(249, 115, 22, 0.3)',
+              }}
+            >
+              Pikkuvarasto
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
+            <div>
+              <span style={{ fontSize: '2rem', fontWeight: 800, color: '#f97316', letterSpacing: '-0.02em' }}>
+                {pikkuvarastoSensor?.properties.temperature != null ? `${pikkuvarastoSensor.properties.temperature} °C` : '--'}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
+              {pikkuvarastoSensor?.properties.humidity != null ? `💧 ${pikkuvarastoSensor.properties.humidity} % RH` : ''}
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+            <span>Paristo: {pikkuvarastoSensor?.properties.battery != null ? `${pikkuvarastoSensor.properties.battery}%` : '--'}</span>
+            <span style={{ color: '#4ade80' }}>Pakkassuoja aktiivinen</span>
+          </div>
+        </div>
+
+        {/* 7. Sauna */}
+        <div
+          onClick={() => {
+            const s = unifiedSensors.find((x) => x.name.toLowerCase().includes('sauna'));
+            if (s) setSelectedSensor(s);
+          }}
+          style={{
+            background: 'linear-gradient(145deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)',
+            border: selectedSensor?.name.toLowerCase().includes('sauna') ? '2px solid #ef4444' : '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 16,
+            padding: '16px 18px',
+            boxShadow: '0 8px 24px rgba(239, 68, 68, 0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: 10,
+            cursor: 'pointer',
+            transition: 'all 0.18s ease',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -847,9 +963,9 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                 fontWeight: 700,
                 padding: '2px 8px',
                 borderRadius: 12,
-                background: 'rgba(249, 115, 22, 0.2)',
-                color: '#f97316',
-                border: '1px solid rgba(249, 115, 22, 0.3)',
+                background: 'rgba(239, 68, 68, 0.2)',
+                color: '#f87171',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
               }}
             >
               Löylytila
@@ -858,7 +974,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
             <div>
-              <span style={{ fontSize: '2rem', fontWeight: 800, color: '#f97316', letterSpacing: '-0.02em' }}>
+              <span style={{ fontSize: '2rem', fontWeight: 800, color: '#f87171', letterSpacing: '-0.02em' }}>
                 {saunaSensor?.properties.temperature != null ? `${saunaSensor.properties.temperature} °C` : '--'}
               </span>
             </div>
@@ -873,12 +989,16 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
           </div>
         </div>
 
-        {/* 7. Autotalli */}
+        {/* 8. Autotalli */}
         {autotalliSensor && (
           <div
+            onClick={() => {
+              const s = unifiedSensors.find((x) => x.name.toLowerCase().includes('autotalli'));
+              if (s) setSelectedSensor(s);
+            }}
             style={{
               background: 'linear-gradient(145deg, rgba(148, 163, 184, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)',
-              border: '1px solid rgba(148, 163, 184, 0.3)',
+              border: selectedSensor?.name.toLowerCase().includes('autotalli') ? '2px solid #94a3b8' : '1px solid rgba(148, 163, 184, 0.3)',
               borderRadius: 16,
               padding: '16px 18px',
               boxShadow: '0 8px 24px rgba(148, 163, 184, 0.1)',
@@ -886,6 +1006,8 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
               flexDirection: 'column',
               justifyContent: 'space-between',
               gap: 10,
+              cursor: 'pointer',
+              transition: 'all 0.18s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
