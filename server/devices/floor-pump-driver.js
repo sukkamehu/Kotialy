@@ -41,8 +41,8 @@ class FloorPumpDriver {
     }
     try {
       if (typeof this.mqttClient.publish === 'function') {
-        // Publish to primary topic (mqtt-client publishes to all Tasmota topic variants)
-        await this.mqttClient.publish('cmnd/lattialampopumppu/POWER', val);
+        // Publish to unified Tasmota command topic
+        await this.mqttClient.publish('lattialampopumppu/cmnd/POWER', val);
         // Also update local DB state immediately for reactive UI
         db.updateState('lattialampopumppu/stat/POWER', val);
         db.updateState('stat/lattialampopumppu/POWER', val);

@@ -303,20 +303,13 @@ function publish(setTopic, value, options = {}) {
     return Promise.resolve(false);
   }
 
-  // If it is a defrost cable command, publish to all possible Tasmota topic schemes
+  // If it is a defrost cable command, publish to sulanapito/cmnd/POWER
   if (setTopic.includes('sulanapito')) {
     const pVal = (value === 'ON' || value === 1 || value === '1' || value === true) ? 'ON' : 'OFF';
-    const topicsToPublish = [
-      'cmnd/sulanapito/POWER',
-      'sulanapito/cmnd/POWER',
-      `${BASE_TOPIC}/sulanapito/cmnd/POWER`,
-    ];
     return new Promise((resolve) => {
-      topicsToPublish.forEach((t) => {
-        client.publish(t, pVal, { qos: 1 }, (err) => {
-          if (err) console.error(`[MQTT] Error publishing to ${t}:`, err);
-          else console.log(`[MQTT] Published ${t} = ${pVal}`);
-        });
+      client.publish('sulanapito/cmnd/POWER', pVal, { qos: 1 }, (err) => {
+        if (err) console.error('[MQTT] Error publishing to sulanapito/cmnd/POWER:', err);
+        else console.log(`[MQTT] Published sulanapito/cmnd/POWER = ${pVal}`);
       });
       // Also update local state
       updateState('sulanapito/stat/POWER', pVal);
@@ -325,20 +318,13 @@ function publish(setTopic, value, options = {}) {
     });
   }
 
-  // If it is a floor pump command, publish to all possible Tasmota topic schemes
+  // If it is a floor pump command, publish to lattialampopumppu/cmnd/POWER
   if (setTopic.includes('lattialampopumppu')) {
     const pVal = (value === 'ON' || value === 1 || value === '1' || value === true) ? 'ON' : 'OFF';
-    const topicsToPublish = [
-      'cmnd/lattialampopumppu/POWER',
-      'lattialampopumppu/cmnd/POWER',
-      `${BASE_TOPIC}/lattialampopumppu/cmnd/POWER`,
-    ];
     return new Promise((resolve) => {
-      topicsToPublish.forEach((t) => {
-        client.publish(t, pVal, { qos: 1 }, (err) => {
-          if (err) console.error(`[MQTT] Error publishing to ${t}:`, err);
-          else console.log(`[MQTT] Published ${t} = ${pVal}`);
-        });
+      client.publish('lattialampopumppu/cmnd/POWER', pVal, { qos: 1 }, (err) => {
+        if (err) console.error('[MQTT] Error publishing to lattialampopumppu/cmnd/POWER:', err);
+        else console.log(`[MQTT] Published lattialampopumppu/cmnd/POWER = ${pVal}`);
       });
       // Also update local state
       updateState('lattialampopumppu/stat/POWER', pVal);
@@ -350,19 +336,31 @@ function publish(setTopic, value, options = {}) {
   const qos = options?.qos ?? 1;
   const retain = Boolean(options?.retain);
 
-  // If topic is already root-scoped (tuya/..., nordpool/..., cmnd/..., etc.)
-  if (setTopic.startsWith('tuya/') || setTopic.startsWith('nordpool/') || setTopic.startsWith('cmnd/') || setTopic.startsWith('stat/') || setTopic.startsWith('tele/')) {
-    const topics = [setTopic, `${BASE_TOPIC}/${setTopic}`];
+  // If topic is already root-scoped (tuya/..., nordpool/..., tapo/..., zigbee2mqtt/..., sauna/..., cmnd/..., stat/..., tele/...)
+  // Publish ONLY to that specific topic! NEVER nest under panasonic_heat_pump/!
+  const isRootScoped =
+    setTopic.startsWith('tuya/') ||
+    setTopic.startsWith('nordpool/') ||
+    setTopic.startsWith('tapo/') ||
+    setTopic.startsWith('lattialampopumppu/') ||
+    setTopic.startsWith('sulanapito/') ||
+    setTopic.startsWith('zigbee2mqtt/') ||
+    setTopic.startsWith('sauna/') ||
+    setTopic.startsWith('cmnd/') ||
+    setTopic.startsWith('stat/') ||
+    setTopic.startsWith('tele/');
+
+  if (isRootScoped) {
     return new Promise((resolve) => {
-      topics.forEach((t) => {
-        client.publish(t, String(value), { qos, retain }, (err) => {
-          if (err) console.error(`[MQTT] Publish error to ${t}:`, err);
-        });
+      client.publish(setTopic, String(value), { qos, retain }, (err) => {
+        if (err) console.error(`[MQTT] Publish error to ${setTopic}:`, err);
+        else console.log(`[MQTT] Published ${setTopic} = ${value}`);
+        resolve(!err);
       });
-      resolve(true);
     });
   }
 
+  // Only HeishaMon / Panasonic commands and topics use the BASE_TOPIC prefix
   const fullTopic = setTopic.startsWith(`${BASE_TOPIC}/`) ? setTopic : `${BASE_TOPIC}/${setTopic}`;
   return new Promise((resolve, reject) => {
     client.publish(fullTopic, String(value), { qos, retain }, (err) => {

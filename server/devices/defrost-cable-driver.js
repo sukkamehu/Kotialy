@@ -42,10 +42,8 @@ class DefrostCableDriver {
     }
     try {
       if (typeof this.mqttClient.publish === 'function') {
-        // Publish to primary Tasmota command topics
-        await this.mqttClient.publish('cmnd/sulanapito/POWER', val);
+        // Publish to unified Tasmota command topic
         await this.mqttClient.publish('sulanapito/cmnd/POWER', val);
-        await this.mqttClient.publish('panasonic_heat_pump/sulanapito/cmnd/POWER', val);
 
         this.lastState = val;
         return true;
