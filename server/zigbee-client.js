@@ -108,6 +108,36 @@ function processSensorMessage(friendlyName, rawPayload) {
       maybeAppendHistory(dbTopic, val, HISTORY_INTERVAL_MS);
     }
 
+    // Bridge common sensors to tuya/* topics so APC, dashboards and alerts receive live Zigbee telemetry
+    const lower = friendlyName.toLowerCase();
+    let aliasSlug = null;
+    if (lower === 'sauna') aliasSlug = 'sauna';
+    else if (lower === 'alakerta') aliasSlug = 'alakerta';
+    else if (lower.includes('ylakerta') || lower.includes('tyohuone')) aliasSlug = 'ylakerran_tyohuone';
+    else if (lower.includes('autotalli')) aliasSlug = 'autotalli';
+    else if (lower.includes('ulko')) aliasSlug = 'ulkolampotila';
+
+    if (aliasSlug) {
+      const aliasTopic = `tuya/${aliasSlug}/${prop}`;
+      updateState(aliasTopic, strVal);
+      if (NUMERIC_PROPS.has(prop) && typeof val === 'number') {
+        maybeAppendHistory(aliasTopic, val, HISTORY_INTERVAL_MS);
+      }
+    }
+
+    if (lower === 'sauna') {
+      try {
+        const tuyaService = require('./devices/tuya-service');
+        if (tuyaService?.updateSaunaClimate) {
+          if (prop === 'temperature' && typeof val === 'number') {
+            tuyaService.updateSaunaClimate(val, null);
+          } else if (prop === 'humidity' && typeof val === 'number') {
+            tuyaService.updateSaunaClimate(null, val);
+          }
+        }
+      } catch (err) {}
+    }
+
     updates.push({ prop, val: strVal });
   }
 

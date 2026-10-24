@@ -64,14 +64,17 @@ class ApcService {
     const heatpumpState = state['main/Heatpump_State']?.value !== undefined ? parseInt(state['main/Heatpump_State'].value, 10) : 1;
     const threeWayValve = state['main/ThreeWay_Valve_State']?.value !== undefined ? parseInt(state['main/ThreeWay_Valve_State'].value, 10) : 0;
 
-    // Sisälämpötila-anturit (Pääkiinteistö: alakerta & yläkerran työhuone / Mitsubishi ILP)
-    const alakertaTemp = (state['tuya/alakerta/temperature']?.value ? parseFloat(state['tuya/alakerta/temperature'].value) : null)
+    // Sisälämpötila-anturit (Pääkiinteistö: alakerta & yläkerran työhuone / Zigbee / Tuya / Mitsubishi ILP)
+    const alakertaTemp = (state['zigbee/Alakerta/temperature']?.value ? parseFloat(state['zigbee/Alakerta/temperature'].value) : null)
+      ?? (state['tuya/alakerta/temperature']?.value ? parseFloat(state['tuya/alakerta/temperature'].value) : null)
       ?? (state['mitsubishi/mitsubishi_alakerta/current_temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_alakerta/current_temperature'].value) : null)
       ?? (state['mitsubishi/mitsubishi_alakerta/temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_alakerta/temperature'].value) : null);
 
-    const ylakertaTemp = ((state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
-      ? parseFloat(state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
-      : null)
+    const ylakertaTemp = (state['zigbee/Ylakerran_tyohuone/temperature']?.value ? parseFloat(state['zigbee/Ylakerran_tyohuone/temperature'].value) : null)
+      ?? (state['zigbee/ylakerran_tyohuone/temperature']?.value ? parseFloat(state['zigbee/ylakerran_tyohuone/temperature'].value) : null)
+      ?? ((state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
+        ? parseFloat(state['tuya/ylakerran_tyohuone/temperature']?.value || state['tuya/yl_kerran_ty_huone/temperature']?.value)
+        : null)
       ?? (state['mitsubishi/mitsubishi_ylakerta/current_temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_ylakerta/current_temperature'].value) : null)
       ?? (state['mitsubishi/mitsubishi_ylakerta/temperature']?.value ? parseFloat(state['mitsubishi/mitsubishi_ylakerta/temperature'].value) : null);
 

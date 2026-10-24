@@ -178,7 +178,7 @@ class AlertEngine {
     }
 
     const targetTemp = parseFloat(settings.sauna_target_temp || '40') || 40;
-    const saunaTemp = parseFloat(state['tuya/sauna/temperature']?.value || '0');
+    const saunaTemp = parseFloat(state['zigbee/Sauna/temperature']?.value || state['tuya/sauna/temperature']?.value || '0');
 
     if (saunaTemp <= 0) return;
 

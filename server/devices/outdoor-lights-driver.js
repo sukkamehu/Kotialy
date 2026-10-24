@@ -428,16 +428,16 @@ class OutdoorLightsDriver {
     const isRelay2OverrideActive = relay2OverrideUntil > nowMs && (relay2OverrideState === 'ON' || relay2OverrideState === 'OFF');
     const relay2MinutesRemaining = isRelay2OverrideActive ? Math.ceil((relay2OverrideUntil - nowMs) / 60000) : 0;
 
-    // Fetch live hardware telemetry from Tuya cache for Relay 1
+    // Fetch live hardware telemetry from Tuya cache or DB for Relay 1
     const dev1 = tuyaService.devicesById?.get(deviceId1) || tuyaService.devices?.find(d => d.id === deviceId1 || (d.name && d.name.toLowerCase().includes('ulkovalot 1')));
-    const rawPower = dev1?.properties?.power ?? (dev1?.raw_status?.cur_power != null ? Number(dev1.raw_status.cur_power) / 10 : (dev1?.raw_status?.power != null ? Number(dev1.raw_status.power) : 0));
+    const rawPower = dev1?.properties?.power ?? (dev1?.raw_status?.cur_power != null ? Number(dev1.raw_status.cur_power) / 10 : (dev1?.raw_status?.power != null ? Number(dev1.raw_status.power) : (parseFloat(db.getState('tuya/ulkovalot/power')?.value || '0'))));
     const powerW = Number(Number(rawPower).toFixed(1));
-    const rawVoltage = dev1?.properties?.voltage ?? (dev1?.raw_status?.cur_voltage != null ? Number(dev1.raw_status.cur_voltage) / 10 : 230);
+    const rawVoltage = dev1?.properties?.voltage ?? (dev1?.raw_status?.cur_voltage != null ? Number(dev1.raw_status.cur_voltage) / 10 : (parseFloat(db.getState('tuya/ulkovalot/voltage')?.value || '230')));
     const voltageV = Number(Number(rawVoltage).toFixed(1));
-    const rawCurrent = dev1?.properties?.current ?? (dev1?.raw_status?.cur_current != null ? Number(dev1.raw_status.cur_current) / 1000 : 0);
+    const rawCurrent = dev1?.properties?.current ?? (dev1?.raw_status?.cur_current != null ? Number(dev1.raw_status.cur_current) / 1000 : (parseFloat(db.getState('tuya/ulkovalot/current')?.value || '0')));
     const currentA = Number(Number(rawCurrent).toFixed(3));
-    const energyKwh = dev1?.properties?.energy ?? (dev1?.raw_status?.add_ele != null ? Number(dev1.raw_status.add_ele) : 0);
-    const deviceTemp = dev1?.properties?.device_temp ?? dev1?.raw_status?.temp_value ?? null;
+    const energyKwh = dev1?.properties?.energy ?? (dev1?.raw_status?.add_ele != null ? Number(dev1.raw_status.add_ele) : (parseFloat(db.getState('tuya/ulkovalot/energy')?.value || '0')));
+    const deviceTemp = dev1?.properties?.device_temp ?? dev1?.raw_status?.temp_value ?? (parseFloat(db.getState('tuya/ulkovalot/device_temp')?.value || '0') || null);
 
     // Fetch Relay 2 status
     const dev2 = tuyaService.devicesById?.get(deviceId2) || tuyaService.devices?.find(d => d.id === deviceId2 || (d.name && d.name.toLowerCase().includes('ulkovalot 2')));

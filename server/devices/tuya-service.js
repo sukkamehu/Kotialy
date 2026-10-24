@@ -26,6 +26,8 @@ class TuyaService {
     this.lastGlowKey = null;
     this.lastGlowOn = false;
     this.cloudQuotaExhaustedUntil = 0;
+    this.isPollingLocal = false;
+    this.localPollTimer = null;
 
     // Sauna safety state
     this.saunaState = {
@@ -39,6 +41,10 @@ class TuyaService {
       scheduledDurationMinutes: null,
       temperature: null,
       humidity: null,
+      power: 0,
+      voltage: 230,
+      current: 0,
+      energy: 0,
       lastSeen: null,
       lastAction: null,
     };
@@ -593,9 +599,48 @@ class TuyaService {
         if (this.saunaState.humidity != null) {
           mqttClient.publish('tuya/sauna/humidity', String(this.saunaState.humidity), { retain: true });
         }
+        if (this.saunaState.power != null) {
+          mqttClient.publish('tuya/sauna/power', String(this.saunaState.power), { retain: true });
+        }
+        if (this.saunaState.voltage != null) {
+          mqttClient.publish('tuya/sauna/voltage', String(this.saunaState.voltage), { retain: true });
+        }
+        if (this.saunaState.energy != null) {
+          mqttClient.publish('tuya/sauna/energy', String(this.saunaState.energy), { retain: true });
+        }
       }
     } catch (e) {
       // Ignore
+    }
+  }
+
+  /**
+   * External climate update (e.g. from Zigbee2MQTT / Sauna temperature sensor)
+   */
+  updateSaunaClimate(temperature, humidity) {
+    let changed = false;
+    if (temperature != null && !isNaN(temperature)) {
+      this.saunaState.temperature = Number(Number(temperature).toFixed(1));
+      changed = true;
+      if (this.saunaState.isOn) {
+        this.updateActiveSessionPeakTemp(this.saunaState.temperature);
+      }
+      this.updateSaunaGlow(this.saunaState.temperature, this.saunaState.isOn);
+    }
+    if (humidity != null && !isNaN(humidity)) {
+      this.saunaState.humidity = Number(Number(humidity).toFixed(1));
+      changed = true;
+    }
+    if (changed) {
+      this.saunaState.lastSeen = Date.now();
+      this.publishSaunaMqtt();
+      if (this.wsBroadcast) {
+        this.wsBroadcast({
+          type: 'sauna_status',
+          sauna: this.getSaunaStatus(),
+          ts: Date.now(),
+        });
+      }
     }
   }
 
@@ -967,23 +1012,290 @@ class TuyaService {
       console.warn('[TUYA] State restoration from DB warning:', err.message);
     }
 
-    // Initial fetch
-    this.fetchDevices().then(() => {
-      console.log(`[TUYA] Initialized with ${this.devices.length} SmartLife devices.`);
-    }).catch(err => {
-      console.error('[TUYA] Initial device fetch failed:', err.message);
-    });
+    // 1. Immediately populate local devices from keys & SQLite so UI is never empty
+    this.loadLocalDeviceRegistry();
 
-    // Poll every 180 seconds for sensor updates (gentle background polling to protect API quotas)
-    const pollInterval = parseInt(process.env.TUYA_POLL_INTERVAL_MS) || 180000;
-    this.pollTimer = setInterval(() => {
-      this.fetchDevices().catch(() => { });
-    }, pollInterval);
+    // 2. Start direct local WiFi polling immediately (zero cloud dependency, 170ms response)
+    this.pollLocalDevices().catch(() => {});
+    this.localPollTimer = setInterval(() => {
+      this.pollLocalDevices().catch(() => {});
+    }, 15000);
+
+    // Initial fetch from cloud if configured
+    if (this.isConfigured()) {
+      this.fetchDevices().then(() => {
+        console.log(`[TUYA] Initialized with ${this.devices.length} SmartLife devices.`);
+      }).catch(err => {
+        console.warn('[TUYA] Cloud fetch skipped or quota reached, continuing with local devices:', err.message);
+      });
+
+      // Poll cloud every 180 seconds for any non-local devices
+      const pollInterval = parseInt(process.env.TUYA_POLL_INTERVAL_MS) || 180000;
+      this.pollTimer = setInterval(() => {
+        this.fetchDevices().catch(() => { });
+      }, pollInterval);
+    }
 
     // Safety timeout check every 5 seconds
     this.safetyTimer = setInterval(() => {
       this.checkSafetyTimeout().catch(() => { });
     }, 5000);
+  }
+
+  /**
+   * Load local devices from keys and DB states so devices list is never empty
+   */
+  loadLocalDeviceRegistry() {
+    try {
+      const keys = tuyaLocal.keys || {};
+      const fullState = db.getFullState();
+      const loaded = [];
+
+      for (const [id, info] of Object.entries(keys)) {
+        const category = info.category || '';
+        let type = 'unknown';
+        if (category === 'dlq' || category === 'cz') type = 'meter_switch';
+        else if (category === 'kg') type = 'sauna_switch';
+        else if (category === 'wsdcg') type = 'climate';
+        else if (category === 'sj') type = 'water_leak';
+        else if (category === 'mcs') type = 'door';
+        else if (category === 'dj' || category === 'dd') type = 'light';
+        else if (category === 'tdq') type = 'switch';
+
+        const cleanName = this.cleanTopicName(info.name);
+        const prefix = `tuya/${cleanName}/`;
+        const properties = {};
+
+        // Extract known states from DB
+        for (const [top, row] of Object.entries(fullState)) {
+          if (top.startsWith(prefix)) {
+            const prop = top.slice(prefix.length);
+            const num = Number(row.value);
+            properties[prop] = isNaN(num) || row.value === '' ? (row.value === 'true' ? true : (row.value === 'false' ? false : row.value)) : num;
+          }
+        }
+
+        loaded.push({
+          id,
+          name: info.name,
+          type,
+          category,
+          model: info.product || 'SmartLife',
+          product_name: info.product || info.name,
+          online: true,
+          ip: tuyaLocal.knownDevices?.get(id) || undefined,
+          properties,
+          update_time: Date.now(),
+        });
+      }
+
+      if (loaded.length > 0) {
+        this.devices = loaded;
+        for (const d of loaded) {
+          this.devicesById.set(d.id, d);
+        }
+        console.log(`[TUYA:LOCAL] Alustettu ${this.devices.length} laitetta avaintiedostosta ja tietokannasta.`);
+      }
+    } catch (e) {
+      console.warn('[TUYA:LOCAL] loadLocalDeviceRegistry varoitus:', e.message);
+    }
+  }
+
+  /**
+   * Direct local WiFi status and energy telemetry query (TuyAPI TCP port 6668)
+   */
+  async pollLocalDevices() {
+    if (this.isPollingLocal) return;
+    this.isPollingLocal = true;
+
+    try {
+      let mqttClient = null;
+      try { mqttClient = require('../mqtt-client'); } catch { }
+
+      // 1. Sauna Breaker (WiFi Switch / 1P-Mtrg @ 192.168.68.73)
+      const saunaId = this.saunaDeviceId || 'bfc6974c07151a07e7fa3g';
+      if (tuyaLocal.isDeviceSupportedLocally(saunaId)) {
+        try {
+          const res = await tuyaLocal.getStatus(saunaId);
+          if (res && res.dps) {
+            const dps = res.dps;
+            const isRelayOn = dps['1'] === true || dps['1'] === 'true' || dps['switch_1'] === true;
+            const energyKwh = dps['17'] != null ? Number(dps['17']) : (dps['add_ele'] != null ? Number(dps['add_ele']) : 0);
+            const currentA = dps['18'] != null ? Number((Number(dps['18']) / 1000).toFixed(3)) : 0;
+            const rawPower = dps['19'] != null ? Number(dps['19']) / 10 : 0;
+            const powerW = Number(Number(rawPower).toFixed(1));
+            const voltageV = dps['20'] != null ? Number((Number(dps['20']) / 10).toFixed(1)) : 230;
+            const devTemp = dps['47'] != null ? Number(dps['47']) : null;
+
+            // Check if within command grace period (30s)
+            const isWithinGracePeriod = (Date.now() - (this.lastCommandAt || 0)) < 30000;
+            if (!isWithinGracePeriod || this.lastCommandState === null) {
+              const wasOn = this.saunaState.isOn;
+              this.saunaState.isOn = isRelayOn;
+              if (isRelayOn && (!wasOn || !this.saunaState.autoOffAt || this.saunaState.autoOffAt < Date.now())) {
+                const duration = this.saunaState.durationMinutes || 90;
+                this.saunaState.startedAt = this.saunaState.startedAt || Date.now();
+                this.saunaState.autoOffAt = this.saunaState.startedAt + (duration * 60 * 1000);
+                this.startSaunaSession(this.saunaState.startedAt);
+              } else if (!isRelayOn && wasOn) {
+                this.saunaState.startedAt = null;
+                this.saunaState.autoOffAt = null;
+                this.finishSaunaSession();
+              }
+            }
+
+            this.saunaState.power = powerW;
+            this.saunaState.voltage = voltageV;
+            this.saunaState.current = currentA;
+            this.saunaState.energy = energyKwh;
+            this.saunaState.lastSeen = Date.now();
+
+            // Sync to SQLite
+            db.updateState('tuya/sauna/switch', this.saunaState.isOn ? '1' : '0');
+            db.updateState('tuya/sauna/state', this.saunaState.isOn ? 'true' : 'false');
+            db.updateState('tuya/sauna/power', String(powerW));
+            db.updateState('tuya/sauna/voltage', String(voltageV));
+            db.updateState('tuya/sauna/current', String(currentA));
+            db.updateState('tuya/sauna/energy', String(energyKwh));
+            if (devTemp != null) db.updateState('tuya/sauna/device_temp', String(devTemp));
+            if (powerW > 0) db.maybeAppendHistory('tuya/sauna/power', powerW, 30000);
+
+            // Update cached device in devicesById
+            const saunaDev = this.devicesById?.get(saunaId);
+            if (saunaDev) {
+              saunaDev.properties.state = this.saunaState.isOn;
+              saunaDev.properties.switch_1 = this.saunaState.isOn;
+              saunaDev.properties.power = powerW;
+              saunaDev.properties.voltage = voltageV;
+              saunaDev.properties.current = currentA;
+              saunaDev.properties.energy = energyKwh;
+              saunaDev.update_time = Date.now();
+            }
+
+            // Publish to MQTT
+            if (mqttClient && mqttClient.isConnected()) {
+              mqttClient.publish('tuya/sauna/switch', this.saunaState.isOn ? '1' : '0', { retain: true });
+              mqttClient.publish('tuya/sauna/power', String(powerW), { retain: true });
+              mqttClient.publish('tuya/sauna/voltage', String(voltageV), { retain: true });
+              mqttClient.publish('tuya/sauna/current', String(currentA), { retain: true });
+              mqttClient.publish('tuya/sauna/energy', String(energyKwh), { retain: true });
+            }
+          }
+        } catch (e) { }
+      }
+
+      // 2. Ulkovalot 1 (WiFi Switch / 1P-Mtrg @ 192.168.68.74)
+      const outdoorId1 = 'bf7a39a3a10e38a52engat';
+      if (tuyaLocal.isDeviceSupportedLocally(outdoorId1)) {
+        try {
+          const res = await tuyaLocal.getStatus(outdoorId1);
+          if (res && res.dps) {
+            const dps = res.dps;
+            const isOn = dps['1'] === true || dps['1'] === 'true';
+            const energyKwh = dps['17'] != null ? Number(dps['17']) : 0;
+            const currentA = dps['18'] != null ? Number((Number(dps['18']) / 1000).toFixed(3)) : 0;
+            const rawPower = dps['19'] != null ? Number(dps['19']) / 10 : 0;
+            const powerW = Number(Number(rawPower).toFixed(1));
+            const voltageV = dps['20'] != null ? Number((Number(dps['20']) / 10).toFixed(1)) : 230;
+            const devTemp = dps['47'] != null ? Number(dps['47']) : null;
+
+            db.updateState('tuya/ulkovalot/switch', isOn ? '1' : '0');
+            db.updateState('tuya/ulkovalot/state', isOn ? 'ON' : 'OFF');
+            db.updateState('tuya/ulkovalot_1/switch', isOn ? '1' : '0');
+            db.updateState('tuya/ulkovalot_1/state', isOn ? 'true' : 'false');
+            db.updateState('tuya/ulkovalot/power', String(powerW));
+            db.updateState('tuya/ulkovalot_1/power', String(powerW));
+            db.updateState('tuya/ulkovalot/voltage', String(voltageV));
+            db.updateState('tuya/ulkovalot_1/voltage', String(voltageV));
+            db.updateState('tuya/ulkovalot/current', String(currentA));
+            db.updateState('tuya/ulkovalot_1/current', String(currentA));
+            db.updateState('tuya/ulkovalot/energy', String(energyKwh));
+            db.updateState('tuya/ulkovalot_1/energy', String(energyKwh));
+            if (devTemp != null) {
+              db.updateState('tuya/ulkovalot/device_temp', String(devTemp));
+              db.updateState('tuya/ulkovalot_1/device_temp', String(devTemp));
+            }
+
+            const outdoorDev = this.devicesById?.get(outdoorId1);
+            if (outdoorDev) {
+              outdoorDev.properties.state = isOn;
+              outdoorDev.properties.power = powerW;
+              outdoorDev.properties.voltage = voltageV;
+              outdoorDev.properties.current = currentA;
+              outdoorDev.properties.energy = energyKwh;
+              outdoorDev.update_time = Date.now();
+            }
+
+            if (mqttClient && mqttClient.isConnected()) {
+              mqttClient.publish('tuya/ulkovalot/switch', isOn ? '1' : '0', { retain: true });
+              mqttClient.publish('tuya/ulkovalot/power', String(powerW), { retain: true });
+              mqttClient.publish('tuya/ulkovalot/voltage', String(voltageV), { retain: true });
+              mqttClient.publish('tuya/ulkovalot/energy', String(energyKwh), { retain: true });
+            }
+          }
+        } catch (e) { }
+      }
+
+      // 3. Ulkovalot 2 (MINI通断器1路 @ 192.168.68.78)
+      const outdoorId2 = 'bfee1ec43ebb997b0c12ru';
+      if (tuyaLocal.isDeviceSupportedLocally(outdoorId2)) {
+        try {
+          const res = await tuyaLocal.getStatus(outdoorId2);
+          if (res && res.dps) {
+            const isOn = res.dps['1'] === true || res.dps['1'] === 'true';
+            db.updateState('tuya/ulkovalot_2/switch', isOn ? '1' : '0');
+            db.updateState('tuya/ulkovalot_2/state', isOn ? 'true' : 'false');
+            const dev2 = this.devicesById?.get(outdoorId2);
+            if (dev2) {
+              dev2.properties.state = isOn;
+              dev2.update_time = Date.now();
+            }
+          }
+        } catch (e) { }
+      }
+
+      // 4. Kiertovesipumppu / Upstairs LKV circulation (@ 192.168.68.58)
+      const pumpId = 'bfb6ed442015162bc97kca';
+      if (tuyaLocal.isDeviceSupportedLocally(pumpId)) {
+        try {
+          const res = await tuyaLocal.getStatus(pumpId);
+          if (res && res.dps) {
+            const isOn = res.dps['1'] === true || res.dps['1'] === 'true';
+            db.updateState('tuya/kiertovesipumppu/switch', isOn ? '1' : '0');
+            db.updateState('tuya/ylakerran_kiertovesipumppu/switch', isOn ? '1' : '0');
+            const pumpDev = this.devicesById?.get(pumpId);
+            if (pumpDev) {
+              pumpDev.properties.state = isOn;
+              pumpDev.update_time = Date.now();
+            }
+          }
+        } catch (e) { }
+      }
+
+      // 5. Energy+ Älypistorasia (@ 192.168.68.62)
+      const plugId = 'bf48a78786f87488b4otcg';
+      if (tuyaLocal.isDeviceSupportedLocally(plugId)) {
+        try {
+          const res = await tuyaLocal.getStatus(plugId);
+          if (res && res.dps) {
+            const isOn = res.dps['1'] === true || res.dps['1'] === 'true';
+            db.updateState('tuya/energy_alypistorasia_home_connect_ip20/switch_1', isOn ? 'true' : 'false');
+            db.updateState('tuya/energy_alypistorasia_home_connect_ip20/state', isOn ? 'true' : 'false');
+          }
+        } catch (e) { }
+      }
+
+      // Broadcast updates to WebSocket clients
+      if (this.wsBroadcast) {
+        this.wsBroadcast({
+          type: 'sauna_status',
+          sauna: this.getSaunaStatus(),
+          ts: Date.now(),
+        });
+      }
+    } finally {
+      this.isPollingLocal = false;
+    }
   }
 
   /**
@@ -1134,6 +1446,7 @@ class TuyaService {
   destroy() {
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.safetyTimer) clearInterval(this.safetyTimer);
+    if (this.localPollTimer) clearInterval(this.localPollTimer);
   }
 }
 

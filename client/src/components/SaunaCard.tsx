@@ -567,6 +567,45 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
           </div>
         </div>
 
+        {/* Live Power, Voltage & Energy Telemetry from WiFi Relay */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 8,
+          background: 'rgba(255, 255, 255, 0.03)',
+          padding: '8px 12px',
+          borderRadius: 10,
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          fontSize: 12,
+        }}>
+          <div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>⚡</span> Teho
+            </div>
+            <div style={{ fontWeight: 700, color: (sauna?.power || 0) > 50 ? '#fb923c' : 'var(--text-primary)', marginTop: 2 }}>
+              {sauna?.power != null
+                ? (sauna.power >= 1000 ? `${(sauna.power / 1000).toFixed(2)} kW` : `${sauna.power} W`)
+                : '0 W'}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>🔌</span> Jännite
+            </div>
+            <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+              {sauna?.voltage != null ? `${sauna.voltage} V` : '230 V'}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>📊</span> Mittari
+            </div>
+            <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+              {sauna?.energy != null ? `${sauna.energy} kWh` : '-- kWh'}
+            </div>
+          </div>
+        </div>
+
         {/* Sauna Notification Settings Box */}
         {showNotifConfig && (
           <div

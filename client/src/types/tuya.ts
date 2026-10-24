@@ -72,6 +72,10 @@ export interface SaunaState {
   scheduledDurationMinutes?: number | null;
   temperature: number | null;
   humidity: number | null;
+  power?: number | null;
+  voltage?: number | null;
+  current?: number | null;
+  energy?: number | null;
   remainingMinutes: number;
   remainingSeconds: number;
   scheduledRemainingSeconds?: number;
