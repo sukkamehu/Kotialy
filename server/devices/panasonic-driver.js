@@ -111,7 +111,7 @@ class PanasonicDriver {
     const {
       settings,
       price,
-      outdoorTemp,
+      outdoorTemp = context.outdoorTemp ?? context.outsideTemp,
       bufferTemp,
       dhwTemp,
       compressorFreq = 0,

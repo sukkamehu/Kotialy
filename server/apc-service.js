@@ -176,6 +176,7 @@ class ApcService {
         settings,
         price: currentPriceObj ? { ...currentPriceObj, price: currentPrice } : null,
         outsideTemp,
+        outdoorTemp: outsideTemp,
         bufferTemp,
         dhwTemp,
         compressorFreq,
