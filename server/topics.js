@@ -304,7 +304,7 @@ const TOPICS = {
     type: 'enum',
     map: { OFF: 'Pois päältä', ON: 'Käynnissä', 0: 'Pois päältä', 1: 'Käynnissä', '0': 'Pois päältä', '1': 'Käynnissä' },
     writable: true,
-    setTopic: 'cmnd/lattialampopumppu/POWER',
+    setTopic: 'lattialampopumppu/cmnd/POWER',
   },
   'stat/lattialampopumppu/POWER': {
     label: 'Lattialämmityksen kiertopumppu (Sonoff)',
@@ -313,7 +313,7 @@ const TOPICS = {
     type: 'enum',
     map: { OFF: 'Pois päältä', ON: 'Käynnissä', 0: 'Pois päältä', 1: 'Käynnissä', '0': 'Pois päältä', '1': 'Käynnissä' },
     writable: true,
-    setTopic: 'cmnd/lattialampopumppu/POWER',
+    setTopic: 'lattialampopumppu/cmnd/POWER',
   },
   'sulanapito/stat/POWER': {
     label: 'VILP Sulanapitokaapeli (Sonoff)',
@@ -322,7 +322,7 @@ const TOPICS = {
     type: 'enum',
     map: { OFF: 'Pois päältä', ON: 'Päällä', 0: 'Pois päältä', 1: 'Päällä', '0': 'Pois päältä', '1': 'Päällä' },
     writable: true,
-    setTopic: 'cmnd/sulanapito/POWER',
+    setTopic: 'sulanapito/cmnd/POWER',
   },
   'stat/sulanapito/POWER': {
     label: 'VILP Sulanapitokaapeli (Sonoff)',
