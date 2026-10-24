@@ -51,6 +51,7 @@ class AlertEngine {
       }
 
       await this.checkWaterLeaks(state, settings);
+      await this.checkSmokeAlerts(state, settings);
       await this.checkHeatpumpErrors(state, settings);
       await this.checkDhwHeaterAnomaly(state, settings);
       await this.checkSaunaReady(state, settings);
@@ -70,7 +71,9 @@ class AlertEngine {
     if (settings.leak_alerts_enabled === 'false') return;
 
     for (const [topic, item] of Object.entries(state)) {
-      if (topic.includes('leak_detected') && (item.value === 'true' || item.value === '1' || item.value === true)) {
+      const isLeak = (topic.includes('leak_detected') || topic.includes('water_leak')) &&
+        (item.value === 'true' || item.value === '1' || item.value === true);
+      if (isLeak) {
         const parts = topic.split('/');
         const roomName = parts[1] || 'Tuntematon tila';
         const formattedRoom = roomName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -353,6 +356,31 @@ class AlertEngine {
   }
 
   /**
+   * Smoke / Fire Detection (Zigbee / Tuya)
+   */
+  async checkSmokeAlerts(state, settings) {
+    for (const [topic, item] of Object.entries(state)) {
+      if ((topic.includes('smoke') || topic.includes('palovaroitin')) && (topic.endsWith('/smoke') || topic.endsWith('/smoke_detected'))) {
+        if (item.value === 'true' || item.value === '1' || item.value === true) {
+          const parts = topic.split('/');
+          const roomName = parts[1] || 'Asunto';
+          const key = `smoke_${topic}`;
+          if (!this.isCooldown(key, 3 * 60 * 1000)) {
+            this.setCooldown(key);
+            await notificationService.sendNotification({
+              title: '🔥 PALOVAROITIN HÄLYTTÄÄ!',
+              body: `Savua havaittu kohteessa: ${roomName}. Tarkista tilanne välittömästi!`,
+              severity: 'critical',
+              type: 'smoke',
+              url: '/',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * 6. Door / Garage Door Alerts
    */
   async checkDoorAlerts(state, settings) {
@@ -360,8 +388,10 @@ class AlertEngine {
 
     for (const [topic, item] of Object.entries(state)) {
       if (topic.includes('door_sensor') || topic.includes('autotalli') || topic.includes('ovi') || topic.includes('door')) {
-        if (topic.endsWith('/is_open') || topic.endsWith('/open') || topic.endsWith('/switch')) {
-          const isOpen = item.value === 'true' || item.value === '1' || item.value === true;
+        if (topic.endsWith('/is_open') || topic.endsWith('/open') || topic.endsWith('/switch') || topic.endsWith('/contact')) {
+          const isOpen = topic.endsWith('/contact')
+            ? (item.value === 'false' || item.value === '0' || item.value === false)
+            : (item.value === 'true' || item.value === '1' || item.value === true);
           const hadState = this.doorStates.has(topic);
           const prevOpen = this.doorStates.get(topic) || false;
           this.doorStates.set(topic, isOpen);
