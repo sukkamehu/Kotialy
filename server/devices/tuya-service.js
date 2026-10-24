@@ -197,8 +197,12 @@ class TuyaService {
         }
       }
 
-      // Use cloud-cached status from bulk devices list to avoid forcing live MQTT hardware pings
-      this.devices = parsedDevices;
+      // Use cloud-cached status from bulk devices list only if devices were returned
+      if (parsedDevices.length > 0) {
+        this.devices = parsedDevices;
+      } else if (this.devices.length === 0) {
+        this.loadLocalDeviceRegistry();
+      }
 
       // Check if within command grace period (30s)
       const isWithinGracePeriod = (Date.now() - (this.lastCommandAt || 0)) < 30000;
@@ -1008,6 +1012,22 @@ class TuyaService {
         this.saunaState.durationMinutes = dur;
         console.log(`[TUYA] Palautettiin aktiivinen lämmitysjakso tietokannasta (päättyy: ${new Date(autoOff).toLocaleTimeString('fi-FI')}).`);
       }
+
+      // Restore sauna temperature, humidity and telemetry from DB
+      const saunaTempRow = db.getState('zigbee/Sauna/temperature') || db.getState('tuya/sauna/temperature');
+      const saunaHumidRow = db.getState('zigbee/Sauna/humidity') || db.getState('tuya/sauna/humidity');
+      if (saunaTempRow && !isNaN(parseFloat(saunaTempRow.value))) {
+        this.saunaState.temperature = parseFloat(saunaTempRow.value);
+      }
+      if (saunaHumidRow && !isNaN(parseFloat(saunaHumidRow.value))) {
+        this.saunaState.humidity = parseFloat(saunaHumidRow.value);
+      }
+      const saunaPowerRow = db.getState('tuya/sauna/power');
+      const saunaVoltageRow = db.getState('tuya/sauna/voltage');
+      const saunaEnergyRow = db.getState('tuya/sauna/energy');
+      if (saunaPowerRow) this.saunaState.power = parseFloat(saunaPowerRow.value) || 0;
+      if (saunaVoltageRow) this.saunaState.voltage = parseFloat(saunaVoltageRow.value) || 230;
+      if (saunaEnergyRow) this.saunaState.energy = parseFloat(saunaEnergyRow.value) || 0;
     } catch (err) {
       console.warn('[TUYA] State restoration from DB warning:', err.message);
     }
