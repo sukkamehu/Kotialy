@@ -87,6 +87,9 @@ ssh juuso@192.168.68.54 "cd ~/Dev/kotialy && docker compose up -d --build"
 ## 🏠 Kiinteistön ja lämmitysjärjestelmän rakenne (TÄRKEÄ)
 
 - **Rakennus:** Omakotitalo Etelä-Suomessa, rakennusvuosi 2006, pinta-ala n. 250 m² (E-luku 265 kWh/m²/v, luokka E).
+- **Sähköliittymä:** **3 × 35 A** (Herrfors Verkko, 400 V TN-C-S).
+  - Suurin sallittu samanaikainen liitäntäteho: **24,15 kW** (3 × 230 V × 35 A).
+  - Yhden vaiheen maksimikuorma: **8,05 kW** (35 A).
 - **Lattiarakenne:** **Lautakoolattu rossipohja** (tuulettuva alapohja / puurakenne), **EI betonilaatta**.
   - Lämpökapasiteetti (termomassa) on pienempi ja reagointinopeus nopeampi kuin raskaassa betonissa.
   - Lattian jatkuva kierto lämmityskaudella on kriittistä vedon tunteen ja lämpötilan tasaisuuden säilyttämiseksi.

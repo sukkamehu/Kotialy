@@ -30,18 +30,18 @@ export function BatteryDiagramPage() {
       category: 'Verkkoliityntä',
       icon: '🏛️',
       voltage: '400 V AC (3-vaihe, TN-C-S / TN-S)',
-      protection: '3x25A gG/gL Pääsulakkeet',
+      protection: '3x35A gG/gL Pääsulakkeet',
       cable: 'AXMK 4x25 / MCMK 4x16+16',
       standards: 'SFS 6000, VBE2019 (Verkkoonliityntäehdot)',
       description: 'Kiinteistön sähköliittymä jakeluverkkoon (Herrfors Verkko). Sähkön osto ja aurinkosähkön/akun ylijäämän myynti kaksisuuntaisesti.',
       specs: [
-        { label: 'Liittymäkoko', value: '3x25A (Liitäntäteho max 17.25 kW)' },
+        { label: 'Liittymäkoko', value: '3x35A (Liitäntäteho max 24.15 kW)' },
         { label: 'Nimellisjännite', value: '400V / 230V ±10% 50 Hz' },
         { label: 'Oikosulkuvirta Ik min', value: '> 250 A (Mitoitettu)' },
         { label: 'Maadoitus', value: 'TN-S kiinteistössä, maadoituselektrodi perusmaadoituksena' },
       ],
       installationNotes: [
-        'Pääsulakkeiden selektiivisyys huomioitava invertterin 3x20A/3x25A suojaukseen nähden.',
+        'Pääsulakkeiden (3x35A) selektiivisyys huomioitava invertterin 3x20A/3x25A suojaukseen nähden.',
         'Sähköyhtiölle toimitettava mikrotuotannon yleistietolomake ennen käyttöönottoa.',
       ],
     },
@@ -702,7 +702,7 @@ export function BatteryDiagramPage() {
                       strokeWidth={selectedComponent === 'grid' ? 2.5 : 1.2}
                     />
                     <text x="70" y="108" fill="#e2e8f0" fontSize="13" fontWeight="800">🏛️ Jakeluverkko</text>
-                    <text x="70" y="128" fill="#94a3b8" fontSize="10.5">3x25A · 400V 50Hz (TN-C-S)</text>
+                    <text x="70" y="128" fill="#94a3b8" fontSize="10.5">3x35A · 400V 50Hz (TN-C-S)</text>
                   </g>
 
                   {/* Component 2: SMART METER + SPD */}
@@ -1168,7 +1168,7 @@ export function BatteryDiagramPage() {
               Kun Panasonic 12 kW VILP käynnistää tehokkaan käyttövesisyklin tai kompressori nostaa kierroksia, akusto syöttää tehon ilman että kiinteistön sähkönostopiikki kasvaa valtakunnanverkosta.
             </p>
             <div style={{ padding: '10px', background: 'rgba(245, 158, 11, 0.08)', borderRadius: 8, border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.8rem', color: '#fde68a' }}>
-              ⚡ <b>Verkkotehon tasaus:</b> Estää pääsulakkeiden (3x25A) ylikuormituksen saunan (9kW), VILP:n ja autonlatauksen ollessa yhtä aikaa päällä.
+              ⚡ <b>Verkkotehon tasaus:</b> Estää pääsulakkeiden (3x35A) ylikuormituksen saunan (9kW), VILP:n ja autonlatauksen ollessa yhtä aikaa päällä.
             </div>
           </div>
 

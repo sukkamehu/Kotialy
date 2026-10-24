@@ -659,7 +659,7 @@ function getCostSettings() {
     transfer_cents_kwh: 4.50,        // Yksiaikainen siirtohinta (fallback)
     transfer_day_cents_kwh: 5.11,    // Päiväsiirto klo 07–22 (alv 25,5 %)
     transfer_night_cents_kwh: 3.12,  // Yösiirto klo 22–07 (alv 25,5 %)
-    fuse_size: '25A',                // Sulakekoko
+    fuse_size: '35A',                // Sulakekoko (3x35A)
     monthly_base_fee_eur: 0,         // Kiinteää perusmaksua ei lasketa lämmityksen kuluihin
     vat_percent: 25.5,               // ALV 25.5%
   };
