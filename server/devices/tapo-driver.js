@@ -197,13 +197,30 @@ class TapoDriver {
             const minTemp = dev.min_temp_c != null ? dev.min_temp_c : 10.0;
             const maxTemp = dev.max_temp_c != null ? dev.max_temp_c : 22.0;
 
-            // Check if sensor temperature is available
+            // Check if sensor temperature is available (support both Isovarasto & Pikkuvarasto)
             let roomTemp = null;
-            if (dev.temp_sensor_topic) {
+            let sensorTopic = dev.temp_sensor_topic;
+            if (!sensorTopic) {
+              if (dev.id === 'isovarasto' || (dev.name && dev.name.toLowerCase().includes('isovarasto'))) {
+                sensorTopic = 'tuya/isovarasto/temperature';
+              } else if (dev.id === 'pikkuvarasto' || (dev.name && dev.name.toLowerCase().includes('pikkuvarasto'))) {
+                sensorTopic = 'tuya/pikkuvarasto/temperature';
+              }
+            }
+
+            if (sensorTopic) {
               const fullState = db.getFullState();
-              const sensorVal = fullState[dev.temp_sensor_topic]?.value;
+              let sensorVal = fullState[sensorTopic]?.value;
+              if (sensorVal == null) {
+                // Fallback to Zigbee equivalent topic
+                const isPikku = sensorTopic.includes('pikku') || dev.id === 'pikkuvarasto';
+                const altTopic = isPikku ? 'zigbee/Pikkuvarasto/temperature' : 'zigbee/Isovarasto/temperature';
+                sensorVal = fullState[altTopic]?.value;
+              }
               if (sensorVal != null) roomTemp = parseFloat(sensorVal);
             }
+
+            const tempTag = roomTemp != null ? ` · Sisä ${roomTemp.toFixed(1)}°C` : '';
 
             // Priority A: Anti-Freeze Safeguard (< 10°C) -> Always ON
             if (roomTemp != null && roomTemp < minTemp) {
@@ -223,16 +240,16 @@ class TapoDriver {
 
               if (isCheap) {
                 targetState = 'ON';
-                reason = `Halpa sähkö (${currentPriceCents != null ? currentPriceCents.toFixed(1) : '?'} snt/kWh) · Lämmitys/varaustila`;
+                reason = `Halpa sähkö (${currentPriceCents != null ? currentPriceCents.toFixed(1) : '?'} snt/kWh)${tempTag} · Lämmitys/varaustila`;
               } else if (isPeak) {
                 targetState = 'OFF';
-                reason = `Hintahuippu (${currentPriceCents != null ? currentPriceCents.toFixed(1) : '?'} snt/kWh) · Lämmitys katkaistu`;
+                reason = `Hintahuippu (${currentPriceCents != null ? currentPriceCents.toFixed(1) : '?'} snt/kWh)${tempTag} · Lämmitys katkaistu`;
               } else if (directive === 'ECO') {
                 targetState = 'OFF';
-                reason = `Säästöjakso · Lämmitys katkaistu`;
+                reason = `Säästöjakso${tempTag} · Lämmitys katkaistu`;
               } else {
                 targetState = 'OFF';
-                reason = `Normaali hintataso (${currentPriceCents != null ? currentPriceCents.toFixed(1) : '?'} snt/kWh) · Odotetaan halpaa sähköä`;
+                reason = `Normaali hintataso (${currentPriceCents != null ? currentPriceCents.toFixed(1) : '?'} snt/kWh)${tempTag} · Odotetaan halpaa sähköä`;
               }
             }
           }

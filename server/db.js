@@ -1273,6 +1273,7 @@ const stmtUpsertTapoDevice = db.prepare(`
           max_price_cents: null,
           min_temp_c: 10.0,
           max_temp_c: 22.0,
+          temp_sensor_topic: 'tuya/isovarasto/temperature',
         },
         {
           id: 'pikkuvarasto',
@@ -1283,6 +1284,7 @@ const stmtUpsertTapoDevice = db.prepare(`
           max_price_cents: null,
           min_temp_c: 10.0,
           max_temp_c: 22.0,
+          temp_sensor_topic: 'tuya/pikkuvarasto/temperature',
         },
         {
           id: 'pesukone',
@@ -1293,6 +1295,7 @@ const stmtUpsertTapoDevice = db.prepare(`
           max_price_cents: 15.0,
           min_temp_c: null,
           max_temp_c: null,
+          temp_sensor_topic: null,
         },
         {
           id: 'kuivausrumpu',
@@ -1303,6 +1306,7 @@ const stmtUpsertTapoDevice = db.prepare(`
           max_price_cents: 12.0,
           min_temp_c: null,
           max_temp_c: null,
+          temp_sensor_topic: null,
         },
       ];
 
@@ -1322,7 +1326,7 @@ const stmtUpsertTapoDevice = db.prepare(`
           d.max_price_cents,
           d.min_temp_c,
           d.max_temp_c,
-          null,
+          d.temp_sensor_topic || null,
           0,
           null,
           null,

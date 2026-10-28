@@ -288,7 +288,7 @@ export function Dashboard({
             </ErrorBoundary>
           )}
 
-          {/* VIEW 5: ÄLYPISTORASIAT (Tapo Plugs & Isovarasto Temp Sensor) */}
+          {/* VIEW 5: ÄLYPISTORASIAT (Tapo Plugs & Varastojen lämpömittarit: Iso- & Pikkuvarasto) */}
           {activeTab === 'plugs' && (
             <ErrorBoundary>
               <PlugsPage onOpenTrend={setTrendTarget} readOnly={readOnly} />

@@ -60,12 +60,18 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const lightDevices = tuyaDevices.filter((d) => d.type === 'light');
   const activeIndoorLightsCount = lightDevices.filter((d) => Boolean(d.properties.switch_led)).length;
 
-  // Plugs & Isovarasto info
+  // Plugs & Storage room info (Isovarasto & Pikkuvarasto)
   const isovarastoPlug = tapoDevices.find((d) => d.id === 'isovarasto');
   const isovarastoClimate = climateSensors.find(
-    (d) => d.name.toLowerCase().includes('isovarasto') || d.name.toLowerCase().includes('varasto')
+    (d) => d.name.toLowerCase().includes('isovarasto') || (d.name.toLowerCase().includes('varasto') && !d.name.toLowerCase().includes('pikku'))
   );
-  const isovarastoTemp = isovarastoClimate?.properties.temperature ?? null;
+  const isovarastoTemp = isovarastoClimate?.properties?.temperature ?? isovarastoPlug?.current_temp ?? null;
+
+  const pikkuvarastoPlug = tapoDevices.find((d) => d.id === 'pikkuvarasto');
+  const pikkuvarastoClimate = climateSensors.find(
+    (d) => d.name.toLowerCase().includes('pikkuvarasto')
+  );
+  const pikkuvarastoTemp = pikkuvarastoClimate?.properties?.temperature ?? pikkuvarastoPlug?.current_temp ?? null;
   const tuyaPlugs = tuyaDevices.filter(
     (d) => (d.category === 'cz' || d.type === 'meter_switch') &&
            !d.name.toLowerCase().includes('ulkovalot') &&
@@ -192,6 +198,12 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
           value: isovarastoTemp !== null ? `${isovarastoTemp.toFixed(1)}°C` : isovarastoPlug?.state === 'ON' ? 'Lämmittää' : 'Valmius',
           color: '#fb923c',
           bg: 'rgba(251, 146, 60, 0.15)',
+        },
+        {
+          label: 'Pikkuvarasto',
+          value: pikkuvarastoTemp !== null ? `${pikkuvarastoTemp.toFixed(1)}°C` : pikkuvarastoPlug?.state === 'ON' ? 'Lämmittää' : 'Valmius',
+          color: '#f97316',
+          bg: 'rgba(249, 115, 22, 0.15)',
         },
         {
           label: 'Kuorma',

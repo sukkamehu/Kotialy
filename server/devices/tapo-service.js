@@ -331,10 +331,37 @@ class TapoService {
   getAllStatuses() {
     const devices = db.getTapoDevices();
     const now = Date.now();
-    return devices.map((d) => ({
-      ...d,
-      isOverrideActive: (d.override_until || 0) > now && d.override_state != null,
-    }));
+    const fullState = db.getFullState ? db.getFullState() : {};
+    return devices.map((d) => {
+      let tempSensorTopic = d.temp_sensor_topic;
+      if (!tempSensorTopic) {
+        if (d.id === 'isovarasto' || (d.name && d.name.toLowerCase().includes('isovarasto'))) {
+          tempSensorTopic = 'tuya/isovarasto/temperature';
+        } else if (d.id === 'pikkuvarasto' || (d.name && d.name.toLowerCase().includes('pikkuvarasto'))) {
+          tempSensorTopic = 'tuya/pikkuvarasto/temperature';
+        }
+      }
+      let currentTemp = null;
+      let currentHumidity = null;
+      if (tempSensorTopic) {
+        const isPikku = tempSensorTopic.includes('pikku') || d.id === 'pikkuvarasto';
+        const altTopic = isPikku ? 'zigbee/Pikkuvarasto/temperature' : 'zigbee/Isovarasto/temperature';
+        const val = fullState[tempSensorTopic]?.value ?? fullState[altTopic]?.value;
+        if (val != null) currentTemp = parseFloat(val);
+
+        const humTopic = tempSensorTopic.replace('/temperature', '/humidity');
+        const altHumTopic = isPikku ? 'zigbee/Pikkuvarasto/humidity' : 'zigbee/Isovarasto/humidity';
+        const humVal = fullState[humTopic]?.value ?? fullState[altHumTopic]?.value;
+        if (humVal != null) currentHumidity = parseFloat(humVal);
+      }
+      return {
+        ...d,
+        temp_sensor_topic: tempSensorTopic,
+        current_temp: currentTemp,
+        current_humidity: currentHumidity,
+        isOverrideActive: (d.override_until || 0) > now && d.override_state != null,
+      };
+    });
   }
 }
 

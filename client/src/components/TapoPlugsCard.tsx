@@ -40,6 +40,14 @@ const TapoSettingsModal: React.FC<TapoSettingsModalProps> = ({
   const [formAutoMode, setFormAutoMode] = useState<'auto' | 'constant_on' | 'constant_off'>(
     device.auto_mode || 'auto'
   );
+  const [formTempSensorTopic, setFormTempSensorTopic] = useState<string>(
+    device.temp_sensor_topic ||
+      (device.id === 'pikkuvarasto'
+        ? 'tuya/pikkuvarasto/temperature'
+        : device.id === 'isovarasto'
+        ? 'tuya/isovarasto/temperature'
+        : '')
+  );
 
   const isStorage =
     device.id === 'isovarasto' ||
@@ -61,6 +69,7 @@ const TapoSettingsModal: React.FC<TapoSettingsModalProps> = ({
       max_price_cents: formMaxPrice !== '' ? parseFloat(formMaxPrice) : null,
       min_temp_c: formMinTemp !== '' ? parseFloat(formMinTemp) : null,
       max_temp_c: formMaxTemp !== '' ? parseFloat(formMaxTemp) : null,
+      temp_sensor_topic: formTempSensorTopic.trim() || null,
     });
   };
 
@@ -257,9 +266,34 @@ const TapoSettingsModal: React.FC<TapoSettingsModalProps> = ({
                   border: '1px solid rgba(251, 146, 60, 0.25)',
                 }}
               >
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#fb923c', marginBottom: '8px' }}>
-                  🌡️ Varaston lämpötilarajat (°C)
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#fb923c', marginBottom: '10px' }}>
+                  {device.id === 'pikkuvarasto'
+                    ? '🌡️ Pikkuvaraston lämpötilarajat & mittari'
+                    : device.id === 'isovarasto'
+                    ? '🌡️ Isovaraston lämpötilarajat & mittari'
+                    : '🌡️ Varaston lämpötilarajat & mittari'}
                 </div>
+
+                {/* Sensor binding selection */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Liitetty lämpömittari
+                  </label>
+                  <select
+                    style={inputStyle}
+                    value={formTempSensorTopic}
+                    onChange={(e) => setFormTempSensorTopic(e.target.value)}
+                  >
+                    <option value="tuya/pikkuvarasto/temperature">Pikkuvarasto (Zigbee / Tuya)</option>
+                    <option value="tuya/isovarasto/temperature">Isovarasto (Zigbee / Tuya)</option>
+                    <option value="tuya/autotalli/temperature">Autotalli</option>
+                    <option value="">Ei mittaria</option>
+                  </select>
+                  <span style={{ display: 'block', fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Pakkassuojaus ja ylilämmityksen esto lukevat tämän mittarin lämpötilaa
+                  </span>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
@@ -1084,30 +1118,47 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                   </div>
                   )}
 
-                  {/* Isovarasto / Storage Temperature & Humidity Sensor Block */}
+                  {/* Storage Temperature & Humidity Sensor Block (Isovarasto & Pikkuvarasto) */}
                   {isStorage && (() => {
-                    const storageSensor = tuyaDevices.find(
-                      (t) =>
-                        t.type === 'climate' &&
-                        (t.name.toLowerCase().includes('isovarasto') ||
-                          t.name.toLowerCase().includes('varasto') ||
-                          t.name.toLowerCase().includes(dev.id.toLowerCase()))
-                    );
-                    if (!storageSensor) return null;
+                    const isIso = dev.id === 'isovarasto' || dev.name.toLowerCase().includes('isovarasto');
+                    const isPikku = dev.id === 'pikkuvarasto' || dev.name.toLowerCase().includes('pikkuvarasto');
 
-                    const curTemp = storageSensor.properties.temperature;
-                    const curHumid = storageSensor.properties.humidity;
+                    const storageSensor = tuyaDevices.find((t) => {
+                      if (t.type !== 'climate') return false;
+                      const lower = t.name.toLowerCase();
+                      if (isPikku) return lower.includes('pikkuvarasto');
+                      if (isIso) return lower.includes('isovarasto') || (lower.includes('varasto') && !lower.includes('pikku'));
+                      return lower.includes(dev.id.toLowerCase());
+                    });
+
+                    const curTemp = storageSensor?.properties?.temperature ?? dev.current_temp ?? null;
+                    const curHumid = storageSensor?.properties?.humidity ?? dev.current_humidity ?? null;
+                    const battery = storageSensor?.properties?.battery ?? null;
                     const minLimit = dev.min_temp_c ?? 10.0;
+                    const maxLimit = dev.max_temp_c ?? 22.0;
                     const isBelowMin = curTemp != null && curTemp < minLimit;
+                    const isAboveMax = curTemp != null && curTemp >= maxLimit;
+
+                    if (curTemp == null && !storageSensor && dev.current_temp == null) return null;
+
+                    const title = isPikku
+                      ? 'Pikkuvaraston lämpömittari'
+                      : isIso
+                      ? 'Isovaraston lämpömittari'
+                      : 'Varaston lämpömittari';
 
                     return (
                       <div
                         style={{
                           background: isBelowMin
                             ? 'rgba(239, 68, 68, 0.12)'
+                            : isAboveMax
+                            ? 'rgba(245, 158, 11, 0.12)'
                             : 'rgba(251, 146, 60, 0.08)',
                           border: isBelowMin
                             ? '1px solid rgba(239, 68, 68, 0.4)'
+                            : isAboveMax
+                            ? '1px solid rgba(245, 158, 11, 0.4)'
                             : '1px solid rgba(251, 146, 60, 0.25)',
                           borderRadius: '10px',
                           padding: '10px 12px',
@@ -1122,13 +1173,18 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                           <span style={{ fontSize: '1.25rem' }}>🌡️</span>
                           <div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Varaston lämpömittari
+                              {title}
                             </div>
                             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fb923c' }}>
-                              {curTemp != null ? `${curTemp} °C` : '--'}
+                              {curTemp != null ? `${curTemp.toFixed(1)} °C` : '--'}
                               {curHumid != null && (
                                 <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 500, marginLeft: '6px' }}>
                                   💧 {curHumid} %
+                                </span>
+                              )}
+                              {battery != null && (
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500, marginLeft: '6px' }}>
+                                  🔋 {battery}%
                                 </span>
                               )}
                             </div>
@@ -1142,16 +1198,24 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                               fontWeight: 700,
                               padding: '2px 7px',
                               borderRadius: '6px',
-                              background: isBelowMin ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 197, 94, 0.15)',
-                              color: isBelowMin ? '#f87171' : '#4ade80',
-                              border: isBelowMin ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(34, 197, 94, 0.3)',
+                              background: isBelowMin
+                                ? 'rgba(239, 68, 68, 0.25)'
+                                : isAboveMax
+                                ? 'rgba(245, 158, 11, 0.25)'
+                                : 'rgba(34, 197, 94, 0.15)',
+                              color: isBelowMin ? '#f87171' : isAboveMax ? '#fbbf24' : '#4ade80',
+                              border: isBelowMin
+                                ? '1px solid rgba(239, 68, 68, 0.4)'
+                                : isAboveMax
+                                ? '1px solid rgba(245, 158, 11, 0.4)'
+                                : '1px solid rgba(34, 197, 94, 0.3)',
                               display: 'inline-block',
                             }}
                           >
-                            {isBelowMin ? '🚨 Pakkasraja' : '✅ Lämpötila OK'}
+                            {isBelowMin ? '🚨 Pakkassuojaus' : isAboveMax ? '🔥 Tavoitelämpö' : '✅ Lämpötila OK'}
                           </span>
                           <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            Min: {minLimit}°C · Max: {dev.max_temp_c ?? 22}°C
+                            Min: {minLimit}°C · Max: {maxLimit}°C
                           </div>
                         </div>
                       </div>

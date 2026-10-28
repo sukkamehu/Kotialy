@@ -23,6 +23,8 @@ export interface TapoDevice {
   min_temp_c?: number | null;
   max_temp_c?: number | null;
   temp_sensor_topic?: string | null;
+  current_temp?: number | null;
+  current_humidity?: number | null;
   override_until?: number;
   override_state?: 'ON' | 'OFF' | null;
   isOverrideActive?: boolean;
