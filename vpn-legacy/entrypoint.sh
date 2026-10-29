@@ -86,8 +86,8 @@ access control = no
 [lns default]
 ip range = $L2TP_START-$L2TP_END
 local ip = $LOCAL_IP
-require chap = yes
 refuse pap = no
+refuse chap = no
 require authentication = yes
 name = l2tpd
 pppoptfile = /etc/ppp/options.xl2tpd
@@ -113,8 +113,6 @@ mtu 1400
 mru 1400
 proxyarp
 nodefaultroute
-lock
-connect-delay 5000
 EOF
 
 # 4. Setup strongSwan IPsec configuration (for L2TP/IPsec)
@@ -164,11 +162,12 @@ server=$UPSTREAM_DNS_1
 server=$UPSTREAM_DNS_2
 cache-size=1500
 
-# Katsomo / MTV / A2D SmartDNS Redirection to local SNI Proxy ($LOCAL_IP)
+# Katsomo / MTV / A2D / IP-test SmartDNS Redirection to local SNI Proxy ($LOCAL_IP)
 address=/a2d.tv/$LOCAL_IP
 address=/mtv.fi/$LOCAL_IP
 address=/katsomo.fi/$LOCAL_IP
 address=/mtvpressi.fi/$LOCAL_IP
+address=/ifconfig.co/$LOCAL_IP
 EOF
 
 # 6. Setup Transparent SNI Proxy (sniproxy)
@@ -209,11 +208,11 @@ listen $LAN_IP:80 {
 }
 
 table https_hosts {
-    .*:443 $*
+    .* * 443
 }
 
 table http_hosts {
-    .*:80 $*
+    .* * 80
 }
 EOF
 
