@@ -12,6 +12,8 @@ RUN apt-get update && \
         procps \
         strongswan \
         libcharon-extra-plugins \
+        dnsmasq \
+        sniproxy \
         ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -19,6 +21,6 @@ RUN apt-get update && \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-EXPOSE 1723/tcp 1701/udp 500/udp 4500/udp
+EXPOSE 1723/tcp 1701/udp 500/udp 4500/udp 53/udp 53/tcp 443/tcp 80/tcp
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
