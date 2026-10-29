@@ -112,6 +112,27 @@ services:
     volumes:
       - openvpn-data:/etc/openvpn
 
+  vpn-legacy:
+    build: ./vpn-legacy
+    container_name: kotialy-vpn-legacy
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/ppp
+    environment:
+      - VPN_USERNAME=${VPN_LEGACY_USERNAME:-mc801a}
+      - VPN_PASSWORD=${VPN_LEGACY_PASSWORD:-Kotialy5G2026!}
+      - VPN_IPSEC_PSK=${VPN_LEGACY_PSK:-kotialy5g}
+      - LOCAL_IP=192.168.254.1
+      - PPTP_RANGE=192.168.254.10-50
+      - L2TP_START=192.168.254.51
+      - L2TP_END=192.168.254.100
+      - DNS_1=192.168.68.1
+      - DNS_2=8.8.8.8
+
   zigbee2mqtt:
     image: koenkk/zigbee2mqtt:latest
     container_name: kotialy-zigbee2mqtt
