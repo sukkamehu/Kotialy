@@ -35,12 +35,14 @@ cat <<EOF > /etc/ppp/chap-secrets
 # Secrets for authentication using CHAP
 # client        server  secret                  IP addresses
 "$USERNAME"     *       "$PASSWORD"             *
+"$USERNAME"     *       "$PSK"                  *
 EOF
 
 cat <<EOF > /etc/ppp/pap-secrets
 # Secrets for authentication using PAP
 # client        server  secret                  IP addresses
 "$USERNAME"     *       "$PASSWORD"             *
+"$USERNAME"     *       "$PSK"                  *
 EOF
 
 chmod 600 /etc/ppp/chap-secrets /etc/ppp/pap-secrets
@@ -92,6 +94,12 @@ pppoptfile = /etc/ppp/options.xl2tpd
 length bit = yes
 EOF
 
+cat <<EOF > /etc/xl2tpd/l2tp-secrets
+* * $PSK
+* * $PASSWORD
+EOF
+chmod 600 /etc/xl2tpd/l2tp-secrets
+
 cat <<EOF > /etc/ppp/options.xl2tpd
 name l2tpd
 ipcp-accept-local
@@ -140,6 +148,7 @@ EOF
 
 cat <<EOF > /etc/ipsec.secrets
 : PSK "$PSK"
+: PSK "$PASSWORD"
 EOF
 chmod 600 /etc/ipsec.secrets
 
