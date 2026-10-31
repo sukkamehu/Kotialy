@@ -163,7 +163,7 @@ services:
         condition: service_healthy
 
   rtl_433:
-    image: hertzg/rtl_433:latest
+    image: hertzg/rtl_433:${RTL433_IMAGE_TAG:-master}
     container_name: kotialy-rtl433
     restart: unless-stopped
     privileged: true

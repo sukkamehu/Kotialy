@@ -63,3 +63,4 @@ export type Rtl433WsMessage =
       connected: boolean;
       ts: number;
     };
+
