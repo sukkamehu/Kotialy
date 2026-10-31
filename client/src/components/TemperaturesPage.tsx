@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTuya } from '../hooks/useTuya';
 import { useMitsubishi } from '../hooks/useMitsubishi';
+import { useRtl433 } from '../hooks/useRtl433';
+import { Rtl433ManagerModal } from './Rtl433ManagerModal';
 import { apiFetch } from '../lib/api';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
@@ -44,7 +46,7 @@ export interface SensorHistoryPoint {
 export interface UnifiedClimateSensor {
   id: string;
   name: string;
-  source: 'tuya' | 'mitsubishi';
+  source: 'tuya' | 'mitsubishi' | 'rtl433';
   online: boolean;
   temperature: number | null;
   humidity?: number | null;
@@ -72,7 +74,9 @@ interface TemperaturesPageProps {
 export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNavigateTab }) => {
   const { devices, loading, refreshing, refreshDevices } = useTuya();
   const { status: mitsuStatus, refresh: refreshMitsu } = useMitsubishi();
+  const { devices: rtlDevices, status: rtlStatus, refresh: refreshRtl } = useRtl433();
 
+  const [rtlModalOpen, setRtlModalOpen] = useState(false);
   const [selectedSensor, setSelectedSensor] = useState<UnifiedClimateSensor | null>(null);
   const [historyPreset, setHistoryPreset] = useState<TemperatureHistoryPreset>('today');
   const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateString());
@@ -192,8 +196,31 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
       });
     }
 
+    // 4. rtl_433 433 MHz RF climate sensors
+    for (const d of rtlDevices) {
+      if (d.isIgnored) continue;
+      const devTemp = d.properties.temperature ?? null;
+      const devHum = d.properties.humidity ?? null;
+      const devBatt = d.properties.battery ?? (d.properties.battery_ok ? 100 : 10);
+      const isOutdoor = Boolean(d.isOutdoor);
+
+      list.push({
+        id: `rtl433_${d.id}`,
+        name: d.customName || `${d.model} #${d.rawId || d.id}`,
+        source: 'rtl433',
+        online: Boolean(d.online),
+        temperature: devTemp,
+        humidity: devHum,
+        battery: devBatt,
+        badge: isOutdoor ? 'Ulko · 433MHz' : (d.location || '433 MHz'),
+        subtitle: `${d.model}${d.channel ? ` · Kanava ${d.channel}` : ''}${d.properties.rssi ? ` · ${d.properties.rssi} dBm` : ''}`,
+        tempTopic: `rtl433/${d.id}/temperature`,
+        humidTopic: `rtl433/${d.id}/humidity`,
+      });
+    }
+
     return list;
-  }, [mitsuAlakerta, mitsuYlakerta, climateSensors]);
+  }, [mitsuAlakerta, mitsuYlakerta, climateSensors, rtlDevices]);
 
   // Main house calculated average (Alakerta + Yläkerran työhuone / Mitsubishi ILP)
   const mainHouseAverage = useMemo(() => {
@@ -469,7 +496,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
   const avgHumid = humids.length ? (humids.reduce((a, b) => a + b, 0) / humids.length) : null;
 
   const handleRefresh = async () => {
-    await Promise.allSettled([refreshDevices(), refreshMitsu()]);
+    await Promise.allSettled([refreshDevices(), refreshMitsu(), refreshRtl()]);
   };
 
   return (
@@ -486,6 +513,28 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost"
+            onClick={() => setRtlModalOpen(true)}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              borderRadius: 10,
+              border: `1px solid ${rtlStatus.connected ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.12)'}`,
+              background: rtlStatus.connected ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+              color: rtlStatus.connected ? '#38bdf8' : 'var(--text-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600,
+            }}
+          >
+            <span>📻</span>
+            <span>433 MHz Laitteet ({rtlDevices.length})</span>
+          </button>
+
           <button
             type="button"
             className="btn btn-sm btn-ghost"
@@ -1182,10 +1231,10 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontWeight: 700, fontSize: 13.5, color: isSelected ? '#38bdf8' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      {isMitsu ? (sensor.id.includes('alakerta') ? '🛋️' : '🏠') : '🌡️'} {sensor.name}
+                      {isMitsu ? (sensor.id.includes('alakerta') ? '🛋️' : '🏠') : sensor.source === 'rtl433' ? '📻' : '🌡️'} {sensor.name}
                     </span>
                     <span style={{ fontSize: 10, color: isMitsu ? '#38bdf8' : 'var(--text-muted)', fontStyle: isApartment ? 'italic' : 'normal' }}>
-                      {sensor.subtitle || sensor.badge || (isApartment ? 'Etäkohde / sijoitusasunto' : 'Tuya Zigbee')}
+                      {sensor.subtitle || sensor.badge || (isApartment ? 'Etäkohde / sijoitusasunto' : sensor.source === 'rtl433' ? '433 MHz RF' : 'Tuya Zigbee')}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1690,6 +1739,18 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
           </div>
         </div>
       )}
+
+      {/* 433 MHz RF Scanner & Device Manager Modal */}
+      <Rtl433ManagerModal
+        isOpen={rtlModalOpen}
+        onClose={() => setRtlModalOpen(false)}
+        onSelectSensorForChart={(_name, tempTopic) => {
+          const match = unifiedSensors.find((s) => s.tempTopic === tempTopic);
+          if (match) {
+            setSelectedSensor(match);
+          }
+        }}
+      />
     </div>
   );
 };

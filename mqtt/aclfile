@@ -22,8 +22,13 @@ topic readwrite cmnd/#
 topic readwrite stat/#
 topic readwrite tele/#
 topic read zigbee2mqtt/#
+topic readwrite rtl_433/#
 topic read $SYS/broker/version
 
 # Optional Zigbee2MQTT instance using the same self-hosted broker.
 user zigbee2mqtt
 topic readwrite zigbee2mqtt/#
+
+# rtl_433 RF 433 MHz receiver
+user rtl_433
+topic readwrite rtl_433/#

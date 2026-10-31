@@ -203,6 +203,9 @@ export function useWebSocket(): UseWebSocketReturn {
         try {
           const msg: WsMessage = JSON.parse(event.data);
           handleMessage(msg);
+          try {
+            window.postMessage(msg, '*');
+          } catch {}
         } catch {
           // ignore parsing error
         }

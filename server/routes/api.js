@@ -24,6 +24,7 @@ const notificationService = require('../notification-service');
 const { TOPICS, CHART_TOPICS, enrichState } = require('../topics');
 const mqttClient = require('../mqtt-client');
 const zigbeeClient = require('../zigbee-client');
+const rtl433Client = require('../rtl433-client');
 const nordpoolClient = require('../nordpool-client');
 const weatherClient = require('../weather-client');
 const costCalculator = require('../cost-calculator');
@@ -445,6 +446,80 @@ router.get('/zigbee/state', (req, res) => {
     }
   }
   res.json({ state: zigbeeState, count: Object.keys(zigbeeState).length });
+});
+
+// ─── RTL_433 RF Receiver Routes ─────────────────────────────────────────────
+
+/**
+ * GET /api/rtl433/status
+ */
+router.get('/rtl433/status', (req, res) => {
+  res.json(rtl433Client.getStatus());
+});
+
+/**
+ * GET /api/rtl433/devices
+ * Returns all discovered 433 MHz devices with telemetry and aliases.
+ */
+router.get('/rtl433/devices', (req, res) => {
+  const devices = rtl433Client.getDevices();
+  res.json({
+    devices,
+    count: devices.length,
+    status: rtl433Client.getStatus(),
+    ts: Date.now(),
+  });
+});
+
+/**
+ * POST /api/rtl433/devices/:id/alias
+ * Update custom friendly name, location, or flags.
+ */
+router.post('/rtl433/devices/:id/alias', requireAuthOrLan, (req, res) => {
+  const { id } = req.params;
+  const { custom_name, category, location, is_outdoor, is_ignored } = req.body;
+
+  const updated = rtl433Client.updateAlias(id, {
+    custom_name: custom_name !== undefined ? (custom_name ? custom_name.trim() : null) : undefined,
+    category,
+    location: location !== undefined ? (location ? location.trim() : null) : undefined,
+    is_outdoor: is_outdoor !== undefined ? Boolean(is_outdoor) : undefined,
+    is_ignored: is_ignored !== undefined ? Boolean(is_ignored) : undefined,
+  });
+
+  if (!updated) {
+    return res.status(404).json({ error: 'Device not found' });
+  }
+
+  res.json({ ok: true, device: updated });
+});
+
+/**
+ * DELETE /api/rtl433/devices/:id
+ * Remove a device from registry and database.
+ */
+router.delete('/rtl433/devices/:id', requireAuthOrLan, (req, res) => {
+  const { id } = req.params;
+  rtl433Client.deleteDevice(id);
+  res.json({ ok: true, id });
+});
+
+/**
+ * GET /api/rtl433/history?device=nexus_th_135&property=temperature&hours=24
+ */
+router.get('/rtl433/history', (req, res) => {
+  const { device, property, hours, from, to } = req.query;
+  if (!device || !property) {
+    return res.status(400).json({ error: 'device and property are required' });
+  }
+
+  const topic = `rtl433/${device}/${property}`;
+  const now = Date.now();
+  const fromMs = from ? parseInt(from) : now - (parseFloat(hours || 24) * 3600 * 1000);
+  const toMs   = to ? parseInt(to) : now;
+
+  const rows = getTopicHistory(topic, fromMs, toMs);
+  res.json({ device, property, topic, data: rows, count: rows.length });
 });
 
 // ─── Daily Energy Costs Routes ───────────────────────────────────────────────

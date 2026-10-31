@@ -9,6 +9,8 @@ services:
       APP_MQTT_PASSWORD: ${APP_MQTT_PASSWORD:?set in .env}
       ZIGBEE2MQTT_MQTT_USERNAME: ${ZIGBEE2MQTT_MQTT_USERNAME:?set in .env}
       ZIGBEE2MQTT_MQTT_PASSWORD: ${ZIGBEE2MQTT_MQTT_PASSWORD:?set in .env}
+      RTL433_MQTT_USERNAME: ${RTL433_MQTT_USERNAME:-}
+      RTL433_MQTT_PASSWORD: ${RTL433_MQTT_PASSWORD:-}
     ports:
       - "1883:1883"
       - "127.0.0.1:9001:9001"
@@ -65,6 +67,8 @@ services:
       TUYA_SAUNA_LOCAL_KEY: ${TUYA_SAUNA_LOCAL_KEY:-}
       TUYA_SAUNA_MAX_HOURS: ${TUYA_SAUNA_MAX_HOURS:-3}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-r2}
+      RTL433_ENABLED: ${RTL433_ENABLED:-true}
+      RTL433_BASE_TOPIC: ${RTL433_BASE_TOPIC:-rtl_433}
       CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
       R2_ENDPOINT: ${R2_ENDPOINT:-}
@@ -154,6 +158,35 @@ services:
       - ZIGBEE2MQTT_CONFIG_FRONTEND_PORT=8081
     ports:
       - "8081:8081"
+    depends_on:
+      mqtt:
+        condition: service_healthy
+
+  rtl_433:
+    image: hertzg/rtl_433:latest
+    container_name: kotialy-rtl433
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - ./rtl_433/rtl_433.conf:/etc/rtl_433/rtl_433.conf:ro
+    environment:
+      - TZ=Europe/Helsinki
+      - MQTT_HOST=mqtt
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${RTL433_MQTT_USERNAME:-${APP_MQTT_USERNAME}}
+      - MQTT_PASSWORD=${RTL433_MQTT_PASSWORD:-${APP_MQTT_PASSWORD}}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          echo "[rtl_433] Käynnistetään 433 MHz RF-vastaanotin..."
+          rtl_433 -c /etc/rtl_433/rtl_433.conf \
+            -F "mqtt://$${MQTT_HOST}:$${MQTT_PORT},user=$${MQTT_USERNAME},pass=$${MQTT_PASSWORD},retain=0,events=rtl_433[/model][/id]" || true
+          echo "[rtl_433] Prosessi päättyi tai USB-vastaanotin ei kytketty. Odotetaan 15s..."
+          sleep 15
+        done
     depends_on:
       mqtt:
         condition: service_healthy

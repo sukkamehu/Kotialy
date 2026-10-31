@@ -205,6 +205,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sauna_sessions_start
     ON sauna_sessions (start_time DESC);
 
+  CREATE TABLE IF NOT EXISTS rtl433_devices (
+    id            TEXT PRIMARY KEY,
+    model         TEXT NOT NULL,
+    channel       INTEGER,
+    custom_name   TEXT,
+    category      TEXT DEFAULT 'climate',
+    location      TEXT,
+    is_outdoor    INTEGER DEFAULT 0,
+    is_ignored    INTEGER DEFAULT 0,
+    last_seen     INTEGER,
+    created_at    INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_rtl433_devices_last_seen
+    ON rtl433_devices (last_seen DESC);
+
   CREATE INDEX IF NOT EXISTS idx_notification_history_created
     ON notification_history (created_at DESC);
 `);
@@ -1761,6 +1777,84 @@ function backfillHistoricalSaunaSessions() {
 // Run backfill on load
 backfillHistoricalSaunaSessions();
 
+// ─── RTL_433 RF Devices & Sensors ──────────────────────────────────────────
+
+function getAllRtl433Devices() {
+  const stmt = db.prepare('SELECT * FROM rtl433_devices ORDER BY last_seen DESC');
+  return stmt.all();
+}
+
+function getRtl433Device(id) {
+  const stmt = db.prepare('SELECT * FROM rtl433_devices WHERE id = ?');
+  return stmt.get(id);
+}
+
+function upsertRtl433Device({
+  id,
+  model,
+  channel = null,
+  custom_name = null,
+  category = 'climate',
+  location = null,
+  is_outdoor = 0,
+  is_ignored = 0,
+  last_seen = Date.now(),
+  created_at = Date.now(),
+}) {
+  const stmt = db.prepare(`
+    INSERT INTO rtl433_devices (
+      id, model, channel, custom_name, category, location, is_outdoor, is_ignored, last_seen, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      model = excluded.model,
+      channel = coalesce(excluded.channel, rtl433_devices.channel),
+      last_seen = excluded.last_seen
+  `);
+  stmt.run(
+    id,
+    model,
+    channel,
+    custom_name,
+    category,
+    location,
+    is_outdoor ? 1 : 0,
+    is_ignored ? 1 : 0,
+    last_seen,
+    created_at
+  );
+}
+
+function updateRtl433DeviceAlias(id, updates) {
+  const current = getRtl433Device(id);
+  if (!current) return null;
+
+  const custom_name = updates.custom_name !== undefined ? updates.custom_name : current.custom_name;
+  const category = updates.category !== undefined ? updates.category : current.category;
+  const location = updates.location !== undefined ? updates.location : current.location;
+  const is_outdoor = updates.is_outdoor !== undefined ? (updates.is_outdoor ? 1 : 0) : current.is_outdoor;
+  const is_ignored = updates.is_ignored !== undefined ? (updates.is_ignored ? 1 : 0) : current.is_ignored;
+
+  const stmt = db.prepare(`
+    UPDATE rtl433_devices
+    SET custom_name = ?, category = ?, location = ?, is_outdoor = ?, is_ignored = ?
+    WHERE id = ?
+  `);
+  stmt.run(custom_name, category, location, is_outdoor, is_ignored, id);
+  return getRtl433Device(id);
+}
+
+function updateRtl433LastSeen(id, last_seen = Date.now()) {
+  const stmt = db.prepare('UPDATE rtl433_devices SET last_seen = ? WHERE id = ?');
+  stmt.run(last_seen, id);
+}
+
+function deleteRtl433Device(id) {
+  const stmt = db.prepare('DELETE FROM rtl433_devices WHERE id = ?');
+  stmt.run(id);
+  const deleteState = db.prepare("DELETE FROM sensor_state WHERE topic LIKE ?");
+  deleteState.run(`rtl433/${id}/%`);
+}
+
 module.exports = {
   db,
   sanitizeSensorValue,
@@ -1812,6 +1906,12 @@ module.exports = {
   getSaunaSessionsInRange,
   getSaunaStats,
   backfillHistoricalSaunaSessions,
+  getAllRtl433Devices,
+  getRtl433Device,
+  upsertRtl433Device,
+  updateRtl433DeviceAlias,
+  updateRtl433LastSeen,
+  deleteRtl433Device,
 };
 
 

@@ -28,6 +28,10 @@ set_password "$HEISHAMON_MQTT_USERNAME" "$HEISHAMON_MQTT_PASSWORD"
 set_password "$APP_MQTT_USERNAME" "$APP_MQTT_PASSWORD"
 set_password "$ZIGBEE2MQTT_MQTT_USERNAME" "$ZIGBEE2MQTT_MQTT_PASSWORD"
 
+if [ -n "${RTL433_MQTT_USERNAME:-}" ] && [ -n "${RTL433_MQTT_PASSWORD:-}" ]; then
+  set_password "$RTL433_MQTT_USERNAME" "$RTL433_MQTT_PASSWORD"
+fi
+
 # mosquitto_passwd runs as root here, but the broker drops privileges to the
 # mosquitto user and must be able to read the file.
 chown mosquitto:mosquitto "$password_file"

@@ -8,6 +8,7 @@ const { WebSocketServer } = require('ws');
 const apiRoutes = require('./routes/api');
 const mqttClient = require('./mqtt-client');
 const zigbeeClient = require('./zigbee-client');
+const rtl433Client = require('./rtl433-client');
 const nordpoolClient = require('./nordpool-client');
 const weatherClient = require('./weather-client');
 const costCalculator = require('./cost-calculator');
@@ -93,6 +94,11 @@ wss.on('connection', (ws, req) => {
           connected: zigbeeClient.isConnected(),
           devices: zigbeeClient.getDeviceRegistry(),
         },
+        rtl433: {
+          connected: rtl433Client.isConnected(),
+          lastReceivedAt: rtl433Client.getLastReceivedAt(),
+          devices: rtl433Client.getDevices(),
+        },
         auth: {
           isLocal,
           authenticated: true,
@@ -174,6 +180,7 @@ mqttClient.init(wsBroadcast, () => {
   apcService.evaluate();
 });
 zigbeeClient.init(wsBroadcast);
+rtl433Client.init(wsBroadcast);
 nordpoolClient.setDb(require('./db'));
 nordpoolClient.startScheduler();
 weatherClient.setDb(require('./db'));
