@@ -165,8 +165,6 @@ class TuyaService {
       }
 
       const parsedDevices = [];
-      let foundSaunaTemp = null;
-      let foundSaunaHumidity = null;
       let saunaRelayStatus = null;
 
       for (const d of rawList) {
@@ -174,7 +172,7 @@ class TuyaService {
         parsedDevices.push(parsed);
         this.devicesById.set(parsed.id, parsed);
 
-        // Update DB topic states
+        // Update DB topic states (skips climate sensors migrated to Zigbee)
         this.syncDeviceToDb(parsed);
 
         // Track sauna breaker switch (matching saunaDeviceId, or fallback to category kg if not set)
@@ -188,12 +186,6 @@ class TuyaService {
           } else if (parsed.properties.state !== undefined) {
             saunaRelayStatus = Boolean(parsed.properties.state);
           }
-        }
-
-        // Sauna climate sensor
-        if (parsed.name.toLowerCase() === 'sauna' && parsed.type === 'climate') {
-          if (parsed.properties.temperature != null) foundSaunaTemp = parsed.properties.temperature;
-          if (parsed.properties.humidity != null) foundSaunaHumidity = parsed.properties.humidity;
         }
       }
 
@@ -236,24 +228,19 @@ class TuyaService {
         }
       }
 
-      if (foundSaunaTemp != null) {
-        this.saunaState.temperature = foundSaunaTemp;
-        if (this.saunaState.isOn) {
-          this.updateActiveSessionPeakTemp(foundSaunaTemp);
-        }
-      }
-      if (foundSaunaHumidity != null) this.saunaState.humidity = foundSaunaHumidity;
       this.saunaState.lastSeen = Date.now();
 
       // Sync state to DB
       db.updateState('tuya/sauna/switch', this.saunaState.isOn ? '1' : '0');
       db.updateState('tuya/sauna/auto_off_at', this.saunaState.autoOffAt ? String(this.saunaState.autoOffAt) : '0');
 
+      const enrichedDevices = this.getEnrichedDevices();
+
       // Broadcast updates to WebSocket clients
       if (this.wsBroadcast) {
         this.wsBroadcast({
           type: 'tuya_devices',
-          devices: this.devices,
+          devices: enrichedDevices,
           sauna: this.getSaunaStatus(),
           ts: Date.now(),
         });
@@ -265,7 +252,7 @@ class TuyaService {
       // Instant MQTT state broadcast
       this.publishSaunaMqtt();
 
-      return this.devices;
+      return enrichedDevices;
     } catch (err) {
       console.error('[TUYA] Failed to fetch devices:', err.message);
       return this.devices;
@@ -296,29 +283,33 @@ class TuyaService {
     // 2. Temperature & Humidity sensor (wsdcg)
     else if (category === 'wsdcg') {
       type = 'climate';
-      // Temperature normalization
-      const rawTemp = statusMap.va_temperature ?? statusMap.temp_current;
-      if (rawTemp != null) {
-        let t = Number(rawTemp);
-        if (t > 100 && t <= 1000) t = t / 10; // e.g. 211 -> 21.1 C
-        if (t >= -40 && t <= 80) {
-          properties.temperature = Number(t.toFixed(1));
+      // For sensors migrated to local Zigbee2MQTT, ignore stale Tuya cloud telemetry;
+      // getEnrichedDevices() will populate live values from SQLite.
+      if (!this.isMigratedClimateSensor(d.name || d.product_name)) {
+        // Temperature normalization
+        const rawTemp = statusMap.va_temperature ?? statusMap.temp_current;
+        if (rawTemp != null) {
+          let t = Number(rawTemp);
+          if (t > 100 && t <= 1000) t = t / 10; // e.g. 211 -> 21.1 C
+          if (t >= -40 && t <= 80) {
+            properties.temperature = Number(t.toFixed(1));
+          }
         }
-      }
-      const rawHumid = statusMap.va_humidity ?? statusMap.humidity_value;
-      if (rawHumid != null) {
-        let h = Number(rawHumid);
-        if (h > 100 && h <= 1000) h = h / 10; // e.g. 450 -> 45.0%
-        if (h > 100 && h <= 102) h = 100;
-        if (h >= 0 && h <= 100) {
-          properties.humidity = Math.round(h);
+        const rawHumid = statusMap.va_humidity ?? statusMap.humidity_value;
+        if (rawHumid != null) {
+          let h = Number(rawHumid);
+          if (h > 100 && h <= 1000) h = h / 10; // e.g. 450 -> 45.0%
+          if (h > 100 && h <= 102) h = 100;
+          if (h >= 0 && h <= 100) {
+            properties.humidity = Math.round(h);
+          }
         }
-      }
-      const rawBat = statusMap.va_battery ?? statusMap.battery_percentage;
-      if (rawBat != null) {
-        let b = Number(rawBat);
-        if (b >= 0 && b <= 100) {
-          properties.battery = Math.round(b);
+        const rawBat = statusMap.va_battery ?? statusMap.battery_percentage;
+        if (rawBat != null) {
+          let b = Number(rawBat);
+          if (b >= 0 && b <= 100) {
+            properties.battery = Math.round(b);
+          }
         }
       }
     }
@@ -408,9 +399,39 @@ class TuyaService {
   }
 
   /**
+   * Check if a climate sensor has been migrated to local Zigbee2MQTT (or VILP).
+   * Stale Tuya Cloud readings for these sensors must never overwrite local state or DB.
+   */
+  isMigratedClimateSensor(name) {
+    if (!name) return false;
+    const clean = this.cleanTopicName(name);
+    // The only active Tuya cloud climate device is the investment apartment display meter
+    if (clean === 'naytollinen') return false;
+    const migrated = [
+      'sauna',
+      'alakerta',
+      'ylakerran_tyohuone',
+      'yl_kerran_ty_huone',
+      'tyohuone',
+      'autotalli',
+      'isovarasto',
+      'pikkuvarasto',
+      'ulkolampotila',
+      'ulko',
+      'temperature_humidity_sensor',
+    ];
+    return migrated.some(m => clean === m || clean.includes(m));
+  }
+
+  /**
    * Sync parsed device properties to SQLite DB
    */
   syncDeviceToDb(device) {
+    // Never allow stale Tuya cloud climate telemetry to overwrite locally managed Zigbee sensors
+    if (device.type === 'climate' && this.isMigratedClimateSensor(device.name)) {
+      return;
+    }
+
     const cleanName = this.cleanTopicName(device.name);
     const prefix = `tuya/${cleanName}/`;
 
@@ -1243,7 +1264,7 @@ class TuyaService {
     }
 
     // Filter out old Ulkolämpötila climate device if any, because outdoor temp comes from Panasonic VILP
-    return this.devices.filter(d => !(d.type === 'climate' && this.cleanTopicName(d.name).includes('ulko')));
+    return this.devices.filter(d => !(d.type === 'climate' && (this.cleanTopicName(d.name).includes('ulko') || this.cleanTopicName(d.name) === 'temperature_humidity_sensor')));
   }
 
   /**
