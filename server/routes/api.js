@@ -3,6 +3,7 @@ const router = express.Router();
 
 const {
   getFullState,
+  getState,
   getTopicHistory,
   getMultiTopicHistory,
   getDailyCosts,
