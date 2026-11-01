@@ -1848,11 +1848,32 @@ function updateRtl433LastSeen(id, last_seen = Date.now()) {
   stmt.run(last_seen, id);
 }
 
-function deleteRtl433Device(id) {
+function blacklistRtl433Device(id) {
+  const stmt = db.prepare('UPDATE rtl433_devices SET is_ignored = 1 WHERE id = ?');
+  stmt.run(id);
+  const deleteState = db.prepare("DELETE FROM sensor_state WHERE topic LIKE ?");
+  deleteState.run(`rtl433/${id}/%`);
+  const deleteHistory = db.prepare("DELETE FROM sensor_history WHERE topic LIKE ?");
+  deleteHistory.run(`rtl433/${id}/%`);
+}
+
+function unblacklistRtl433Device(id) {
+  const stmt = db.prepare('UPDATE rtl433_devices SET is_ignored = 0 WHERE id = ?');
+  stmt.run(id);
+}
+
+function purgeRtl433Device(id) {
   const stmt = db.prepare('DELETE FROM rtl433_devices WHERE id = ?');
   stmt.run(id);
   const deleteState = db.prepare("DELETE FROM sensor_state WHERE topic LIKE ?");
   deleteState.run(`rtl433/${id}/%`);
+  const deleteHistory = db.prepare("DELETE FROM sensor_history WHERE topic LIKE ?");
+  deleteHistory.run(`rtl433/${id}/%`);
+}
+
+function deleteRtl433Device(id) {
+  // By default, deleting a device blacklists it so radio packets won't revive it
+  blacklistRtl433Device(id);
 }
 
 module.exports = {
@@ -1912,6 +1933,9 @@ module.exports = {
   updateRtl433DeviceAlias,
   updateRtl433LastSeen,
   deleteRtl433Device,
+  blacklistRtl433Device,
+  unblacklistRtl433Device,
+  purgeRtl433Device,
 };
 
 

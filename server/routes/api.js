@@ -498,12 +498,46 @@ router.post('/rtl433/devices/:id/alias', requireAuthOrLan, (req, res) => {
 
 /**
  * DELETE /api/rtl433/devices/:id
- * Remove a device from registry and database.
+ * Blacklists device, purges state and history, and drops future incoming packets.
  */
 router.delete('/rtl433/devices/:id', requireAuthOrLan, (req, res) => {
   const { id } = req.params;
   rtl433Client.deleteDevice(id);
-  res.json({ ok: true, id });
+  res.json({ ok: true, id, message: 'Laite poistettu ja asetettu estolistalle (blacklisted)' });
+});
+
+/**
+ * POST /api/rtl433/devices/:id/restore
+ * Removes device from blacklist and resumes RF packet processing.
+ */
+router.post('/rtl433/devices/:id/restore', requireAuthOrLan, (req, res) => {
+  const { id } = req.params;
+  const dev = rtl433Client.unblacklistDevice(id);
+  res.json({ ok: true, id, device: dev, message: 'Laite palautettu kuunteluun' });
+});
+
+/**
+ * DELETE /api/rtl433/devices/:id/permanent
+ * Permanently removes device row from SQLite.
+ */
+router.delete('/rtl433/devices/:id/permanent', requireAuthOrLan, (req, res) => {
+  const { id } = req.params;
+  rtl433Client.purgeDevice(id);
+  res.json({ ok: true, id, message: 'Laite poistettu pysyvästi tietokannasta' });
+});
+
+/**
+ * GET /api/rtl433/blacklist
+ * Returns all currently blacklisted/ignored devices.
+ */
+router.get('/rtl433/blacklist', (req, res) => {
+  const all = rtl433Client.getDevices();
+  const blacklisted = all.filter((d) => d.isIgnored);
+  res.json({
+    devices: blacklisted,
+    count: blacklisted.length,
+    ts: Date.now(),
+  });
 });
 
 /**

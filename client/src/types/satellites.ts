@@ -62,3 +62,4 @@ export interface SatellitePassesResponse {
   count: number;
   ts: number;
 }
+

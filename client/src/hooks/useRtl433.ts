@@ -122,6 +122,41 @@ export function useRtl433() {
         method: 'DELETE',
       });
       if (res.ok) {
+        setDevices((prev) =>
+          prev.map((d) => (d.id === id ? { ...d, isIgnored: true } : d))
+        );
+        return { ok: true };
+      }
+      return { ok: false };
+    } catch {
+      return { ok: false };
+    }
+  }, []);
+
+  const restoreDevice = useCallback(async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/rtl433/devices/${encodeURIComponent(id)}/restore`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDevices((prev) =>
+          prev.map((d) => (d.id === id ? { ...d, isIgnored: false, ...data.device } : d))
+        );
+        return { ok: true };
+      }
+      return { ok: false };
+    } catch {
+      return { ok: false };
+    }
+  }, []);
+
+  const permanentDeleteDevice = useCallback(async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/rtl433/devices/${encodeURIComponent(id)}/permanent`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
         setDevices((prev) => prev.filter((d) => d.id !== id));
         return { ok: true };
       }
@@ -139,6 +174,8 @@ export function useRtl433() {
     refresh: fetchDevices,
     updateAlias,
     deleteDevice,
+    restoreDevice,
+    permanentDeleteDevice,
   };
 }
 

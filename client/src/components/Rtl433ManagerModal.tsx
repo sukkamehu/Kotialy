@@ -31,9 +31,19 @@ export function Rtl433ManagerModal({
   onClose,
   onSelectSensorForChart,
 }: Rtl433ManagerModalProps) {
-  const { devices, status, loading, error, refresh, updateAlias, deleteDevice } = useRtl433();
+  const {
+    devices,
+    status,
+    loading,
+    error,
+    refresh,
+    updateAlias,
+    deleteDevice,
+    restoreDevice,
+    permanentDeleteDevice,
+  } = useRtl433();
 
-  const [activeTab, setActiveTab] = useState<'all' | 'active' | 'ignored' | 'help'>('all');
+  const [activeTab, setActiveTab] = useState<'active' | 'ignored' | 'all' | 'help'>('active');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editLocation, setEditLocation] = useState('');
@@ -44,7 +54,7 @@ export function Rtl433ManagerModal({
 
   const filteredDevices = useMemo(() => {
     if (activeTab === 'active') {
-      return devices.filter((d) => !d.isIgnored && d.online);
+      return devices.filter((d) => !d.isIgnored);
     }
     if (activeTab === 'ignored') {
       return devices.filter((d) => d.isIgnored);
@@ -231,23 +241,6 @@ export function Rtl433ManagerModal({
         >
           <button
             type="button"
-            onClick={() => setActiveTab('all')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 8,
-              border: 'none',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              background: activeTab === 'all' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-              color: activeTab === 'all' ? '#38bdf8' : 'var(--text-secondary)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            Kaikki ({devices.length})
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveTab('active')}
             style={{
               padding: '6px 14px',
@@ -261,7 +254,7 @@ export function Rtl433ManagerModal({
               transition: 'all 0.15s ease',
             }}
           >
-            Aktiiviset ({devices.filter((d) => !d.isIgnored && d.online).length})
+            Aktiiviset anturit ({devices.filter((d) => !d.isIgnored).length})
           </button>
           <button
             type="button"
@@ -278,7 +271,24 @@ export function Rtl433ManagerModal({
               transition: 'all 0.15s ease',
             }}
           >
-            Piilotetut ({devices.filter((d) => d.isIgnored).length})
+            🚫 Estetyt / Blacklist ({devices.filter((d) => d.isIgnored).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 8,
+              border: 'none',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: activeTab === 'all' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+              color: activeTab === 'all' ? '#38bdf8' : 'var(--text-secondary)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Kaikki ({devices.length})
           </button>
           <button
             type="button"
@@ -315,6 +325,24 @@ export function Rtl433ManagerModal({
               }}
             >
               ⚠️ {error}
+            </div>
+          )}
+
+          {/* Blacklist Info Banner */}
+          {activeTab === 'ignored' && (
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 8,
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                color: 'var(--text-secondary)',
+                marginBottom: 16,
+                fontSize: 12,
+                lineHeight: 1.5,
+              }}
+            >
+              🚫 <strong>Estetyt anturit (Blacklist):</strong> Näiden laitteiden radiosignaalit suodatetaan ja pudotetaan vastaanottimessa suoraan pois. Niistä ei tallenneta historiaa eikä niiden tiloja päivitetä järjestelmään. Voit palauttaa anturin kuunteluun milloin tahansa klikkaamalla "✅ Palauta kuunteluun".
             </div>
           )}
 
@@ -675,25 +703,69 @@ export function Rtl433ManagerModal({
                           {isRawOpen ? '▲ Piilota raakadata' : '▼ Näytä raakadata'}
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(`Haluatko varmasti poistaa anturin ${dev.customName || dev.id}?`)) {
-                              deleteDevice(dev.id);
-                            }
-                          }}
-                          style={{
-                            marginLeft: 'auto',
-                            padding: '4px 8px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'rgba(239, 68, 68, 0.7)',
-                            fontSize: 11,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          🗑️ Poista
-                        </button>
+                        {dev.isIgnored ? (
+                          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => restoreDevice(dev.id)}
+                              style={{
+                                padding: '4px 10px',
+                                background: 'rgba(34, 197, 94, 0.15)',
+                                border: '1px solid rgba(34, 197, 94, 0.3)',
+                                borderRadius: 6,
+                                color: '#4ade80',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title="Palauta anturi kuunteluun"
+                            >
+                              ✅ Palauta kuunteluun
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Haluatko poistaa anturin "${dev.customName || dev.id}" pysyvästi tietokannasta?`)) {
+                                  permanentDeleteDevice(dev.id);
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'rgba(239, 68, 68, 0.6)',
+                                fontSize: 11,
+                                cursor: 'pointer',
+                              }}
+                              title="Poista estolistalta pysyvästi"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Haluatko poistaa anturin "${dev.customName || dev.id}" ja estää sen kuuntelun (blacklist)?\n\nAnturin mittaushistoria ja tilatiedot poistetaan, eikä laitteen radiosignaaleja tallenneta enää jatkossa.`)) {
+                                deleteDevice(dev.id);
+                              }
+                            }}
+                            style={{
+                              marginLeft: 'auto',
+                              padding: '4px 10px',
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              borderRadius: 6,
+                              color: '#f87171',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                            title="Poista mittari ja estä sen kuuntelu (blacklist)"
+                          >
+                            🚫 Poista & Estä (Blacklist)
+                          </button>
+                        )}
                       </div>
                     )}
 

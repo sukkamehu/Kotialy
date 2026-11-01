@@ -19,6 +19,9 @@ const {
   updateRtl433DeviceAlias,
   updateRtl433LastSeen,
   deleteRtl433Device: dbDeleteDevice,
+  blacklistRtl433Device,
+  unblacklistRtl433Device,
+  purgeRtl433Device,
 } = require('./db');
 
 const MQTT_HOST = process.env.MQTT_HOST || 'localhost';
@@ -172,6 +175,11 @@ function handleMessage(topic, rawPayload) {
 
   const channel = typeof payload.channel === 'number' ? payload.channel : null;
   const deviceId = cleanSlug(`${model}_${rawId}`);
+
+  // 1. Blacklist check: silently drop all packets from blacklisted / ignored devices
+  if (deviceRegistry[deviceId]?.isIgnored) {
+    return;
+  }
 
   const properties = extractProperties(payload);
   if (Object.keys(properties).length === 0) return;
@@ -400,7 +408,45 @@ function updateAlias(id, updates) {
 }
 
 function deleteDevice(id) {
-  dbDeleteDevice(id);
+  // Blacklist in database & purge state/history so radio packets will be dropped
+  blacklistRtl433Device(id);
+
+  if (deviceRegistry[id]) {
+    deviceRegistry[id].isIgnored = true;
+    deviceRegistry[id].properties = {};
+  } else {
+    deviceRegistry[id] = { id, isIgnored: true, properties: {} };
+  }
+
+  if (wsBroadcastFn) {
+    wsBroadcastFn({
+      type: 'rtl433_devices',
+      devices: getDevices(),
+      ts: Date.now(),
+    });
+  }
+}
+
+function unblacklistDevice(id) {
+  unblacklistRtl433Device(id);
+
+  if (deviceRegistry[id]) {
+    deviceRegistry[id].isIgnored = false;
+  }
+
+  if (wsBroadcastFn) {
+    wsBroadcastFn({
+      type: 'rtl433_devices',
+      devices: getDevices(),
+      ts: Date.now(),
+    });
+  }
+
+  return getDevice(id);
+}
+
+function purgeDevice(id) {
+  purgeRtl433Device(id);
   delete deviceRegistry[id];
 
   if (wsBroadcastFn) {
@@ -436,6 +482,9 @@ module.exports = {
   getDevice,
   updateAlias,
   deleteDevice,
+  blacklistDevice: deleteDevice,
+  unblacklistDevice,
+  purgeDevice,
   getStatus,
   isConnected,
   getLastReceivedAt,
