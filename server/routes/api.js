@@ -35,6 +35,7 @@ const herrforsClient = require('../herrfors-client');
 const outdoorLightsDriver = require('../devices/outdoor-lights-driver');
 const tuyaService = require('../devices/tuya-service');
 const sterilizationService = require('../services/sterilization-service');
+const satelliteService = require('../satellite-service');
 
 
 const {
@@ -520,6 +521,150 @@ router.get('/rtl433/history', (req, res) => {
 
   const rows = getTopicHistory(topic, fromMs, toMs);
   res.json({ device, property, topic, data: rows, count: rows.length });
+});
+
+// ─── Multi-Sensor Outdoor Temperature Consensus Route ────────────────────────
+
+/**
+ * GET /api/outdoor/consensus
+ * Returns heatpump outdoor temp alongside all 433 MHz outdoor sensors and consensus average.
+ */
+router.get('/outdoor/consensus', (req, res) => {
+  const hpTempState = getState('main/Outside_Temp');
+  const hpPipeState = getState('main/Outside_Pipe_Temp');
+  const hpDefrost = getState('main/Defrosting_State');
+  const hpBaseHeater = getState('main/Base_Pan_Heater');
+
+  const hpTemp = hpTempState ? parseFloat(hpTempState.value) : null;
+  const hpPipeTemp = hpPipeState ? parseFloat(hpPipeState.value) : null;
+
+  const allDevices = rtl433Client.getDevices() || [];
+
+  // Active devices with readings
+  const activeDevices = allDevices.filter(
+    (d) => !d.isIgnored && typeof d.properties?.temperature === 'number'
+  );
+
+  // Explicitly marked outdoor sensors
+  const outdoorSensors = activeDevices.filter((d) => Boolean(d.isOutdoor));
+
+  // If no sensors are explicitly tagged yet, identify potential outdoor sensors
+  const candidateSensors = activeDevices.filter((d) => !d.isOutdoor);
+
+  const outdoorTemps = outdoorSensors.map((d) => d.properties.temperature);
+  const outdoorHumids = outdoorSensors
+    .map((d) => d.properties.humidity)
+    .filter((h) => typeof h === 'number');
+
+  const consensusTemp = outdoorTemps.length > 0
+    ? Math.round((outdoorTemps.reduce((a, b) => a + b, 0) / outdoorTemps.length) * 10) / 10
+    : null;
+
+  const consensusHumidity = outdoorHumids.length > 0
+    ? Math.round(outdoorHumids.reduce((a, b) => a + b, 0) / outdoorHumids.length)
+    : null;
+
+  const deltaToHeatpump = (consensusTemp !== null && hpTemp !== null)
+    ? Math.round((consensusTemp - hpTemp) * 10) / 10
+    : null;
+
+  res.json({
+    heatpump: {
+      temperature: hpTemp,
+      pipeTemperature: hpPipeTemp,
+      isDefrosting: hpDefrost?.value === '1',
+      isBaseHeater: hpBaseHeater?.value === '1',
+      updatedAt: hpTempState?.updated_at || null,
+    },
+    outdoorSensors,
+    candidateSensors,
+    consensus: {
+      temperature: consensusTemp,
+      humidity: consensusHumidity,
+      sensorCount: outdoorSensors.length,
+      deltaToHeatpump,
+      minTemp: outdoorTemps.length ? Math.min(...outdoorTemps) : null,
+      maxTemp: outdoorTemps.length ? Math.max(...outdoorTemps) : null,
+    },
+    ts: Date.now(),
+  });
+});
+
+// ─── Weather Satellite & SDR Experimental Routes ─────────────────────────────
+
+/**
+ * GET /api/satellites/passes?hours=48
+ * Returns upcoming satellite passes for NOAA and Meteor satellites.
+ */
+router.get('/satellites/passes', (req, res) => {
+  const hours = parseFloat(req.query.hours || 48);
+  const passes = satelliteService.calculatePasses(hours);
+  const currentOverhead = satelliteService.getCurrentOverheadPass();
+
+  res.json({
+    observer: satelliteService.OBSERVER_CONFIG,
+    passes,
+    currentOverhead,
+    count: passes.length,
+    ts: Date.now(),
+  });
+});
+
+/**
+ * GET /api/satellites/status
+ * Returns satellite module metadata, active overhead pass, next pass, and catalog.
+ */
+router.get('/satellites/status', (req, res) => {
+  const passes = satelliteService.calculatePasses(24);
+  const currentOverhead = satelliteService.getCurrentOverheadPass();
+  const nextPass = passes.find((p) => p.aos > Date.now()) || null;
+
+  res.json({
+    observer: satelliteService.OBSERVER_CONFIG,
+    catalog: satelliteService.SATELLITE_CATALOG,
+    currentOverhead,
+    nextPass,
+    feeds: satelliteService.SATELLITE_IMAGE_FEEDS,
+    ts: Date.now(),
+  });
+});
+
+/**
+ * GET /api/satellites/imagery
+ * Returns metadata for available satellite and radar feeds.
+ */
+router.get('/satellites/imagery', (req, res) => {
+  res.json({
+    feeds: satelliteService.SATELLITE_IMAGE_FEEDS,
+    ts: Date.now(),
+  });
+});
+
+/**
+ * GET /api/satellites/image/:feedId
+ * Proxy and cache satellite/radar images to avoid CORS and improve performance.
+ */
+router.get('/satellites/image/:feedId', async (req, res) => {
+  const { feedId } = req.params;
+  const image = await satelliteService.fetchAndCacheImage(feedId);
+
+  if (!image || !image.data) {
+    return res.status(502).json({ error: 'Failed to fetch satellite image' });
+  }
+
+  res.setHeader('Content-Type', image.contentType || 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=180');
+  res.setHeader('X-Kotialy-Image-Age-Seconds', Math.round((Date.now() - image.ts) / 1000));
+  res.send(image.data);
+});
+
+/**
+ * POST /api/satellites/refresh-tles
+ */
+router.post('/satellites/refresh-tles', requireAuthOrLan, async (req, res) => {
+  await satelliteService.refreshTlesFromCelestrak();
+  const passes = satelliteService.calculatePasses(24);
+  res.json({ ok: true, passesCount: passes.length, ts: Date.now() });
 });
 
 // ─── Daily Energy Costs Routes ───────────────────────────────────────────────

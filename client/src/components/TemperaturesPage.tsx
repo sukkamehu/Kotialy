@@ -249,6 +249,13 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
   const panasonicOutsideTemp = state ? numVal(state, 'main/Outside_Temp') : null;
   const outsideDisplayTemp = panasonicOutsideTemp ?? ulkoSensor?.properties.temperature;
 
+  // 433 MHz outdoor sensors
+  const outdoorRtlSensors = useMemo(() => {
+    return rtlDevices.filter(
+      (d) => Boolean(d.isOutdoor) && !d.isIgnored && typeof d.properties?.temperature === 'number'
+    );
+  }, [rtlDevices]);
+
   // Auto-select first sensor (prefer Alakerta)
   useEffect(() => {
     if (!selectedSensor && unifiedSensors.length > 0) {
@@ -844,6 +851,15 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
               {panasonicOutsideTemp !== null ? '● Aktiivinen' : '○ Ei dataa'}
             </span>
           </div>
+
+          {outdoorRtlSensors.length > 0 && (
+            <div style={{ fontSize: 11, color: '#38bdf8', marginTop: 6, display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6 }}>
+              <span>433 MHz ulkoanturit ({outdoorRtlSensors.length} kpl):</span>
+              <strong style={{ color: '#38bdf8' }}>
+                {(outdoorRtlSensors.reduce((sum, d) => sum + (d.properties.temperature || 0), 0) / outdoorRtlSensors.length).toFixed(1)} °C
+              </strong>
+            </div>
+          )}
         </div>
 
         {/* 5. Isovarasto */}

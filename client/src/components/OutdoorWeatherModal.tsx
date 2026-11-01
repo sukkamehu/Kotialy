@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import type { WeatherForecast, DailyWeather } from '../types/weather';
+import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -142,6 +143,9 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
   const currentPipeTemp = numVal(state, 'main/Outside_Pipe_Temp');
   const isDefrosting = state['main/Defrosting_State']?.value === '1';
   const isBaseHeater = state['main/Base_Pan_Heater']?.value === '1' || state['main/Outdoor_Heater_State']?.value === '1';
+
+  // 433 MHz Outdoor Consensus
+  const { data: outdoorConsensus, setOutdoorFlag } = useOutdoorConsensus();
 
   // Listen for Escape key to close modal
   useEffect(() => {
@@ -604,29 +608,57 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {/* Quick live indicator */}
-              {currentHeatpumpTemp !== null && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-end',
-                    padding: '4px 10px',
-                    background: 'rgba(255,255,255,0.03)',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                  }}
-                >
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ulkolämpö nyt</span>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: tempColor(currentHeatpumpTemp) }}>
-                    {currentHeatpumpTemp.toFixed(1)} °C
-                  </span>
-                  {currentPipeTemp !== null && (
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                      Putki: {currentPipeTemp.toFixed(1)} °C
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {outdoorConsensus?.consensus.temperature !== null && outdoorConsensus?.consensus.temperature !== undefined && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end',
+                      padding: '4px 10px',
+                      background: 'rgba(56,189,248,0.08)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(56,189,248,0.25)',
+                    }}
+                    title={`Keskiarvo ${outdoorConsensus.consensus.sensorCount} kpl langattomista 433 MHz ulkoantureista`}
+                  >
+                    <span style={{ fontSize: 10, color: '#38bdf8' }}>433 MHz ulkoanturit</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: tempColor(outdoorConsensus.consensus.temperature) }}>
+                      {outdoorConsensus.consensus.temperature.toFixed(1)} °C
                     </span>
-                  )}
-                </div>
-              )}
+                    {outdoorConsensus.consensus.humidity !== null && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                        {outdoorConsensus.consensus.humidity}% RH
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {currentHeatpumpTemp !== null && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end',
+                      padding: '4px 10px',
+                      background: 'rgba(255,255,255,0.03)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                    title="Panasonic VILP oma ulkoilma-anturi (Heishamon)"
+                  >
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>VILP anturi</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: tempColor(currentHeatpumpTemp) }}>
+                      {currentHeatpumpTemp.toFixed(1)} °C
+                    </span>
+                    {currentPipeTemp !== null && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                        Putki: {currentPipeTemp.toFixed(1)} °C
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={onClose}
@@ -954,6 +986,39 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                     </span>
                   </div>
                 </div>
+
+                {outdoorConsensus && (
+                  <div
+                    style={{
+                      background: 'rgba(56,189,248,0.06)',
+                      border: '1px solid rgba(56,189,248,0.2)',
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#38bdf8' }} />
+                      433 MHz Piha-anturit ({outdoorConsensus.consensus.sensorCount} kpl)
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Keskiarvo:</span>
+                      <span style={{ fontWeight: 700, color: '#38bdf8' }}>
+                        {outdoorConsensus.consensus.temperature !== null ? `${outdoorConsensus.consensus.temperature.toFixed(1)} °C` : 'Ei määritetty'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 12 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Kosteus / Ero VILPiin:</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {outdoorConsensus.consensus.humidity !== null ? `${outdoorConsensus.consensus.humidity}%` : '—'}
+                        {outdoorConsensus.consensus.deltaToHeatpump !== null && (
+                          <span style={{ color: outdoorConsensus.consensus.deltaToHeatpump >= 0 ? '#4ade80' : '#38bdf8', fontSize: 11, marginLeft: 4 }}>
+                            ({outdoorConsensus.consensus.deltaToHeatpump >= 0 ? `+${outdoorConsensus.consensus.deltaToHeatpump}` : outdoorConsensus.consensus.deltaToHeatpump}°)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Combined Chart Area */}
@@ -1107,6 +1172,142 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                       />
                     </ComposedChart>
                   </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* 433 MHz Multi-Sensor Outdoor Integration Panel */}
+              <div
+                style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 10,
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 18 }}>🌲</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Langattomat 433 MHz Piha- ja Ulkoanturit ({outdoorConsensus?.outdoorSensors.length || 0} kpl)
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Korkean resoluution (0.1 °C) mittaus pihan eri puolilta verrattuna Panasonic VILP:n karkeaan kokonaislukuanturiin
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active Outdoor Sensors Grid */}
+                {outdoorConsensus && outdoorConsensus.outdoorSensors.length > 0 ? (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: 8,
+                    }}
+                  >
+                    {outdoorConsensus.outdoorSensors.map((dev) => {
+                      const temp = dev.properties?.temperature;
+                      const hum = dev.properties?.humidity;
+                      const diffToHp = (temp !== undefined && currentHeatpumpTemp !== null)
+                        ? Math.round((temp - currentHeatpumpTemp) * 10) / 10
+                        : null;
+
+                      return (
+                        <div
+                          key={dev.id}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 8,
+                            background: 'rgba(34,211,238,0.05)',
+                            border: '1px solid rgba(34,211,238,0.2)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {dev.customName || `${dev.model} #${dev.rawId || dev.id}`}
+                            </span>
+                            <button
+                              className="btn btn-ghost"
+                              onClick={() => setOutdoorFlag(dev.id, false)}
+                              style={{ padding: '2px 6px', fontSize: 10, color: '#f87171' }}
+                              title="Poista ulkoantureista"
+                            >
+                              ✕ Poista
+                            </button>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: '#38bdf8' }}>
+                              {temp !== undefined ? `${temp.toFixed(1)} °C` : '—'}
+                            </span>
+                            {hum !== undefined && (
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {hum.toFixed(0)} %
+                              </span>
+                            )}
+                            {diffToHp !== null && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  marginLeft: 'auto',
+                                  color: diffToHp >= 0 ? '#4ade80' : '#38bdf8',
+                                  fontWeight: 600,
+                                }}
+                                title="Ero lämpöpumpun anturiin"
+                              >
+                                {diffToHp >= 0 ? `+${diffToHp}` : diffToHp} °C
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Ei vielä erikseen merkittyjä ulkoantureita. Voit klikata alta havaitun anturin lisättäväksi ulkolämpömittauksiin:
+                  </div>
+                )}
+
+                {/* Candidate Sensors Section */}
+                {outdoorConsensus && outdoorConsensus.candidateSensors.length > 0 && (
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      Muut havaitut anturit (klikuta lisätäksesi ulkoanturiksi):
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {outdoorConsensus.candidateSensors.slice(0, 8).map((c) => (
+                        <button
+                          key={c.id}
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => setOutdoorFlag(c.id, true)}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            borderRadius: 6,
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <span style={{ color: '#4ade80', fontWeight: 700 }}>+</span>
+                          <span>{c.customName || `${c.model} #${c.rawId || c.id}`}:</span>
+                          <strong style={{ color: '#38bdf8' }}>
+                            {c.properties?.temperature !== undefined ? `${c.properties.temperature.toFixed(1)}°` : '—'}
+                          </strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </>

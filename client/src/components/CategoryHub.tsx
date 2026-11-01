@@ -6,8 +6,9 @@ import { useTuya } from '../hooks/useTuya';
 import { useOutdoorLights } from '../hooks/useOutdoorLights';
 import { useTapo } from '../hooks/useTapo';
 import { useMitsubishi } from '../hooks/useMitsubishi';
+import { useRtl433 } from '../hooks/useRtl433';
 
-export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'battery' | 'apc';
+export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'battery' | 'apc' | 'experimental';
 
 interface CategoryHubProps {
   state: HeishamonState;
@@ -23,6 +24,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const { status: outdoorLightsStatus } = useOutdoorLights();
   const { devices: tapoDevices } = useTapo();
   const { status: mitsuStatus } = useMitsubishi();
+  const { devices: rtlDevices, status: rtlStatus } = useRtl433();
 
   // Metrics for quick summary badges
   const outsideTemp = numVal(state, 'main/Outside_Temp');
@@ -313,6 +315,31 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
         },
       ],
       description: 'Pörssisähkön hintahuippujen väistö, halpojen tuntien varaustehot ja automaattiset suojarajat.',
+    },
+    {
+      id: 'experimental' as CategoryId,
+      title: 'Radio & Satelliitti',
+      subtitle: 'RTL-SDR 433 MHz, NOAA / Meteor Sääsatelliitit & Spektri',
+      icon: '🛰️',
+      color: '#38bdf8',
+      glow: 'rgba(56, 189, 248, 0.25)',
+      gradient: 'linear-gradient(145deg, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%)',
+      borderColor: 'rgba(56, 189, 248, 0.35)',
+      badges: [
+        {
+          label: 'RTL-SDR',
+          value: rtlStatus.connected ? '433.92 MHz LIVE' : 'Offline',
+          color: rtlStatus.connected ? '#4ade80' : '#f87171',
+          bg: rtlStatus.connected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+        },
+        {
+          label: 'Anturit',
+          value: `${rtlDevices.length} kpl live`,
+          color: '#38bdf8',
+          bg: 'rgba(56, 189, 248, 0.12)',
+        },
+      ],
+      description: 'Ohjelmistoradio (SDR), reaaliaikaiset sääsatelliittikuvat (EUMETSAT & FMI tutka), NOAA-ylilennot ja RF-anturit.',
     },
   ];
 

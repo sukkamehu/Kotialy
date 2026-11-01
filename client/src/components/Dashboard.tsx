@@ -20,6 +20,7 @@ import { PullToRefresh } from './PullToRefresh';
 import { ErrorBoundary } from './ErrorBoundary';
 
 import { BatteryDiagramPage } from './BatteryDiagramPage';
+import { ExperimentalRadioPage } from './ExperimentalRadioPage';
 
 interface DashboardProps {
   state: HeishamonState;
@@ -47,7 +48,8 @@ export type DashboardTab =
   | 'trends'
   | 'technical'
   | 'battery'
-  | 'apc';
+  | 'apc'
+  | 'experimental';
 
 const VALID_TABS: DashboardTab[] = [
   'hub',
@@ -60,6 +62,7 @@ const VALID_TABS: DashboardTab[] = [
   'technical',
   'battery',
   'apc',
+  'experimental',
 ];
 
 function normalizeTab(raw: string): DashboardTab {
@@ -73,6 +76,7 @@ function normalizeTab(raw: string): DashboardTab {
   if (raw === 'hydraulics' || raw === 'heatpump_guide') return 'technical';
   if (raw === 'battery' || raw === 'akku' || raw === 'sahkokaavio' || raw === 'akkujarjestelma') return 'battery';
   if (raw === 'apc_strategy') return 'apc';
+  if (raw === 'radio' || raw === 'sdr' || raw === 'satellite' || raw === 'satelliitti') return 'experimental';
   return 'hub';
 }
 
@@ -327,6 +331,13 @@ export function Dashboard({
                 <ApcStrategyPage readOnly={readOnly} />
               </ErrorBoundary>
             </div>
+          )}
+
+          {/* VIEW 10: EXPERIMENTAL SDR & SATELLIITTI */}
+          {activeTab === 'experimental' && (
+            <ErrorBoundary>
+              <ExperimentalRadioPage />
+            </ErrorBoundary>
           )}
         </main>
       </PullToRefresh>
