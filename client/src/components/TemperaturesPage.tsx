@@ -180,11 +180,17 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
       else if (lower.includes('alakerta')) badge = 'Alakerta';
       else if (isTyohuone) badge = 'Työhuone';
 
+      const isOnline = Boolean(
+        d.online ||
+        (d.update_time && Date.now() - d.update_time < 3 * 3600 * 1000) ||
+        (d.properties.temperature != null && d.update_time && Date.now() - d.update_time < 4 * 3600 * 1000)
+      );
+
       list.push({
         id: d.id,
         name: d.name,
         source: 'tuya',
-        online: d.online,
+        online: isOnline,
         temperature: d.properties.temperature ?? null,
         humidity: d.properties.humidity ?? null,
         battery: d.properties.battery ?? null,

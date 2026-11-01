@@ -1261,6 +1261,14 @@ class TuyaService {
       if (tempVal != null && !isNaN(Number(tempVal))) dev.properties.temperature = Number(tempVal);
       if (humidVal != null && !isNaN(Number(humidVal))) dev.properties.humidity = Number(humidVal);
       if (battVal != null && !isNaN(Number(battVal))) dev.properties.battery = Number(battVal);
+
+      // Check freshness of local Zigbee telemetry (sleeping battery sensors report every 30-60 min)
+      const zigbeeState = fullState[`zigbee/${s.zigbeeKey}/temperature`] || fullState[`zigbee/${s.zigbeeKey}/humidity`];
+      const isRecentlyActive = zigbeeState && (Date.now() - (zigbeeState.updated_at || 0) < 3 * 3600 * 1000);
+      dev.online = Boolean(isRecentlyActive);
+      if (zigbeeState?.updated_at) {
+        dev.update_time = zigbeeState.updated_at;
+      }
     }
 
     // Filter out old Ulkolämpötila climate device if any, because outdoor temp comes from Panasonic VILP

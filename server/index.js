@@ -108,7 +108,7 @@ wss.on('connection', (ws, req) => {
         apc: apcService.getStatus(),
         tapo: tapoService.getAllStatuses(),
         tuya: {
-          devices: tuyaService.devices,
+          devices: tuyaService.getEnrichedDevices ? tuyaService.getEnrichedDevices() : tuyaService.devices,
           sauna: tuyaService.getSaunaStatus(),
         },
         outdoorLights: outdoorLightsDriver.getStatus(),

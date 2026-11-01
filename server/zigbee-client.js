@@ -332,10 +332,13 @@ function getDeviceRegistry() {
     const avail = properties._availability;
     delete properties._availability;
 
+    const latestUpdate = Math.max(0, ...Object.values(properties).map((p) => p.updated_at || 0));
+    const isOnline = avail ? avail.value === '1' : (latestUpdate > 0 && (Date.now() - latestUpdate < 3 * 3600 * 1000));
+
     enriched[name] = {
       ...device,
       properties,
-      online: avail ? avail.value === '1' : null,
+      online: isOnline,
     };
   }
 
