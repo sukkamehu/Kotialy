@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useRtl433 } from '../hooks/useRtl433';
 import { useSatellites } from '../hooks/useSatellites';
 import { Rtl433ManagerModal } from './Rtl433ManagerModal';
+import { getStoredToken } from '../hooks/useAuth';
 
 type ExperimentalSubTab = 'satellites' | 'rtl433' | 'ham';
 
@@ -11,6 +12,10 @@ export const ExperimentalRadioPage: React.FC = () => {
   const [activeImageFeed, setActiveImageFeed] = useState<'eumetsat_ir' | 'eumetsat_natural' | 'fmi_radar'>('eumetsat_ir');
   const [imageReloadKey, setImageReloadKey] = useState(Date.now());
   const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  const token = getStoredToken();
+  const imageSrc = `/api/satellites/image/${activeImageFeed}?t=${imageReloadKey}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
 
   const { devices, status: rtlStatus, loading: rtlLoading } = useRtl433();
   const { passes, currentOverhead, loading: satLoading, refreshing: tlesRefreshing, refreshTles } = useSatellites();
@@ -36,6 +41,14 @@ export const ExperimentalRadioPage: React.FC = () => {
 
   const handleRefreshImage = () => {
     setImageLoading(true);
+    setImageError(false);
+    setImageReloadKey(Date.now());
+  };
+
+  const handleSelectFeed = (feed: 'eumetsat_ir' | 'eumetsat_natural' | 'fmi_radar') => {
+    setActiveImageFeed(feed);
+    setImageLoading(true);
+    setImageError(false);
     setImageReloadKey(Date.now());
   };
 
@@ -464,21 +477,21 @@ export const ExperimentalRadioPage: React.FC = () => {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button
                   className={`btn btn-sm ${activeImageFeed === 'eumetsat_ir' ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setActiveImageFeed('eumetsat_ir')}
+                  onClick={() => handleSelectFeed('eumetsat_ir')}
                   style={{ fontSize: 12 }}
                 >
                   🌡️ EUMETSAT IR 10.8µm
                 </button>
                 <button
                   className={`btn btn-sm ${activeImageFeed === 'eumetsat_natural' ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setActiveImageFeed('eumetsat_natural')}
+                  onClick={() => handleSelectFeed('eumetsat_natural')}
                   style={{ fontSize: 12 }}
                 >
                   🌍 EUMETSAT TrueColor
                 </button>
                 <button
                   className={`btn btn-sm ${activeImageFeed === 'fmi_radar' ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setActiveImageFeed('fmi_radar')}
+                  onClick={() => handleSelectFeed('fmi_radar')}
                   style={{ fontSize: 12 }}
                 >
                   🌧️ FMI Sade- ja Tutkakomposiitti
@@ -519,19 +532,57 @@ export const ExperimentalRadioPage: React.FC = () => {
                     boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
                   }}
                 >
-                  <img
-                    src={`/api/satellites/image/${activeImageFeed}?t=${imageReloadKey}`}
-                    alt="Sääsatelliittikuva"
-                    style={{
-                      width: '100%',
-                      height: 'auto',
-                      display: 'block',
-                      objectFit: 'contain',
-                      maxHeight: '620px',
-                    }}
-                    onLoad={() => setImageLoading(false)}
-                    onError={() => setImageLoading(false)}
-                  />
+                  {!imageError ? (
+                    <img
+                      src={imageSrc}
+                      alt="Sääsatelliittikuva"
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        display: 'block',
+                        objectFit: 'contain',
+                        maxHeight: '620px',
+                        cursor: 'zoom-in',
+                      }}
+                      title="Klikkaa avataksesi kuvan uuteen välilehteen"
+                      onClick={() => window.open(imageSrc, '_blank')}
+                      onLoad={() => {
+                        setImageLoading(false);
+                        setImageError(false);
+                      }}
+                      onError={() => {
+                        setImageLoading(false);
+                        setImageError(true);
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        padding: '40px 20px',
+                        textAlign: 'center',
+                        color: '#f87171',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        borderRadius: 8,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ fontSize: 24 }}>⚠️</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>Kuvan lataus epäonnistui</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 400 }}>
+                        Palvelin hakee parhaillaan tuoreinta satelliitti- tai tutkadatanäkymää EUMETSAT/FMI WMS -palvelusta.
+                      </div>
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={handleRefreshImage}
+                        style={{ border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontSize: 12, marginTop: 4 }}
+                      >
+                        Yritä uudelleen 🔄
+                      </button>
+                    </div>
+                  )}
 
                   {imageLoading && (
                     <div
@@ -565,7 +616,7 @@ export const ExperimentalRadioPage: React.FC = () => {
                     color: 'var(--text-muted)',
                   }}
                 >
-                  <div>
+                  <div style={{ flex: 1, minWidth: 260 }}>
                     {activeImageFeed === 'eumetsat_ir' && (
                       <span>
                         🌡️ <strong>EUMETSAT Infrapuna (IR 10.8 µm):</strong> Havaitsee pilvien yläpintojen lämpötilat ja pilvisyyden 24/7 (myös pimeässä). Kylmät, korkeat pilvet näkyvät kirkkaina.
@@ -583,9 +634,31 @@ export const ExperimentalRadioPage: React.FC = () => {
                     )}
                   </div>
 
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    Välimuisti: 5 min
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <a
+                      href={imageSrc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 11,
+                        color: '#38bdf8',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        background: 'rgba(56, 189, 248, 0.1)',
+                        border: '1px solid rgba(56, 189, 248, 0.25)',
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Avaa täysikokoisena ↗
+                    </a>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      Välimuisti: 5 min
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

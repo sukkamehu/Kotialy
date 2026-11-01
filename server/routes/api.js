@@ -168,6 +168,25 @@ router.post('/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * GET /api/satellites/image/:feedId
+ * Proxy and cache satellite/radar images (public meteorological data from EUMETSAT & FMI).
+ * Publicly accessible to allow <img> tags and new-tab views without auth issues on WAN.
+ */
+router.get('/satellites/image/:feedId', async (req, res) => {
+  const { feedId } = req.params;
+  const image = await satelliteService.fetchAndCacheImage(feedId);
+
+  if (!image || !image.data) {
+    return res.status(502).json({ error: 'Failed to fetch satellite image' });
+  }
+
+  res.setHeader('Content-Type', image.contentType || 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=180');
+  res.setHeader('X-Kotialy-Image-Age-Seconds', Math.round((Date.now() - image.ts) / 1000));
+  res.send(image.data);
+});
+
 // Apply authentication middleware to all subsequent API routes
 router.use(requireAuthOrLan);
 
@@ -675,23 +694,6 @@ router.get('/satellites/imagery', (req, res) => {
   });
 });
 
-/**
- * GET /api/satellites/image/:feedId
- * Proxy and cache satellite/radar images to avoid CORS and improve performance.
- */
-router.get('/satellites/image/:feedId', async (req, res) => {
-  const { feedId } = req.params;
-  const image = await satelliteService.fetchAndCacheImage(feedId);
-
-  if (!image || !image.data) {
-    return res.status(502).json({ error: 'Failed to fetch satellite image' });
-  }
-
-  res.setHeader('Content-Type', image.contentType || 'image/png');
-  res.setHeader('Cache-Control', 'public, max-age=180');
-  res.setHeader('X-Kotialy-Image-Age-Seconds', Math.round((Date.now() - image.ts) / 1000));
-  res.send(image.data);
-});
 
 /**
  * POST /api/satellites/refresh-tles
