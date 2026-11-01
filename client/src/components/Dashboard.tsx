@@ -169,6 +169,7 @@ export function Dashboard({
     { id: 'technical', label: 'Tekninen tila', icon: '🛠️', activeColor: '#22d3ee', activeBg: 'rgba(34, 211, 238, 0.2)' },
     { id: 'battery', label: 'Akkujärjestelmä', icon: '🔋', activeColor: '#10b981', activeBg: 'rgba(16, 185, 129, 0.2)' },
     { id: 'apc', label: 'APC-Strategia', icon: '⚡', activeColor: '#10b981', activeBg: 'rgba(16, 185, 129, 0.2)' },
+    { id: 'experimental', label: 'Radio & Sat (Kokeellinen)', icon: '🛰️', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
   ];
 
   return (

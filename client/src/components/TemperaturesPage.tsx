@@ -180,10 +180,11 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
       else if (lower.includes('alakerta')) badge = 'Alakerta';
       else if (isTyohuone) badge = 'Työhuone';
 
+      const updateMs = d.update_time ? (d.update_time < 10000000000 ? d.update_time * 1000 : d.update_time) : 0;
       const isOnline = Boolean(
         d.online ||
-        (d.update_time && Date.now() - d.update_time < 3 * 3600 * 1000) ||
-        (d.properties.temperature != null && d.update_time && Date.now() - d.update_time < 4 * 3600 * 1000)
+        (updateMs > 0 && Date.now() - updateMs < 4 * 3600 * 1000) ||
+        (d.properties?.temperature != null && updateMs > 0 && Date.now() - updateMs < 6 * 3600 * 1000)
       );
 
       list.push({
@@ -1202,23 +1203,42 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             </div>
           </div>
           {onNavigateTab && (
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
-              onClick={() => onNavigateTab('heating')}
-              style={{
-                fontSize: 12,
-                borderRadius: 8,
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                background: 'rgba(56, 189, 248, 0.1)',
-                color: '#38bdf8',
-                cursor: 'pointer',
-                fontWeight: 600,
-                padding: '5px 12px',
-              }}
-            >
-              Säädä pumppuja ⚙️
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => onNavigateTab('experimental')}
+                style={{
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: '1px solid rgba(168, 85, 247, 0.35)',
+                  background: 'rgba(168, 85, 247, 0.12)',
+                  color: '#c084fc',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  padding: '5px 12px',
+                }}
+              >
+                🛰️ Radio & SDR 433 MHz
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => onNavigateTab('heating')}
+                style={{
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  color: '#38bdf8',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  padding: '5px 12px',
+                }}
+              >
+                Säädä pumppuja ⚙️
+              </button>
+            </div>
           )}
         </div>
 
