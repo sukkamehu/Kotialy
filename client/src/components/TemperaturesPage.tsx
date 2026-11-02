@@ -360,6 +360,17 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
         `mitsubishi/${selectedSensor.id}/temperature`,
         selectedSensor.targetTempTopic,
       ].filter(Boolean).join(',');
+    } else if (selectedSensor.source === 'rtl433') {
+      const rawId = selectedSensor.id.replace(/^rtl433_/, '');
+      const aliasSlug = selectedSensor.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').trim();
+      allTopics = Array.from(new Set([
+        selectedSensor.tempTopic,
+        selectedSensor.humidTopic,
+        `rtl433/${rawId}/temperature`,
+        `rtl433/${rawId}/humidity`,
+        `rtl433/${aliasSlug}/temperature`,
+        `rtl433/${aliasSlug}/humidity`,
+      ])).filter(Boolean).join(',');
     } else {
       const zName = selectedSensor.name;
       const norm = zName.toLowerCase();
@@ -409,17 +420,31 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
         } else {
           const isSauna = selectedSensor.name.toLowerCase().includes('sauna');
           const isTyohuone = selectedSensor.name.toLowerCase().includes('tyohuone') || selectedSensor.name.toLowerCase().includes('työhuone');
+          const isRtl = selectedSensor.source === 'rtl433';
+          const rawId = isRtl ? selectedSensor.id.replace(/^rtl433_/, '') : '';
+          const aliasSlug = isRtl ? selectedSensor.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').trim() : '';
+
           const tempRows = [
             ...(dataMap[selectedSensor.tempTopic] || []),
             ...(selectedSensor.legacyTempTopic && selectedSensor.legacyTempTopic !== selectedSensor.tempTopic ? dataMap[selectedSensor.legacyTempTopic] || [] : []),
-            ...(dataMap[`zigbee/${selectedSensor.name}/temperature`] || []),
-            ...(isTyohuone && dataMap['zigbee/Työhuone/temperature'] ? dataMap['zigbee/Työhuone/temperature'] : []),
+            ...(isRtl ? [
+              ...(dataMap[`rtl433/${rawId}/temperature`] || []),
+              ...(dataMap[`rtl433/${aliasSlug}/temperature`] || []),
+            ] : [
+              ...(dataMap[`zigbee/${selectedSensor.name}/temperature`] || []),
+              ...(isTyohuone && dataMap['zigbee/Työhuone/temperature'] ? dataMap['zigbee/Työhuone/temperature'] : []),
+            ]),
           ];
           const humidRows = [
             ...(selectedSensor.humidTopic ? dataMap[selectedSensor.humidTopic] || [] : []),
             ...(selectedSensor.legacyHumidTopic && selectedSensor.legacyHumidTopic !== selectedSensor.humidTopic ? dataMap[selectedSensor.legacyHumidTopic] || [] : []),
-            ...(dataMap[`zigbee/${selectedSensor.name}/humidity`] || []),
-            ...(isTyohuone && dataMap['zigbee/Työhuone/humidity'] ? dataMap['zigbee/Työhuone/humidity'] : []),
+            ...(isRtl ? [
+              ...(dataMap[`rtl433/${rawId}/humidity`] || []),
+              ...(dataMap[`rtl433/${aliasSlug}/humidity`] || []),
+            ] : [
+              ...(dataMap[`zigbee/${selectedSensor.name}/humidity`] || []),
+              ...(isTyohuone && dataMap['zigbee/Työhuone/humidity'] ? dataMap['zigbee/Työhuone/humidity'] : []),
+            ]),
           ];
 
           for (const r of tempRows) {
@@ -428,6 +453,8 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             if (v > 100 && v <= 1000) v = v / 10;
             if (isSauna) {
               if (v < -20 || v > 130) continue;
+            } else if (isRtl) {
+              if (v < -45 || v > 65) continue;
             } else {
               if (v < -30 || v > 45) continue;
             }

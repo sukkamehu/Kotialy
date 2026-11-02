@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from '../lib/api';
+import { useRtl433 } from '../hooks/useRtl433';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -12,7 +13,7 @@ interface ChartTopicConfig {
   unit: string;
   yAxisId: 'left' | 'right';
   dash?: string;
-  category: 'vilp' | 'smartlife' | 'tapo' | 'electricity';
+  category: 'vilp' | 'smartlife' | 'tapo' | 'electricity' | 'rf433';
 }
 
 const BASELINE_POWER_KW = 0.55;
@@ -100,7 +101,7 @@ function parseDateInput(str: string, endOfDay = false): number {
   return date.getTime();
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, chartTopics }: any) => {
   if (!active || !payload?.length) return null;
   const herrforsPt = payload.find((p: any) => p.dataKey === 'herrfors_power');
   const herrforsVal = typeof herrforsPt?.value === 'number' ? herrforsPt.value : null;
@@ -125,7 +126,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         })}
       </div>
       {payload.map((p: any) => {
-        const topic = CHART_TOPICS.find((t) => t.key === p.dataKey);
+        const topic = chartTopics?.find((t: any) => t.key === p.dataKey) || CHART_TOPICS.find((t) => t.key === p.dataKey);
         const unit = topic?.unit ?? '';
         let valStr = typeof p.value === 'number' ? p.value.toFixed(1) : String(p.value);
         if (p.dataKey === 'main/Defrosting_State') {
@@ -196,9 +197,10 @@ function interpolateTimeline(
   for (const topic of selectedTopics) {
     if (topic === 'electricity_price' || topic === 'herrfors_power' || topic === 'weather_temp') continue;
     const rows = sensorsData[topic] || [];
+    const isRtl = topic.toLowerCase().includes('rtl433');
     const isHumidity = topic.toLowerCase().includes('humidity') || topic.toLowerCase().includes('kosteus');
     const isSauna = topic.toLowerCase().includes('sauna');
-    const isIndoorTemp = (topic.toLowerCase().includes('temperature') || topic.toLowerCase().includes('lampotila')) && !isSauna && !topic.includes('Outside') && !topic.includes('ulko') && !topic.includes('device_temp') && !topic.includes('Inlet') && !topic.includes('Outlet') && !topic.includes('DHW') && !topic.includes('Buffer');
+    const isIndoorTemp = (topic.toLowerCase().includes('temperature') || topic.toLowerCase().includes('lampotila')) && !isSauna && !isRtl && !topic.includes('Outside') && !topic.includes('ulko') && !topic.includes('device_temp') && !topic.includes('Inlet') && !topic.includes('Outlet') && !topic.includes('DHW') && !topic.includes('Buffer');
 
     const sortedRows = rows
       .map((r) => {
@@ -208,6 +210,8 @@ function interpolateTimeline(
           if (v > 100 && v <= 1000) v = v / 10;
           if (v > 100 && v <= 102) v = 100;
           if (v < 0 || v > 100) return null;
+        } else if (isRtl) {
+          if (v < -45 || v > 70) return null;
         } else if (isIndoorTemp) {
           if (v > 100 && v <= 1000) v = v / 10;
           if (v < -20 || v > 45) return null;
@@ -342,11 +346,62 @@ function interpolateTimeline(
   return result;
 }
 
-export function HistoryChart() {
+interface HistoryChartProps {
+  onOpenTrend?: (target: any) => void;
+}
+
+export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = {}) {
+  const { devices: rtlDevices } = useRtl433();
+
+  const chartTopics = useMemo<ChartTopicConfig[]>(() => {
+    const list: ChartTopicConfig[] = [...CHART_TOPICS];
+
+    // Filter active, non-ignored RTL433 devices that have reported temperature or humidity
+    const activeRtl = rtlDevices.filter(
+      (d) => !d.isIgnored && (typeof d.properties?.temperature === 'number' || typeof d.properties?.humidity === 'number')
+    );
+
+    const colors = [
+      '#10b981', '#06b6d4', '#8b5cf6', '#f59e0b', '#ec4899',
+      '#3b82f6', '#14b8a6', '#f97316', '#a855f7', '#84cc16'
+    ];
+
+    activeRtl.forEach((d, idx) => {
+      const devName = d.customName || `${d.model} #${d.rawId || d.id}`;
+      const color = colors[idx % colors.length];
+      const prefix = d.isOutdoor ? '🌲 Ulko · ' : '📻 ';
+
+      if (typeof d.properties?.temperature === 'number') {
+        list.push({
+          key: `rtl433/${d.id}/temperature`,
+          label: `${prefix}${devName} lämpö`,
+          color,
+          unit: '°C',
+          yAxisId: 'left',
+          category: 'rf433',
+        });
+      }
+
+      if (typeof d.properties?.humidity === 'number') {
+        list.push({
+          key: `rtl433/${d.id}/humidity`,
+          label: `${prefix}${devName} kosteus`,
+          color,
+          unit: '%',
+          yAxisId: 'right',
+          dash: '2 2',
+          category: 'rf433',
+        });
+      }
+    });
+
+    return list;
+  }, [rtlDevices]);
+
   const [selectedTopics, setSelectedTopics] = useState<string[]>([
     'main/Outside_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp', 'herrfors_power',
   ]);
-  const [activeCategory, setActiveCategory] = useState<'all' | 'vilp' | 'smartlife' | 'electricity' | 'tapo'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'vilp' | 'smartlife' | 'electricity' | 'tapo' | 'rf433'>('all');
   const [preset, setPreset] = useState<QuickPreset>('24h');
   
   // Custom date controls
@@ -422,10 +477,10 @@ export function HistoryChart() {
 
   const hasRightAxis = useMemo(() => {
     return selectedTopics.some((k) => {
-      const topic = CHART_TOPICS.find((t) => t.key === k);
+      const topic = chartTopics.find((t) => t.key === k);
       return topic?.yAxisId === 'right';
     });
-  }, [selectedTopics]);
+  }, [selectedTopics, chartTopics]);
 
   useEffect(() => {
     if (selectedTopics.length === 0) {
@@ -444,8 +499,21 @@ export function HistoryChart() {
     const fetches: Promise<any>[] = [];
 
     if (sensorTopics.length > 0) {
+      // Expand any rtl433 topic with alias topic if present
+      const expandedTopics = Array.from(new Set(sensorTopics.flatMap((top) => {
+        if (top.startsWith('rtl433/')) {
+          const parts = top.split('/');
+          const dev = rtlDevices.find((d) => d.id === parts[1]);
+          if (dev?.customName) {
+            const aliasSlug = dev.customName.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').trim();
+            return [top, `rtl433/${aliasSlug}/${parts[2]}`];
+          }
+        }
+        return [top];
+      })));
+
       fetches.push(
-        apiFetch(`/api/history/multi?topics=${encodeURIComponent(sensorTopics.join(','))}&from=${fromMs}&to=${toMs}`)
+        apiFetch(`/api/history/multi?topics=${encodeURIComponent(expandedTopics.join(','))}&from=${fromMs}&to=${toMs}`)
           .then((r) => {
             if (!r.ok) throw new Error(`Historiatietojen haku epäonnistui (${r.status})`);
             return r.json();
@@ -499,6 +567,20 @@ export function HistoryChart() {
         for (const res of results) {
           if (res.type === 'sensors') {
             sensorsData = res.data;
+            // Fallback to alias topic rows if raw id topic has no rows
+            for (const top of sensorTopics) {
+              if (top.startsWith('rtl433/')) {
+                const parts = top.split('/');
+                const dev = rtlDevices.find((d) => d.id === parts[1]);
+                if (dev?.customName) {
+                  const aliasSlug = dev.customName.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').trim();
+                  const aliasKey = `rtl433/${aliasSlug}/${parts[2]}`;
+                  if (sensorsData[aliasKey] && (!sensorsData[top] || sensorsData[top].length === 0)) {
+                    sensorsData[top] = sensorsData[aliasKey];
+                  }
+                }
+              }
+            }
           } else if (res.type === 'price') {
             pricesData = res.prices;
           } else if (res.type === 'herrfors') {
@@ -753,6 +835,7 @@ export function HistoryChart() {
             { id: 'all', label: '✨ Kaikki kohteet' },
             { id: 'vilp', label: '🔥 VILP & Lämmitys' },
             { id: 'smartlife', label: '📱 Smart Life -anturit' },
+            { id: 'rf433', label: `📻 433 MHz RF-anturit${rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length > 0 ? ` (${rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length})` : ''}` },
             { id: 'electricity', label: '⚡ Sähkö & Pörssihinta' },
             { id: 'tapo', label: '🔌 Tapo-pistorasiat' },
           ].map(cat => (
@@ -777,7 +860,7 @@ export function HistoryChart() {
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
             <button
               onClick={() => {
-                const visibleKeys = CHART_TOPICS.filter(t => activeCategory === 'all' || t.category === activeCategory).map(t => t.key);
+                const visibleKeys = chartTopics.filter(t => activeCategory === 'all' || t.category === activeCategory).map(t => t.key);
                 setSelectedTopics(prev => Array.from(new Set([...prev, ...visibleKeys])));
               }}
               style={{
@@ -794,7 +877,7 @@ export function HistoryChart() {
             </button>
             <button
               onClick={() => {
-                const visibleKeys = new Set(CHART_TOPICS.filter(t => activeCategory === 'all' || t.category === activeCategory).map(t => t.key));
+                const visibleKeys = new Set(chartTopics.filter(t => activeCategory === 'all' || t.category === activeCategory).map(t => t.key));
                 setSelectedTopics(prev => prev.filter(k => !visibleKeys.has(k)));
               }}
               style={{
@@ -814,7 +897,7 @@ export function HistoryChart() {
 
         {/* Topic toggles */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-          {CHART_TOPICS.filter(t => activeCategory === 'all' || t.category === activeCategory).map(({ key, label, color }) => {
+          {chartTopics.filter(t => activeCategory === 'all' || t.category === activeCategory).map(({ key, label, color }) => {
             const active = selectedTopics.includes(key);
             return (
               <button
@@ -897,7 +980,7 @@ export function HistoryChart() {
                     width={38}
                   />
                 )}
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<CustomTooltip chartTopics={chartTopics} />} />
                 {(selectedTopics.includes('herrfors_power') || selectedTopics.includes('baseline_power')) && (
                   <ReferenceLine
                     yAxisId="right"
@@ -913,7 +996,7 @@ export function HistoryChart() {
                     }}
                   />
                 )}
-                {CHART_TOPICS.filter((t) => selectedTopics.includes(t.key)).map(({ key, label, color, yAxisId, dash }) => (
+                {chartTopics.filter((t) => selectedTopics.includes(t.key)).map(({ key, label, color, yAxisId, dash }) => (
                   <Line
                     key={key}
                     yAxisId={yAxisId}
@@ -921,7 +1004,7 @@ export function HistoryChart() {
                     dataKey={key}
                     name={label}
                     stroke={color}
-                    strokeWidth={key === 'herrfors_power' || key === 'electricity_price' ? 2.5 : 2}
+                    strokeWidth={key === 'herrfors_power' || key === 'electricity_price' || key.startsWith('rtl433') ? 2.5 : 2}
                     strokeDasharray={dash}
                     dot={false}
                     connectNulls
