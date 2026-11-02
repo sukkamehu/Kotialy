@@ -260,6 +260,26 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
     );
   }, [rtlDevices]);
 
+  // Consensus statistics (median, average, min, max) for 433 MHz outdoor sensors
+  const outdoorRtlStats = useMemo(() => {
+    if (outdoorRtlSensors.length === 0) return null;
+    const temps = outdoorRtlSensors
+      .map((d) => d.properties.temperature as number)
+      .filter((t) => typeof t === 'number' && !isNaN(t))
+      .sort((a, b) => a - b);
+    if (temps.length === 0) return null;
+    const mid = Math.floor(temps.length / 2);
+    const median = temps.length % 2 !== 0 ? temps[mid] : (temps[mid - 1] + temps[mid]) / 2;
+    const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+    return {
+      count: temps.length,
+      median: Math.round(median * 10) / 10,
+      average: Math.round(avg * 10) / 10,
+      min: temps[0],
+      max: temps[temps.length - 1],
+    };
+  }, [outdoorRtlSensors]);
+
   // Auto-select first sensor (prefer Alakerta)
   useEffect(() => {
     if (!selectedSensor && unifiedSensors.length > 0) {
@@ -826,6 +846,11 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
 
         {/* 4. Ulkoilma */}
         <div
+          onClick={() => {
+            const s = unifiedSensors.find((x) => x.id === 'rtl433_outdoor_consensus') ||
+                      unifiedSensors.find((x) => x.badge?.includes('Ulko') || x.name.toLowerCase().includes('ulko'));
+            if (s) setSelectedSensor(s);
+          }}
           style={{
             background: 'linear-gradient(145deg, rgba(34, 197, 94, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)',
             border: '1px solid rgba(34, 197, 94, 0.3)',
@@ -836,6 +861,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             flexDirection: 'column',
             justifyContent: 'space-between',
             gap: 10,
+            cursor: 'pointer',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -846,7 +872,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                   Ulkolämpötila
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Panasonic VILP
+                  {outdoorRtlStats ? `433 MHz konsensus (${outdoorRtlStats.count} anturia)` : 'Panasonic VILP'}
                 </div>
               </div>
             </div>
@@ -861,33 +887,35 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                 border: '1px solid rgba(34, 197, 94, 0.3)',
               }}
             >
-              Panasonic VILP
+              {outdoorRtlStats ? `${outdoorRtlStats.count} anturia (mediaani)` : 'Panasonic VILP'}
             </span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
             <div>
               <span style={{ fontSize: '2rem', fontWeight: 800, color: '#4ade80', letterSpacing: '-0.02em' }}>
-                {panasonicOutsideTemp !== null ? `${panasonicOutsideTemp.toFixed(1)} °C` : (outsideDisplayTemp != null ? `${outsideDisplayTemp.toFixed(1)} °C` : '--')}
+                {outdoorRtlStats
+                  ? `${outdoorRtlStats.median > 0 ? `+${outdoorRtlStats.median.toFixed(1)}` : outdoorRtlStats.median.toFixed(1)} °C`
+                  : (panasonicOutsideTemp !== null ? `${panasonicOutsideTemp.toFixed(1)} °C` : (outsideDisplayTemp != null ? `${outsideDisplayTemp.toFixed(1)} °C` : '--'))}
               </span>
+              {outdoorRtlStats && (
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                  (ka: {outdoorRtlStats.average > 0 ? `+${outdoorRtlStats.average.toFixed(1)}` : outdoorRtlStats.average.toFixed(1)} °C)
+                </span>
+              )}
             </div>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-            <span>Lähde: WH-MXC12J9E8</span>
+            <span>
+              {outdoorRtlStats
+                ? `Min/Max: ${outdoorRtlStats.min.toFixed(1)}°C .. ${outdoorRtlStats.max.toFixed(1)}°C`
+                : 'Lähde: WH-MXC12J9E8'}
+            </span>
             <span style={{ color: panasonicOutsideTemp !== null ? '#4ade80' : 'var(--text-muted)' }}>
-              {panasonicOutsideTemp !== null ? '● Aktiivinen' : '○ Ei dataa'}
+              {panasonicOutsideTemp !== null ? `VILP: ${panasonicOutsideTemp.toFixed(1)} °C` : '○ Ei dataa'}
             </span>
           </div>
-
-          {outdoorRtlSensors.length > 0 && (
-            <div style={{ fontSize: 11, color: '#38bdf8', marginTop: 6, display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6 }}>
-              <span>433 MHz ulkoanturit ({outdoorRtlSensors.length} kpl):</span>
-              <strong style={{ color: '#38bdf8' }}>
-                {(outdoorRtlSensors.reduce((sum, d) => sum + (d.properties.temperature || 0), 0) / outdoorRtlSensors.length).toFixed(1)} °C
-              </strong>
-            </div>
-          )}
         </div>
 
         {/* 5. Isovarasto */}

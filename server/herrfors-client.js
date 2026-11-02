@@ -460,6 +460,10 @@ class HerrforsClient {
     const tapoPesukoneHistory = db.getTopicHistory('tapo/pesukone/power', effectiveFrom - 3600000, effectiveTo);
     const tapoKuivausrumpuHistory = db.getTopicHistory('tapo/kuivausrumpu/power', effectiveFrom - 3600000, effectiveTo);
 
+    // Local outdoor sensor history (preferred over Herrfors grid utility's weather station)
+    const outdoorRtlHistory = db.getTopicHistory('rtl433/outdoor/temperature', effectiveFrom - 3600000, effectiveTo);
+    const outdoorHpHistory = db.getTopicHistory('main/Outside_Temp', effectiveFrom - 3600000, effectiveTo);
+
     const saunaSessions = db.getSaunaSessionsInRange ? db.getSaunaSessionsInRange(effectiveFrom - 3600000, effectiveTo + 3600000) : [];
 
     const costSettings = db.getCostSettings();
@@ -492,6 +496,22 @@ class HerrforsClient {
         }
       }
       return 0;
+    };
+
+    const helperAvgTemp = (history, start, end) => {
+      if (!history || history.length === 0) return null;
+      const pts = history.filter(p => p.recorded_at >= start && p.recorded_at <= end && typeof p.value === 'number' && !isNaN(p.value));
+      if (pts.length > 0) {
+        return pts.reduce((s, p) => s + p.value, 0) / pts.length;
+      }
+      const prior = history.filter(p => p.recorded_at < start && typeof p.value === 'number' && !isNaN(p.value));
+      if (prior.length > 0) {
+        const latest = prior[prior.length - 1];
+        if (start - latest.recorded_at <= 30 * 60 * 1000) {
+          return latest.value;
+        }
+      }
+      return null;
     };
 
     const helperSaunaEnergy = (sessions, start, end) => {
@@ -567,6 +587,13 @@ class HerrforsClient {
       const transferCents = getTransferCents(slotStart);
       const fullPriceCentsKwh = priceWithVatCents + marginCents + transferCents;
 
+      // Prefer local 433 MHz outdoor consensus, fallback to VILP outdoor sensor, fallback to Herrfors weather station
+      const localSlotTemp = helperAvgTemp(outdoorRtlHistory, slotStart, slotEnd) ??
+                            helperAvgTemp(outdoorHpHistory, slotStart, slotEnd);
+      const slotTemp = localSlotTemp !== null
+        ? Number(localSlotTemp.toFixed(1))
+        : (h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null);
+
       if (isPending) {
         pendingReadingsCount++;
         series.push({
@@ -587,7 +614,7 @@ class HerrforsClient {
           sauna_power_kw: null,
           tapo_power_kw: null,
           other_power_kw: null,
-          temperature: h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null,
+          temperature: slotTemp,
         });
         continue;
       }
@@ -696,7 +723,7 @@ class HerrforsClient {
         sauna_power_kw: Number(((saunaKwh * 4)).toFixed(2)),
         tapo_power_kw: Number(((tapoKwh * 4)).toFixed(2)),
         other_power_kw: Number(((otherKwh * 4)).toFixed(2)),
-        temperature: h.temperature != null ? Number(Number(h.temperature).toFixed(1)) : null,
+        temperature: slotTemp,
       });
     }
 

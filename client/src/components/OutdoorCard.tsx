@@ -2,6 +2,7 @@ import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { useApc } from '../hooks/useApc';
+import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
 import { SegmentedControl } from './SegmentedControl';
 import { SetpointControl } from './SetpointControl';
 import type { TrendTopicTarget } from './VariableTrendModal';
@@ -106,6 +107,8 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
 
   const { send, pending, error, success } = useCommand();
   const { status: apcStatus, setDefrostCableOverride, saving: apcSaving } = useApc();
+  const { data: outdoorConsensusData } = useOutdoorConsensus();
+  const outdoorConsensus = outdoorConsensusData?.consensus;
 
   // Defrost cable live telemetry & APC status
   const defrostCableDevice = apcStatus?.devices?.find((d) => d.driver === 'defrost_cable') as DefrostCableStatus | undefined;
@@ -183,6 +186,12 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
             {outsidePipe !== null && (
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                 Ulkoputki: {outsidePipe.toFixed(1)} °C
+              </span>
+            )}
+            {outdoorConsensus?.temperature != null && (
+              <span style={{ fontSize: 11, color: '#38bdf8', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                🌲 Piha (433 MHz): {outdoorConsensus.temperature > 0 ? `+${outdoorConsensus.temperature}` : outdoorConsensus.temperature} °C
+                {outdoorConsensus.sensorCount ? ` (${outdoorConsensus.sensorCount} kpl)` : ''}
               </span>
             )}
           </div>

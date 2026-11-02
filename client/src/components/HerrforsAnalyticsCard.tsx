@@ -13,6 +13,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { apiFetch } from '../lib/api';
+import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
 import type {
   HerrforsStatus,
   HerrforsAnalyticsResponse,
@@ -38,6 +39,8 @@ interface HerrforsAnalyticsCardProps {
 export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCardProps) {
   const [status, setStatus] = useState<HerrforsStatus | null>(null);
   const [data, setData] = useState<HerrforsAnalyticsResponse | null>(null);
+  const { data: outdoorConsensusData } = useOutdoorConsensus();
+  const consensus = outdoorConsensusData?.consensus;
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [historyPreset, setHistoryPreset] = useState<HerrforsHistoryPreset>('7d');
@@ -740,23 +743,64 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
               </div>
             </div>
 
-            {/* Outdoor Temperature */}
-            {summary.avg_temp != null && (
+            {/* Outdoor Temperature (433 MHz Konsensus) */}
+            {(consensus?.median != null || consensus?.temperature != null || summary.avg_temp != null) && (
               <div style={{
                 background: 'rgba(52, 211, 153, 0.08)',
                 border: '1px solid rgba(52, 211, 153, 0.25)',
                 borderRadius: 12,
                 padding: 14,
               }}>
-                <div style={{ fontSize: 12, color: '#34d399', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>🌡️</span> Ulkolämpötila (Herrfors)
+                <div style={{ fontSize: 12, color: '#34d399', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>🌲</span> Ulkolämpötila (433 MHz)
+                  </div>
+                  {consensus?.sensorCount != null && consensus.sensorCount > 0 && (
+                    <span style={{
+                      fontSize: 10,
+                      padding: '2px 6px',
+                      borderRadius: 6,
+                      background: 'rgba(52, 211, 153, 0.2)',
+                      color: '#a7f3d0',
+                      fontWeight: 600,
+                    }}>
+                      {consensus.sensorCount} anturia
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {summary.avg_temp > 0 ? `+${summary.avg_temp}` : summary.avg_temp} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>°C</span>
+                  {historyPreset === 'today' && (consensus?.median != null || consensus?.temperature != null) ? (
+                    <>
+                      {(() => {
+                        const t = consensus.median ?? consensus.temperature!;
+                        return t > 0 ? `+${t}` : t;
+                      })()} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>°C</span>
+                      <span style={{ fontSize: 11, color: '#34d399', marginLeft: 6, fontWeight: 500 }}>
+                        (mediaani)
+                      </span>
+                    </>
+                  ) : summary.avg_temp != null ? (
+                    <>
+                      {summary.avg_temp > 0 ? `+${summary.avg_temp}` : summary.avg_temp} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>°C</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 6, fontWeight: 500 }}>
+                        (jakson ka)
+                      </span>
+                    </>
+                  ) : (
+                    '--'
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Min / Max:</span>
-                  <strong>{summary.min_temp}°C .. {summary.max_temp}°C</strong>
+                  <span>
+                    {historyPreset === 'today' && consensus?.average != null
+                      ? `Ka: ${consensus.average > 0 ? `+${consensus.average}` : consensus.average} °C`
+                      : 'Min / Max:'}
+                  </span>
+                  <strong>
+                    {summary.min_temp != null && summary.max_temp != null
+                      ? `${summary.min_temp}°C .. ${summary.max_temp}°C`
+                      : (consensus?.minTemp != null && consensus?.maxTemp != null ? `${consensus.minTemp}°C .. ${consensus.maxTemp}°C` : '')}
+                  </strong>
                 </div>
               </div>
             )}

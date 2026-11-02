@@ -253,12 +253,34 @@ function handleMessage(topic, rawPayload) {
       }
     }
 
-    // If flagged as outdoor sensor, mirror to rtl433/outdoor/*
+    // If flagged as outdoor sensor, compute and record consensus (median/average)
     if (dev.isOutdoor) {
-      const outdoorTopic = `rtl433/outdoor/${prop}`;
-      updateState(outdoorTopic, strVal);
       if (NUMERIC_PROPS.has(prop) && typeof val === 'number') {
-        maybeAppendHistory(outdoorTopic, val, HISTORY_INTERVAL_MS);
+        const allDevs = Object.values(deviceRegistry);
+        const outdoorDevs = allDevs.filter(
+          (d) => Boolean(d.isOutdoor) && !d.isIgnored && typeof d.properties?.[prop] === 'number'
+        );
+        const vals = outdoorDevs.map((d) => d.properties[prop]);
+        if (vals.length > 0) {
+          vals.sort((a, b) => a - b);
+          const mid = Math.floor(vals.length / 2);
+          const medianVal = vals.length % 2 !== 0 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+          const avgVal = vals.reduce((a, b) => a + b, 0) / vals.length;
+          const roundedMedian = prop === 'humidity' ? Math.round(medianVal) : Math.round(medianVal * 10) / 10;
+          const roundedAvg = prop === 'humidity' ? Math.round(avgVal) : Math.round(avgVal * 10) / 10;
+
+          // Main outdoor topic stores median
+          const outdoorTopic = `rtl433/outdoor/${prop}`;
+          updateState(outdoorTopic, String(roundedMedian));
+          maybeAppendHistory(outdoorTopic, roundedMedian, HISTORY_INTERVAL_MS);
+
+          // Additional median and average topics for analytics
+          updateState(`rtl433/outdoor/${prop}_median`, String(roundedMedian));
+          updateState(`rtl433/outdoor/${prop}_average`, String(roundedAvg));
+        }
+      } else {
+        const outdoorTopic = `rtl433/outdoor/${prop}`;
+        updateState(outdoorTopic, strVal);
       }
     }
   }

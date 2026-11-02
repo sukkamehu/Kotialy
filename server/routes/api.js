@@ -610,13 +610,42 @@ router.get('/outdoor/consensus', (req, res) => {
     .map((d) => d.properties.humidity)
     .filter((h) => typeof h === 'number');
 
-  const consensusTemp = outdoorTemps.length > 0
+  // Sorted temps for robust median calculation
+  const sortedTemps = [...outdoorTemps].sort((a, b) => a - b);
+  const mid = Math.floor(sortedTemps.length / 2);
+  const medianTemp = sortedTemps.length === 0
+    ? null
+    : sortedTemps.length % 2 !== 0
+      ? Math.round(sortedTemps[mid] * 10) / 10
+      : Math.round(((sortedTemps[mid - 1] + sortedTemps[mid]) / 2) * 10) / 10;
+
+  const avgTemp = outdoorTemps.length > 0
     ? Math.round((outdoorTemps.reduce((a, b) => a + b, 0) / outdoorTemps.length) * 10) / 10
     : null;
 
-  const consensusHumidity = outdoorHumids.length > 0
+  // Trimmed mean (exclude min and max if >= 4 sensors)
+  let trimmedAvgTemp = avgTemp;
+  if (sortedTemps.length >= 4) {
+    const trimmed = sortedTemps.slice(1, -1);
+    trimmedAvgTemp = Math.round((trimmed.reduce((a, b) => a + b, 0) / trimmed.length) * 10) / 10;
+  }
+
+  // Sorted humidity for median calculation
+  const sortedHumids = [...outdoorHumids].sort((a, b) => a - b);
+  const midH = Math.floor(sortedHumids.length / 2);
+  const medianHumidity = sortedHumids.length === 0
+    ? null
+    : sortedHumids.length % 2 !== 0
+      ? Math.round(sortedHumids[midH])
+      : Math.round((sortedHumids[midH - 1] + sortedHumids[midH]) / 2);
+
+  const avgHumidity = outdoorHumids.length > 0
     ? Math.round(outdoorHumids.reduce((a, b) => a + b, 0) / outdoorHumids.length)
     : null;
+
+  // Best consensus: median is preferred because it rejects sunlight/draft spikes
+  const consensusTemp = medianTemp !== null ? medianTemp : avgTemp;
+  const consensusHumidity = medianHumidity !== null ? medianHumidity : avgHumidity;
 
   const deltaToHeatpump = (consensusTemp !== null && hpTemp !== null)
     ? Math.round((consensusTemp - hpTemp) * 10) / 10
@@ -634,7 +663,12 @@ router.get('/outdoor/consensus', (req, res) => {
     candidateSensors,
     consensus: {
       temperature: consensusTemp,
+      median: medianTemp,
+      average: avgTemp,
+      trimmedAverage: trimmedAvgTemp,
       humidity: consensusHumidity,
+      medianHumidity,
+      averageHumidity: avgHumidity,
       sensorCount: outdoorSensors.length,
       deltaToHeatpump,
       minTemp: outdoorTemps.length ? Math.min(...outdoorTemps) : null,
