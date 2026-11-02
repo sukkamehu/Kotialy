@@ -16,7 +16,6 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
   const [heatTargetInput, setHeatTargetInput] = useState<string>('21.0');
   const [coolTargetInput, setCoolTargetInput] = useState<string>('23.0');
   const [isEditingSettings, setIsEditingSettings] = useState(false);
-  const [showRationale, setShowRationale] = useState(true);
 
   useEffect(() => {
     if (status?.settings && !isEditingSettings) {
@@ -561,53 +560,6 @@ export const MitsubishiCard: React.FC<MitsubishiCardProps> = ({ readOnly = false
             {status?.reason || 'Automaatio aktiivinen'}
           </div>
         </div>
-      </div>
-
-      {/* Engineering Rationale Box (Collapsible) */}
-      <div
-        style={{
-          background: 'rgba(15, 23, 42, 0.6)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: 12,
-          padding: '12px 16px',
-          marginBottom: 18,
-          fontSize: '0.82rem',
-          lineHeight: 1.5,
-          color: 'var(--text-secondary)',
-        }}
-      >
-        <div
-          onClick={() => setShowRationale(!showRationale)}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            cursor: 'pointer',
-            fontWeight: 600,
-            color: '#38bdf8',
-          }}
-        >
-          <span>💡 Miksi ILP ei lämmitä leudolla säällä?</span>
-          <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{showRationale ? 'Piilota ▲' : 'Näytä ▼'}</span>
-        </div>
-
-        {showRationale && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-            <p style={{ margin: '0 0 6px 0' }}>
-              <strong>Lattialämmityksen häiriytyminen:</strong> Vesikiertoisen lattialämmityksen (Panasonic 12 kW VILP)
-              hyötysuhde ja asumismukavuus perustuvat puukoolatun kipsilattian tasaiseen lämmönjakoon. Puukoolatussa kipsirakenteessa
-              lämpökapasiteetti on maltillinen: jos ILP puhaltaa huoneilman liian lämpimäksi leudolla säällä, huonetermostaatit
-              sulkeutuvat ja lattia viilenee nopeasti jalkojen alla epämiellyttäväksi. Samalla kiertovesivirtaus katkeaa ja VILP ajautuu
-              epätaloudelliseen katkokäyntiin (pätkäkäynti).
-            </p>
-            <p style={{ margin: 0 }}>
-              <strong>Kotiälyn Hybridi-strategia:</strong> ILP pidetään valmiustilassa ja käynnistetään lämmitykseen vain
-              kovilla pakkasilla (oletus &le; {settings?.frostAssistTemp ?? -12} °C), jolloin se toimii tehokkaana{' '}
-              <strong>vastussuojana</strong> estäen VILPin kalliiden 3–9 kW sähkövastusten kytkeytymisen. Lisäksi ILP toimii
-              kesällä tehokkaana viilentimenä ja talvella takkatulen kierrättäjänä ilman kompressoria.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Units Grid */}
