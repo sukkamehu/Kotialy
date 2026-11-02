@@ -87,6 +87,10 @@ export interface ApcSettings {
   indoor_feedback_enabled?: boolean;
   indoor_target_temp_c?: number;
   indoor_min_temp_c?: number;
+  compressor_exercise_enabled?: boolean;
+  compressor_exercise_interval_days?: number;
+  compressor_exercise_min_run_min?: number;
+  compressor_exercise_max_price_cents?: number;
 }
 
 export interface FloorPumpStatus {
@@ -246,4 +250,26 @@ export interface ApcLogEntry {
   dhw_temp: number | null;
   directive: ApcDirective;
   details: any;
+}
+
+export interface CompressorExerciseStatus {
+  phase: 'IDLE' | 'STARTING' | 'RUNNING' | 'COMPLETED' | 'CANCELLED';
+  isActive: boolean;
+  reason: string;
+  startedAt: number | null;
+  totalRunSeconds: number;
+  minRunMinutes: number;
+  compressorFreq: number;
+  currentDhwTemp: number | null;
+  targetDhwTemp: number | null;
+  currentPrice: number | null;
+  isManual: boolean;
+  settings: {
+    enabled: boolean;
+    interval_days: number;
+    min_run_minutes: number;
+    max_price_cents: number;
+    last_run_at: number;
+    days_since_last: number;
+  };
 }

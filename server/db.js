@@ -818,6 +818,10 @@ function getApcSettings() {
     mitsu_override_state: null,
     tuya_plug_override_until: 0,
     tuya_plug_override_state: null,
+    compressor_exercise_enabled: true,
+    compressor_exercise_interval_days: 30,
+    compressor_exercise_min_run_min: 15,
+    compressor_exercise_max_price_cents: 10.0,
   };
 
   for (const r of rows) {
@@ -825,6 +829,8 @@ function getApcSettings() {
       settings.enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'smart_sterilization_enabled') {
       settings.smart_sterilization_enabled = r.value === '1' || r.value === 'true';
+    } else if (r.key === 'compressor_exercise_enabled') {
+      settings.compressor_exercise_enabled = r.value === '1' || r.value === 'true';
     } else if (r.key === 'dhw_boost_on_cheap') {
       settings.dhw_boost_on_cheap = r.value === '1' || r.value === 'true';
     } else if (r.key === 'prevent_curve_shift_above_cutoff') {

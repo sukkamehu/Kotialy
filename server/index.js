@@ -21,6 +21,7 @@ const tuyaService = require('./devices/tuya-service');
 const outdoorLightsDriver = require('./devices/outdoor-lights-driver');
 const { driver: mitsubishiDriver } = require('./devices/mitsubishi-driver');
 const sterilizationService = require('./services/sterilization-service');
+const compressorExerciseService = require('./services/compressor-exercise-service');
 const { getFullState } = require('./db');
 const { enrichState } = require('./topics');
 
@@ -207,6 +208,9 @@ mitsubishiDriver.setWsBroadcast(wsBroadcast);
 
 // ─── Smart Sterilization Service (Legionella Protection) ───────────────────
 sterilizationService.init(wsBroadcast);
+
+// ─── Compressor Lubrication & Exercise Service (VILP Seisontavoitelu) ───────
+compressorExerciseService.init(wsBroadcast);
 
 // ─── Notification & Alert Engine ───────────────────────────────────────────
 const notificationService = require('./notification-service');

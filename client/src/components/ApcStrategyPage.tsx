@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApc } from '../hooks/useApc';
 import { apiFetch } from '../lib/api';
-import type { ApcMode } from '../types/apc';
+import type { ApcMode, CompressorExerciseStatus } from '../types/apc';
 import type { CostSettings } from '../types/costs';
 
 interface ApcStrategyPageProps {
@@ -132,6 +132,12 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [tuyaPlugMode, setTuyaPlugModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
   const [tuyaPlugMaxPrice, setTuyaPlugMaxPrice] = useState<string>('15.0');
   const [tuyaPlugOverrideDuration, setTuyaPlugOverrideDuration] = useState<number>(1);
+  const [compressorExerciseEnabled, setCompressorExerciseEnabled] = useState<boolean>(true);
+  const [compressorExerciseInterval, setCompressorExerciseInterval] = useState<string>('30');
+  const [compressorExerciseMinRun, setCompressorExerciseMinRun] = useState<string>('15');
+  const [compressorExerciseMaxPrice, setCompressorExerciseMaxPrice] = useState<string>('10.0');
+  const [compressorExerciseStatus, setCompressorExerciseStatus] = useState<CompressorExerciseStatus | null>(null);
+  const [exerciseActionLoading, setExerciseActionLoading] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Sähkösopimus & Siirtohinnat state
@@ -162,8 +168,61 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
     }
   };
 
+  const fetchCompressorExercise = async () => {
+    try {
+      const res = await apiFetch('/api/apc/compressor-exercise/status');
+      if (res.ok) {
+        const data = await res.json();
+        setCompressorExerciseStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch compressor exercise status:', err);
+    }
+  };
+
+  const handleStartExercise = async () => {
+    try {
+      setExerciseActionLoading(true);
+      const res = await apiFetch('/api/apc/compressor-exercise/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Käyttäjän käynnistämä voiteluajo (Kotiäly UI)' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCompressorExerciseStatus(data.status);
+      }
+    } catch (err) {
+      console.error('Failed to start compressor exercise:', err);
+    } finally {
+      setExerciseActionLoading(false);
+    }
+  };
+
+  const handleCancelExercise = async () => {
+    try {
+      setExerciseActionLoading(true);
+      const res = await apiFetch('/api/apc/compressor-exercise/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Käyttäjä keskeytti voiteluajon (Kotiäly UI)' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCompressorExerciseStatus(data.status);
+      }
+    } catch (err) {
+      console.error('Failed to cancel compressor exercise:', err);
+    } finally {
+      setExerciseActionLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchCostSettings();
+    fetchCompressorExercise();
+    const iv = setInterval(fetchCompressorExercise, 15000);
+    return () => clearInterval(iv);
   }, []);
 
   useEffect(() => {
@@ -211,6 +270,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setIndoorMinTemp(String(status.settings.indoor_min_temp_c ?? 20.5));
       setTuyaPlugModeState(status.settings.tuya_plug_mode ?? 'auto');
       setTuyaPlugMaxPrice(String(status.settings.tuya_plug_max_price_cents ?? 15.0));
+      setCompressorExerciseEnabled(status.settings.compressor_exercise_enabled !== false);
+      setCompressorExerciseInterval(String(status.settings.compressor_exercise_interval_days ?? 30));
+      setCompressorExerciseMinRun(String(status.settings.compressor_exercise_min_run_min ?? 15));
+      setCompressorExerciseMaxPrice(String(status.settings.compressor_exercise_max_price_cents ?? 10.0));
     }
   }, [status?.settings]);
 
@@ -315,6 +378,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       indoor_min_temp_c: parseFloat(indoorMinTemp) || 20.5,
       tuya_plug_mode: tuyaPlugMode,
       tuya_plug_max_price_cents: parseFloat(tuyaPlugMaxPrice) || 15.0,
+      compressor_exercise_enabled: Boolean(compressorExerciseEnabled),
+      compressor_exercise_interval_days: parseFloat(compressorExerciseInterval) || 30,
+      compressor_exercise_min_run_min: parseInt(compressorExerciseMinRun, 10) || 15,
+      compressor_exercise_max_price_cents: parseFloat(compressorExerciseMaxPrice) || 10.0,
     });
     if (ok) {
       setSaveSuccess(true);
@@ -1446,6 +1513,258 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                     />
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
                       Turvaraja: palauttaa peruspyynnin {smartCyclingMaxRun} min jälkeen
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Card: Kompressorin voitelu- ja öljynkiertosuoja (VILP Seisontavoitelu) */}
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🛡️</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Kompressorin voitelu & öljynkierto
+                  </span>
+                </div>
+                <span className="badge" style={{ fontSize: 10, padding: '2px 8px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                  Seisontavoitelu (VILP)
+                </span>
+              </div>
+
+              {/* Live Status Box */}
+              {(() => {
+                const ex = compressorExerciseStatus;
+                const isActive = ex?.isActive;
+                const daysSince = ex?.settings?.days_since_last ?? 0;
+                const interval = ex?.settings?.interval_days ?? 30;
+                const isOverdue = daysSince >= interval;
+                const totalSec = ex?.totalRunSeconds || 0;
+                const minRun = ex?.minRunMinutes || 15;
+                const lastRunDateStr = ex?.settings?.last_run_at
+                  ? new Date(ex.settings.last_run_at).toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+                  : '–';
+
+                return (
+                  <div style={{
+                    background: isActive ? 'rgba(245, 158, 11, 0.12)' : isOverdue ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                    border: isActive ? '1px solid rgba(245, 158, 11, 0.35)' : isOverdue ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)',
+                    borderRadius: 10,
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Kompressorin tila:
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: isActive ? '#f59e0b' : isOverdue ? '#ef4444' : '#10b981',
+                          boxShadow: isActive ? '0 0 8px #f59e0b' : 'none',
+                        }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#f59e0b' : isOverdue ? '#ef4444' : '#10b981' }}>
+                          {isActive
+                            ? `Voiteluajo käynnissä (${Math.floor(totalSec / 60)} / ${minRun} min)`
+                            : isOverdue
+                            ? `Seisontavoitelu tarpeen (Seisonta ${daysSince} pv)`
+                            : `Normaali (Käynyt ${daysSince} pv sitten)`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {ex?.reason || 'Automaattinen kompressorin öljynkierto ja seisontavoitelu'}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 4, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Viimeisin käynti:</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{lastRunDateStr}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Seisonta-aika:</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: isOverdue ? '#f87171' : '#34d399' }}>
+                          {daysSince} pv / raja {interval} pv
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Kompressorin taajuus:</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: (ex?.compressorFreq || 0) > 0 ? '#38bdf8' : 'var(--text-secondary)' }}>
+                          {ex?.compressorFreq ?? 0} Hz
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Pörssisähkö nyt:</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: (ex?.currentPrice ?? 99) <= 0 ? '#10b981' : 'var(--text-primary)' }}>
+                          {ex?.currentPrice != null ? `${ex.currentPrice.toFixed(2)} snt/kWh` : '–'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Manual Override Action Button */}
+                    <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
+                      {isActive ? (
+                        <button
+                          type="button"
+                          onClick={handleCancelExercise}
+                          disabled={readOnly || exerciseActionLoading}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#f87171',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ⏹️ Keskeytä voiteluajo
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStartExercise}
+                          disabled={readOnly || exerciseActionLoading}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: '1px solid rgba(245, 158, 11, 0.4)',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            color: '#fbbf24',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ⚙️ Pyöräytä käyntiin nyt (15 min testiajo)
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Rationale information */}
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5, background: 'rgba(255,255,255,0.02)', padding: '8px 10px', borderRadius: 8 }}>
+                💡 <em>Kylmäaineen mukana kiertävä kompressoriöljy valuu pitkien seisokkien (esim. kesähelteillä tai lomalla) aikana järjestelmän pohjalle, jolloin akselitiivisteet ja laakerit voivat kuivua. Noin kerran kuukaudessa ajettava lyhyt voiteluajo kierrättää öljyn takaisin kompressorille ja suojaa laitetta.</em>
+              </div>
+
+              {/* Settings Form */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={compressorExerciseEnabled}
+                  onChange={(e) => setCompressorExerciseEnabled(e.target.checked)}
+                  disabled={readOnly}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#f59e0b' }}
+                />
+                <span>
+                  <strong style={{ color: 'var(--text-primary)' }}>Automaattinen seisontavoitelu aktiivinen</strong>: Seuraa kompressorin seisonta-aikaa ja käynnistää VILP:n automaattisesti edullisella pörssisähkötunnilla, jos kompressori on seissyt vähintään asetetun intervallin ajan.
+                </span>
+              </label>
+
+              {compressorExerciseEnabled && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        Voiteluintervalli:
+                      </div>
+                      <input
+                        type="number"
+                        step="1"
+                        min="7"
+                        max="60"
+                        value={compressorExerciseInterval}
+                        onChange={(e) => setCompressorExerciseInterval(e.target.value)}
+                        disabled={readOnly}
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#fbbf24',
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      />
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Päivää (oletus 30 pv)
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        Vähimmäiskäynti:
+                      </div>
+                      <input
+                        type="number"
+                        step="1"
+                        min="5"
+                        max="30"
+                        value={compressorExerciseMinRun}
+                        onChange={(e) => setCompressorExerciseMinRun(e.target.value)}
+                        disabled={readOnly}
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#38bdf8',
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      />
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Minuuttia (oletus 15 min)
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        Sähkön hintaraja:
+                      </div>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="30"
+                        value={compressorExerciseMaxPrice}
+                        onChange={(e) => setCompressorExerciseMaxPrice(e.target.value)}
+                        disabled={readOnly}
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#10b981',
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      />
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                        snt/kWh (halvin tunti)
+                      </div>
                     </div>
                   </div>
                 </div>

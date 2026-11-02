@@ -309,12 +309,14 @@ class PanasonicDriver {
       }
     }
 
-    // Check if DHW Sterilization is actively running
+    // Check if DHW Sterilization or Compressor Exercise is actively running
     const sterilizationService = require('../services/sterilization-service');
     const isSterilizationActive = sterilizationService.getStatus()?.isActive;
+    const compressorExerciseService = require('../services/compressor-exercise-service');
+    const isExerciseActive = compressorExerciseService.getStatus()?.isActive;
 
-    if (isSterilizationActive) {
-      log('Sterilization is actively running: Inhibit APC DHW override');
+    if (isSterilizationActive || isExerciseActive) {
+      log('Sterilization or Compressor Exercise is actively running: Inhibit APC DHW override');
     } else {
       // 2. Apply DHW Target only if changed
       if (this.currentDhwTarget !== targetDhw) {

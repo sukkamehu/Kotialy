@@ -1342,6 +1342,44 @@ router.post(['/dhw/sterilization/settings', '/sterilization/settings'], requireA
   }
 });
 
+// ─── VILP Compressor Lubrication & Exercise Service Endpoints ───────────────
+
+/**
+ * GET /api/apc/compressor-exercise/status
+ */
+router.get('/apc/compressor-exercise/status', (req, res) => {
+  const compressorExerciseService = require('../services/compressor-exercise-service');
+  res.json(compressorExerciseService.getStatus());
+});
+
+/**
+ * POST /api/apc/compressor-exercise/start
+ */
+router.post('/apc/compressor-exercise/start', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const compressorExerciseService = require('../services/compressor-exercise-service');
+    const { reason = 'Käyttäjän manuaalinen käynnistys' } = req.body || {};
+    const status = await compressorExerciseService.startExercise(reason, true);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/apc/compressor-exercise/cancel
+ */
+router.post('/api/apc/compressor-exercise/cancel', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const compressorExerciseService = require('../services/compressor-exercise-service');
+    const { reason = 'Käyttäjä keskeytti voiteluajon' } = req.body || {};
+    const status = await compressorExerciseService.cancelExercise(reason);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Camera / RTSP Monitoring Routes ─────────────────────────────────────────
 
 /**
