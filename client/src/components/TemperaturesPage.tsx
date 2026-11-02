@@ -1185,23 +1185,6 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
               >
                 🛰️ Radio & SDR 433 MHz
               </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => onNavigateTab('heating')}
-                style={{
-                  fontSize: 12,
-                  borderRadius: 8,
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  color: '#38bdf8',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  padding: '5px 12px',
-                }}
-              >
-                Säädä pumppuja ⚙️
-              </button>
             </div>
           )}
         </div>
