@@ -377,3 +377,4 @@ class CompressorExerciseService {
 }
 
 module.exports = new CompressorExerciseService();
+

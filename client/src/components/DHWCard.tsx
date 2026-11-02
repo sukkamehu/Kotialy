@@ -174,15 +174,68 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
     ? new Date(sterStatus.settings.last_completed_at).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })
     : null;
 
+  // 3-way valve (PAW-3WYVLV4HW) state & flow
+  const valveVal = state['main/ThreeWay_Valve_State']?.value;
+  const isValveDHW = valveVal === '1';
+  const pumpFlow = numVal(state, 'main/Pump_Flow');
+  const compressorFreq = numVal(state, 'main/Compressor_Freq');
+
+  const cardBorder = isSterilization
+    ? 'rgba(236,72,153,0.6)'
+    : forceDHW
+    ? 'rgba(245,158,11,0.5)'
+    : isValveDHW
+    ? 'rgba(16, 185, 129, 0.55)'
+    : 'var(--border)';
+
+  const cardShadow = isSterilization
+    ? '0 0 24px rgba(236,72,153,0.2)'
+    : forceDHW
+    ? '0 0 20px rgba(245,158,11,0.15)'
+    : isValveDHW
+    ? '0 0 24px rgba(16, 185, 129, 0.22), inset 0 0 16px rgba(16, 185, 129, 0.04)'
+    : undefined;
+
+  const cardBg = isValveDHW && !isSterilization
+    ? 'linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%)'
+    : undefined;
+
   return (
     <div className="card" style={{
-      borderColor: isSterilization ? 'rgba(236,72,153,0.6)' : forceDHW ? 'rgba(245,158,11,0.4)' : 'var(--border)',
-      boxShadow: isSterilization ? '0 0 24px rgba(236,72,153,0.2)' : forceDHW ? '0 0 20px rgba(245,158,11,0.1)' : undefined,
+      borderColor: cardBorder,
+      boxShadow: cardShadow,
+      background: cardBg,
+      transition: 'border-color 0.4s ease, box-shadow 0.4s ease',
     }}>
       <div className="card-header">
         <span className="card-icon">🚿</span>
         <span className="card-title">Käyttövesivaraaja</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isValveDHW && !isSterilization && (
+            <div
+              className="badge badge-dhw"
+              style={{
+                fontSize: 10,
+                padding: '2px 8px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid rgba(16, 185, 129, 0.5)',
+                color: '#34d399',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: '#10b981',
+                boxShadow: '0 0 6px #10b981',
+              }} />
+              <span>💧 VILP-lataus {pumpFlow !== null && pumpFlow > 0 ? `(${pumpFlow.toFixed(1)} L/min)` : ''}</span>
+            </div>
+          )}
           {isSterilization && (
             <div className="badge" style={{
               background: 'linear-gradient(135deg, rgba(236,72,153,0.25), rgba(168,85,247,0.25))',
@@ -222,6 +275,28 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
         </div>
       </div>
       <div className="card-body">
+        {/* 3-Tieventtiilin aktiivinen latausbanneri */}
+        {isValveDHW && (
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: 8,
+            padding: '7px 10px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 11,
+          }}>
+            <span style={{ color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🔀</span> 3-Tieventtiili kääntynyt LKV-kierukalle (Lataus käynnissä)
+            </span>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+              {pumpFlow !== null && pumpFlow > 0 ? `${pumpFlow.toFixed(1)} L/min` : 'Virtaus aktiivinen'}
+              {compressorFreq !== null && compressorFreq > 0 ? ` · ${Math.round(compressorFreq)} Hz` : ''}
+            </span>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>
           <TankSvg temp={temp} target={target} onOpenTrend={onOpenTrend} />
           <div style={{ flex: 1 }}>

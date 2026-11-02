@@ -136,6 +136,13 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
 
   const cop = cons && cons > 0 && prod ? (prod / cons).toFixed(2) : null;
 
+  // 3-way valve (PAW-3WYVLV4HW) state & flow
+  const valveVal = state['main/ThreeWay_Valve_State']?.value;
+  const isValveDHW = valveVal === '1';
+  const isValveRoom = valveVal === '0';
+  const pumpFlow = numVal(state, 'main/Pump_Flow');
+  const compressorFreq = numVal(state, 'main/Compressor_Freq');
+
   const { send, pending, error, success } = useCommand();
   const { calcCostPerHour } = useElectricityPrice();
   const { status: apcStatus, updateSettings: updateApcSettings, setFloorPumpOverride } = useApc();
@@ -232,16 +239,77 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
 
   const directiveBadge = getDirectiveBadge();
 
+  const cardBorder = isValveRoom
+    ? (bufferTemp !== null && bufferTemp > 45 ? 'rgba(245,158,11,0.6)' : 'rgba(167,139,250,0.6)')
+    : isValveDHW
+    ? 'rgba(255, 255, 255, 0.08)'
+    : (bufferTemp !== null && bufferTemp > 45 ? 'rgba(245,158,11,0.25)' : 'rgba(167,139,250,0.2)');
+
+  const cardShadow = isValveRoom
+    ? (bufferTemp !== null && bufferTemp > 45
+        ? '0 0 24px rgba(245,158,11,0.22), inset 0 0 16px rgba(245,158,11,0.04)'
+        : '0 0 24px rgba(167,139,250,0.22), inset 0 0 16px rgba(167,139,250,0.04)')
+    : undefined;
+
+  const cardBg = isValveRoom
+    ? 'linear-gradient(180deg, rgba(167, 139, 250, 0.06) 0%, rgba(255, 255, 255, 0.015) 100%)'
+    : undefined;
+
   return (
     <div className="card" style={{
-      borderColor: bufferTemp !== null && bufferTemp > 45
-        ? 'rgba(245,158,11,0.25)'
-        : 'rgba(167,139,250,0.2)',
+      borderColor: cardBorder,
+      boxShadow: cardShadow,
+      background: cardBg,
+      transition: 'border-color 0.4s ease, box-shadow 0.4s ease',
     }}>
       <div className="card-header">
         <span className="card-icon">🗄️</span>
         <span className="card-title">Puskurivaraaja · 100L</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isValveRoom && (
+            <div
+              className="badge"
+              style={{
+                fontSize: 10,
+                padding: '2px 8px',
+                background: 'rgba(167, 139, 250, 0.2)',
+                border: '1px solid rgba(167, 139, 250, 0.5)',
+                color: '#c4b5fd',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: '#a78bfa',
+                boxShadow: '0 0 6px #a78bfa',
+              }} />
+              <span>🏠 VILP-virtaus puskuriin {pumpFlow !== null && pumpFlow > 0 ? `(${pumpFlow.toFixed(1)} L/min)` : ''}</span>
+            </div>
+          )}
+          {isValveDHW && (
+            <div
+              className="badge"
+              style={{
+                fontSize: 10,
+                padding: '2px 8px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: 'var(--text-muted)',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+              title="3-Tieventtiili ohjaa virtauksen käyttövesivaraajalle"
+            >
+              <span>🔀 Ohitettu (LKV-lataus)</span>
+            </div>
+          )}
           {bufferTemp !== null && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {bufferTemp > 45 ? '🔥 Lämmin' : bufferTemp > 35 ? '🌡 Haalea' : '❄️ Viileä'}
@@ -250,6 +318,47 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
         </div>
       </div>
       <div className="card-body">
+        {/* 3-Tieventtiilin virtausbanneri */}
+        {isValveRoom && (
+          <div style={{
+            background: 'rgba(167, 139, 250, 0.1)',
+            border: '1px solid rgba(167, 139, 250, 0.3)',
+            borderRadius: 8,
+            padding: '7px 10px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 11,
+          }}>
+            <span style={{ color: '#c4b5fd', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🔀</span> 3-Tieventtiili kääntynyt puskurivaraajalle (Lämmityspiiri)
+            </span>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+              {pumpFlow !== null && pumpFlow > 0 ? `${pumpFlow.toFixed(1)} L/min` : 'Virtaus aktiivinen'}
+              {compressorFreq !== null && compressorFreq > 0 ? ` · ${Math.round(compressorFreq)} Hz` : ''}
+            </span>
+          </div>
+        )}
+        {isValveDHW && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 8,
+            padding: '6px 10px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>ℹ️</span> VILP lataa käyttövettä (virtaus ohjautuu LKV-varaajan kierukalle)
+            </span>
+            <span style={{ fontSize: 10.5 }}>Puskurin suora syöttö tauolla</span>
+          </div>
+        )}
         {/* Main Buffer Temp + Svg */}
         <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 14 }}>
           <BufferSvg temp={bufferTemp} onOpenTrend={onOpenTrend} />

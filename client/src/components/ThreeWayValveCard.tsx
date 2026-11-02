@@ -56,7 +56,9 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
 
   return (
     <div className="card" style={{
-      borderColor: isDHW ? 'rgba(16,185,129,0.25)' : isRoom ? 'rgba(167,139,250,0.2)' : 'var(--border)',
+      borderColor: isDHW ? 'rgba(16,185,129,0.5)' : isRoom ? 'rgba(167,139,250,0.45)' : 'var(--border)',
+      boxShadow: isDHW ? '0 0 20px rgba(16, 185, 129, 0.15)' : isRoom ? '0 0 20px rgba(167, 139, 250, 0.15)' : undefined,
+      transition: 'border-color 0.4s ease, box-shadow 0.4s ease',
     }}>
       <div className="card-header">
         <span className="card-icon">🔀</span>
