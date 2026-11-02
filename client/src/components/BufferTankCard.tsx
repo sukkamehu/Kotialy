@@ -140,7 +140,6 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   const valveVal = state['main/ThreeWay_Valve_State']?.value;
   const isValveDHW = valveVal === '1';
   const isValveRoom = valveVal === '0';
-  const pumpFlow = numVal(state, 'main/Pump_Flow');
   const compressorFreq = numVal(state, 'main/Compressor_Freq');
 
   const { send, pending, error, success } = useCommand();
@@ -288,7 +287,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                 backgroundColor: '#a78bfa',
                 boxShadow: '0 0 6px #a78bfa',
               }} />
-              <span>🏠 VILP-virtaus puskuriin {pumpFlow !== null && pumpFlow > 0 ? `(${pumpFlow.toFixed(1)} L/min)` : ''}</span>
+              <span>🏠 VILP-virtaus puskuriin</span>
             </div>
           )}
           {isValveDHW && (
@@ -332,12 +331,13 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
             fontSize: 11,
           }}>
             <span style={{ color: '#c4b5fd', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>🔀</span> 3-Tieventtiili kääntynyt puskurivaraajalle (Lämmityspiiri)
+              <span>🔀</span> 3-Tieventtiili: Lämmityspiiri (Puskurivaraaja)
             </span>
-            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
-              {pumpFlow !== null && pumpFlow > 0 ? `${pumpFlow.toFixed(1)} L/min` : 'Virtaus aktiivinen'}
-              {compressorFreq !== null && compressorFreq > 0 ? ` · ${Math.round(compressorFreq)} Hz` : ''}
-            </span>
+            {compressorFreq !== null && compressorFreq > 0 && (
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                {Math.round(compressorFreq)} Hz
+              </span>
+            )}
           </div>
         )}
         {isValveDHW && (

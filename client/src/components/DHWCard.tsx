@@ -174,10 +174,9 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
     ? new Date(sterStatus.settings.last_completed_at).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })
     : null;
 
-  // 3-way valve (PAW-3WYVLV4HW) state & flow
+  // 3-way valve (PAW-3WYVLV4HW) state
   const valveVal = state['main/ThreeWay_Valve_State']?.value;
   const isValveDHW = valveVal === '1';
-  const pumpFlow = numVal(state, 'main/Pump_Flow');
   const compressorFreq = numVal(state, 'main/Compressor_Freq');
 
   const cardBorder = isSterilization
@@ -233,7 +232,7 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
                 backgroundColor: '#10b981',
                 boxShadow: '0 0 6px #10b981',
               }} />
-              <span>💧 VILP-lataus {pumpFlow !== null && pumpFlow > 0 ? `(${pumpFlow.toFixed(1)} L/min)` : ''}</span>
+              <span>💧 VILP-lataus</span>
             </div>
           )}
           {isSterilization && (
@@ -289,12 +288,13 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
             fontSize: 11,
           }}>
             <span style={{ color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>🔀</span> 3-Tieventtiili kääntynyt LKV-kierukalle (Lataus käynnissä)
+              <span>🔀</span> 3-Tieventtiili: LKV-lataus käynnissä
             </span>
-            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
-              {pumpFlow !== null && pumpFlow > 0 ? `${pumpFlow.toFixed(1)} L/min` : 'Virtaus aktiivinen'}
-              {compressorFreq !== null && compressorFreq > 0 ? ` · ${Math.round(compressorFreq)} Hz` : ''}
-            </span>
+            {compressorFreq !== null && compressorFreq > 0 && (
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                {Math.round(compressorFreq)} Hz
+              </span>
+            )}
           </div>
         )}
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 16 }}>

@@ -1,5 +1,4 @@
 import type { HeishamonState } from '../types/heishamon';
-import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
@@ -13,7 +12,6 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
   const valveState = state['main/ThreeWay_Valve_State'];
   const val = valveState?.value;
   const forceDHW = state['main/Force_DHW_State']?.value === '1';
-  const pumpFlow = numVal(state, 'main/Pump_Flow');
   const isRoom = val === '0';
   const isDHW = val === '1';
   // Only 0/1 are meaningful; anything else is an unknown state, not "heating".
@@ -205,8 +203,8 @@ export function ThreeWayValveCard({ state, onOpenTrend, readOnly = false }: Thre
                 marginBottom: 4,
               }}>
                 {isDHW
-                  ? `Käyttövesikierto ${pumpFlow !== null && pumpFlow >= 0.3 ? `(${pumpFlow.toFixed(1)} L/min)` : ''} ↗`
-                  : `Lämmityskierto ${pumpFlow !== null && pumpFlow >= 0.3 ? `(${pumpFlow.toFixed(1)} L/min)` : ''} ↗`}
+                  ? 'Käyttövesikierto ↗'
+                  : 'Lämmityskierto ↗'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {isDHW

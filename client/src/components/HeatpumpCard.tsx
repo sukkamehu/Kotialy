@@ -414,9 +414,9 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.35 }}>
             {isValveDHW
-              ? `Virtaus ohjautuu LKV-varaajan kierukalle ${flow !== null && flow >= 0.3 ? `(${flow.toFixed(1)} L/min)` : ''}`
+              ? 'Virtaus ohjautuu LKV-varaajan kierukalle'
               : isValveHeating
-              ? `Virtaus ohjautuu puskurivaraajalle & lattialämmitykseen ${flow !== null && flow >= 0.3 ? `(${flow.toFixed(1)} L/min)` : ''}`
+              ? 'Virtaus ohjautuu puskurivaraajalle & lattialämmitykseen'
               : 'Venttiilin asento ohjautuu automaattisesti käyttötilan mukaan.'}
           </div>
         </div>
