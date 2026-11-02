@@ -871,9 +871,6 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                 {panasonicOutsideTemp !== null ? `${panasonicOutsideTemp.toFixed(1)} °C` : (outsideDisplayTemp != null ? `${outsideDisplayTemp.toFixed(1)} °C` : '--')}
               </span>
             </div>
-            <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>
-              {panasonicOutsideTemp !== null ? '● Luotettava VILP' : ''}
-            </div>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
