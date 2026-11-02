@@ -390,13 +390,18 @@ const recentNumericReadings = new Map();
 function sanitizeSensorValue(topic, value) {
   if (value === null || value === undefined || value === '') return null;
 
+  const lower = topic.toLowerCase();
+  // Drop blacklisted/ignored devices located outside main property (e.g. Näytöllinen)
+  if (lower.includes('naytollinen') || lower.includes('näytöllinen')) {
+    return null;
+  }
+
   const numVal = parseFloat(value);
   if (isNaN(numVal) || !isFinite(numVal)) {
     // Non-numeric state (e.g. 'ON', 'OFF', 'IDLE', JSON strings, etc.)
     return { isNumeric: false, value: String(value) };
   }
 
-  const lower = topic.toLowerCase();
   let val = numVal;
 
   // 1. Relative Humidity (% RH) — strictly 0% to 100%
@@ -469,7 +474,7 @@ function sanitizeSensorValue(topic, value) {
       return { isNumeric: true, value: val };
     }
 
-    // 3e. Indoor room temperatures (Alakerta, Työhuone, Näytöllinen, Autotalli, Varasto, etc.)
+    // 3e. Indoor room temperatures (Alakerta, Työhuone, Autotalli, Varasto, etc.)
     // Handle Tuya unscaled deci-celsius (e.g. 215 -> 21.5)
     if (val > 100 && val <= 1000) {
       val = val / 10;

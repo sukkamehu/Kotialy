@@ -51,8 +51,6 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'tuya/isovarasto/humidity', label: '📦 Isovarasto kosteus', color: '#f59e0b', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
   { key: 'tuya/pikkuvarasto/temperature', label: '📦 Pikkuvarasto lämpö', color: '#f97316', unit: '°C', yAxisId: 'left', category: 'smartlife' },
   { key: 'tuya/pikkuvarasto/humidity', label: '📦 Pikkuvarasto kosteus', color: '#ea580c', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
-  { key: 'tuya/naytollinen/temperature', label: '📟 Näytöllinen anturi lämpö', color: '#ec4899', unit: '°C', yAxisId: 'left', category: 'smartlife' },
-  { key: 'tuya/naytollinen/humidity', label: '📟 Näytöllinen anturi kosteus', color: '#db2777', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
   { key: 'tuya/temperature_humidity_sensor/temperature', label: '🌡️ T&H lisäanturi lämpö', color: '#f43f5e', unit: '°C', yAxisId: 'left', category: 'smartlife' },
   { key: 'tuya/temperature_humidity_sensor/humidity', label: '🌡️ T&H lisäanturi kosteus', color: '#e11d48', unit: '%', yAxisId: 'right', dash: '2 2', category: 'smartlife' },
 

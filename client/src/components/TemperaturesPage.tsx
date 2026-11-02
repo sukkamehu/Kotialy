@@ -110,9 +110,6 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
     (d) => d.name.toLowerCase().includes('pikkuvarasto')
   );
   const autotalliSensor = climateSensors.find((d) => d.name.toLowerCase().includes('autotalli'));
-  const naytollinenSensor = climateSensors.find(
-    (d) => d.name.toLowerCase().includes('naytollinen') || d.name.toLowerCase().includes('sijoitus')
-  );
 
   // Build unified climate sensors list (Tuya + Mitsubishi ILP)
   const unifiedSensors = useMemo<UnifiedClimateSensor[]>(() => {
@@ -163,17 +160,17 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
       const lower = d.name.toLowerCase();
       // Skip redundant outdoor battery sensor entry if present (outdoor temp is measured by Panasonic VILP)
       if (lower.includes('ulko') || lower.includes('ulkolampotila')) continue;
+      // Skip ignored / external building devices
+      if (lower.includes('naytollinen') || lower.includes('sijoitus')) continue;
 
       const slug = cleanTopicName(d.name);
       const legacySlug = d.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-      const isApartment = lower.includes('naytollinen') || lower.includes('sijoitus');
       const isPikku = lower.includes('pikkuvarasto');
       const isIso = lower.includes('isovarasto');
       const isTyohuone = lower.includes('työhuone') || lower.includes('tyohuone');
 
       let badge = 'Zigbee';
-      if (isApartment) badge = 'Etäkohde';
-      else if (isPikku) badge = 'Pikkuvarasto';
+      if (isPikku) badge = 'Pikkuvarasto';
       else if (isIso) badge = 'Isovarasto';
       else if (lower.includes('sauna')) badge = 'Sauna';
       else if (lower.includes('autotalli')) badge = 'Autotalli';
@@ -1153,66 +1150,6 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             </div>
           </div>
         )}
-
-        {/* 8. Sijoitusasunto (Näytöllinen) */}
-        {naytollinenSensor && (
-          <div
-            style={{
-              background: 'linear-gradient(145deg, rgba(168, 85, 247, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)',
-              border: '1px solid rgba(168, 85, 247, 0.3)',
-              borderRadius: 16,
-              padding: '16px 18px',
-              boxShadow: '0 8px 24px rgba(168, 85, 247, 0.1)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              gap: 10,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 20 }}>🏢</span>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Sijoitusasunto
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    Näytöllinen mittari (etäkohde)
-                  </div>
-                </div>
-              </div>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 12,
-                  background: 'rgba(168, 85, 247, 0.2)',
-                  color: '#c084fc',
-                  border: '1px solid rgba(168, 85, 247, 0.3)',
-                }}
-              >
-                Etäkohde
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
-              <div>
-                <span style={{ fontSize: '2rem', fontWeight: 800, color: '#c084fc', letterSpacing: '-0.02em' }}>
-                  {naytollinenSensor.properties.temperature != null ? `${naytollinenSensor.properties.temperature} °C` : '--'}
-                </span>
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {naytollinenSensor.properties.humidity != null ? `💧 ${naytollinenSensor.properties.humidity} % RH` : ''}
-              </div>
-            </div>
-
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Paristo: {naytollinenSensor.properties.battery != null ? `${naytollinenSensor.properties.battery}%` : '--'}</span>
-              <span>{naytollinenSensor.online ? 'Online' : 'Offline'}</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Main Climate Sensors Grid & Interactive History Graph Card */}
@@ -1274,7 +1211,6 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
           {unifiedSensors.map((sensor) => {
             const isSelected = selectedSensor?.id === sensor.id;
             const isMitsu = sensor.source === 'mitsubishi';
-            const isApartment = sensor.name.toLowerCase().includes('naytollinen') || sensor.name.toLowerCase().includes('sijoitus');
 
             return (
               <div
@@ -1302,8 +1238,8 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                     <span style={{ fontWeight: 700, fontSize: 13.5, color: isSelected ? '#38bdf8' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
                       {isMitsu ? (sensor.id.includes('alakerta') ? '🛋️' : '🏠') : sensor.source === 'rtl433' ? '📻' : '🌡️'} {sensor.name}
                     </span>
-                    <span style={{ fontSize: 10, color: isMitsu ? '#38bdf8' : 'var(--text-muted)', fontStyle: isApartment ? 'italic' : 'normal' }}>
-                      {sensor.subtitle || sensor.badge || (isApartment ? 'Etäkohde / sijoitusasunto' : sensor.source === 'rtl433' ? '433 MHz RF' : 'Tuya Zigbee')}
+                    <span style={{ fontSize: 10, color: isMitsu ? '#38bdf8' : 'var(--text-muted)' }}>
+                      {sensor.subtitle || sensor.badge || (sensor.source === 'rtl433' ? '433 MHz RF' : 'Tuya Zigbee')}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

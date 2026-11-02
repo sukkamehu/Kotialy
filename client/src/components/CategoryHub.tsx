@@ -113,7 +113,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
     {
       id: 'temperatures' as CategoryId,
       title: 'Lämpömittarit & Sisäilma',
-      subtitle: 'Päärakennus, Ulkoilma, Varastot & Sijoitusasunto',
+      subtitle: 'Päärakennus, Ulkoilma & Varastot',
       icon: '🌡️',
       color: '#38bdf8',
       glow: 'rgba(56, 189, 248, 0.25)',

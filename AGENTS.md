@@ -128,7 +128,7 @@ Kaikki lämpömittarit on migroitu omalle paikalliselle MQTT/Zigbee2MQTT-palveli
   - `zigbee/Isovarasto/temperature` & `tuya/isovarasto/temperature` (**Isovarasto**) — Isovaraston lämpötila ja pakkassuojaus.
   - `zigbee/Autotalli/temperature` & `tuya/autotalli/temperature` (**Autotalli**) — Autotallin lämpötila.
   - `zigbee/Sauna/temperature` & `tuya/sauna/temperature` (**Sauna**) — Saunan löylytilan lämpötila ja kosteus.
-  - `tuya/naytollinen/temperature` (**Näytöllinen mittari**) — **Sijaitsee eri talossa (sijoitusasunnossa)**. Pidetään mukana UI:ssa/seurannassa, mutta **EI** edusta pääkiinteistön sisälämpötilaa.
+  - *`tuya/naytollinen/*` (**Näytöllinen mittari**) — **Poistettu platformilta**, sijaitsee eri rakennuksessa (sijoitusasunnossa).*
 
 
 

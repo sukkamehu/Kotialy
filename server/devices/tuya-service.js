@@ -168,6 +168,9 @@ class TuyaService {
       let saunaRelayStatus = null;
 
       for (const d of rawList) {
+        if (this.isIgnoredDevice(d.name) || this.isIgnoredDevice(d.product_name)) {
+          continue;
+        }
         const parsed = this.parseDevice(d);
         parsedDevices.push(parsed);
         this.devicesById.set(parsed.id, parsed);
@@ -399,14 +402,22 @@ class TuyaService {
   }
 
   /**
+   * Check if a device is ignored/excluded from Kotiäly platform (e.g. meter located in a different building).
+   */
+  isIgnoredDevice(name) {
+    if (!name) return false;
+    const clean = this.cleanTopicName(name);
+    return clean === 'naytollinen' || clean.includes('naytollinen') || clean.includes('sijoitus');
+  }
+
+  /**
    * Check if a climate sensor has been migrated to local Zigbee2MQTT (or VILP).
    * Stale Tuya Cloud readings for these sensors must never overwrite local state or DB.
    */
   isMigratedClimateSensor(name) {
     if (!name) return false;
+    if (this.isIgnoredDevice(name)) return true;
     const clean = this.cleanTopicName(name);
-    // The only active Tuya cloud climate device is the investment apartment display meter
-    if (clean === 'naytollinen') return false;
     const migrated = [
       'sauna',
       'alakerta',
@@ -427,6 +438,9 @@ class TuyaService {
    * Sync parsed device properties to SQLite DB
    */
   syncDeviceToDb(device) {
+    if (this.isIgnoredDevice(device.name)) {
+      return;
+    }
     // Never allow stale Tuya cloud climate telemetry to overwrite locally managed Zigbee sensors
     if (device.type === 'climate' && this.isMigratedClimateSensor(device.name)) {
       return;
@@ -1000,6 +1014,14 @@ class TuyaService {
 
     console.log('[TUYA] Initializing SmartLife / Tuya IoT service...');
 
+    // Purge ignored / blacklisted devices from database (e.g. Naytollinen anturi in other building)
+    try {
+      db.db.prepare("DELETE FROM sensor_state WHERE topic LIKE 'tuya/naytollinen/%' OR topic LIKE '%naytollinen%'").run();
+      db.db.prepare("DELETE FROM sensor_history WHERE topic LIKE 'tuya/naytollinen/%' OR topic LIKE '%naytollinen%'").run();
+    } catch (e) {
+      console.warn('[TUYA] Purge warning:', e.message);
+    }
+
     // Restore persistent timers and states from DB on startup
     try {
       const schedStartRow = db.getState('tuya/sauna/scheduled_start_at');
@@ -1271,8 +1293,12 @@ class TuyaService {
       }
     }
 
-    // Filter out old Ulkolämpötila climate device if any, because outdoor temp comes from Panasonic VILP
-    return this.devices.filter(d => !(d.type === 'climate' && (this.cleanTopicName(d.name).includes('ulko') || this.cleanTopicName(d.name) === 'temperature_humidity_sensor')));
+    // Filter out ignored devices and old Ulkolämpötila climate device if any, because outdoor temp comes from Panasonic VILP
+    return this.devices.filter(d => {
+      if (this.isIgnoredDevice(d.name)) return false;
+      if (d.type === 'climate' && (this.cleanTopicName(d.name).includes('ulko') || this.cleanTopicName(d.name) === 'temperature_humidity_sensor')) return false;
+      return true;
+    });
   }
 
   /**
