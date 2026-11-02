@@ -14,17 +14,49 @@ class SterilizationService {
     this.originalDhwTarget = 55;
     this.checkTimer = null;
     this.isManual = false;
+    this.lastNativeSterState = false;
+    this.nativeSterStartedAt = null;
   }
 
   init(wsBroadcast) {
     this.wsBroadcast = wsBroadcast;
 
+    // Check sensor_history to find the true latest completed sterilization run (e.g. Saturday early-morning runs)
+    let latestTs = 0;
+    try {
+      const historyRow = db.db.prepare(
+        "SELECT max(recorded_at) as max_ts FROM sensor_history WHERE topic = 'main/Sterilization_State' AND value = 1"
+      ).get();
+      if (historyRow?.max_ts) {
+        latestTs = historyRow.max_ts;
+      }
+    } catch {
+      // ignore
+    }
+
     // Restore last completed run from DB state
     const lastRunRow = db.getState('dhw/sterilization/last_completed_at');
-    if (!lastRunRow || !lastRunRow.value) {
-      // Default initial last run timestamp to 7 days ago if not set
+    const storedTs = lastRunRow && parseInt(lastRunRow.value) ? parseInt(lastRunRow.value) : 0;
+    if (latestTs > storedTs) {
+      db.updateState('dhw/sterilization/last_completed_at', String(latestTs));
+    } else if (!storedTs) {
       const initialTs = Date.now() - 7 * 24 * 3600 * 1000;
       db.updateState('dhw/sterilization/last_completed_at', String(initialTs));
+    }
+
+    // Clean up stale sterilization state if any
+    const curState = db.getState('dhw/sterilization/state');
+    if (curState && (curState.value === 'BOOSTING' || curState.value === 'PREHEATING' || curState.value === 'HOLDING')) {
+      const nativeActive = db.getState('main/Sterilization_State')?.value === '1';
+      if (!nativeActive) {
+        db.updateState('dhw/sterilization/state', 'IDLE');
+      }
+    }
+
+    const currentNativeState = db.getState('main/Sterilization_State')?.value === '1';
+    this.lastNativeSterState = currentNativeState;
+    if (currentNativeState) {
+      this.nativeSterStartedAt = Date.now();
     }
 
     // Start background watcher (checks every 30 seconds)
@@ -38,7 +70,23 @@ class SterilizationService {
   getSettings() {
     const apc = db.getApcSettings();
     const lastRunRow = db.getState('dhw/sterilization/last_completed_at');
-    const lastRun = lastRunRow && parseInt(lastRunRow.value) ? parseInt(lastRunRow.value) : (Date.now() - 7 * 24 * 3600 * 1000);
+    let lastRun = lastRunRow && parseInt(lastRunRow.value) ? parseInt(lastRunRow.value) : 0;
+
+    // Check sensor_history to ensure latest native sterilization run is respected
+    try {
+      const historyRow = db.db.prepare(
+        "SELECT max(recorded_at) as max_ts FROM sensor_history WHERE topic = 'main/Sterilization_State' AND value = 1"
+      ).get();
+      if (historyRow?.max_ts && historyRow.max_ts > lastRun) {
+        lastRun = historyRow.max_ts;
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!lastRun) {
+      lastRun = Date.now() - 7 * 24 * 3600 * 1000;
+    }
 
     return {
       enabled: apc.smart_sterilization_enabled !== false,
@@ -57,8 +105,13 @@ class SterilizationService {
     let holdRemainingSeconds = 0;
     let totalElapsedMinutes = 0;
 
+    const sterStateRow = db.getState('main/Sterilization_State');
+    const isNativeSterActive = sterStateRow?.value === '1';
+
     if (this.startedAt) {
       totalElapsedMinutes = Math.floor((now - this.startedAt) / 60000);
+    } else if (isNativeSterActive && this.nativeSterStartedAt) {
+      totalElapsedMinutes = Math.floor((now - this.nativeSterStartedAt) / 60000);
     }
 
     if (this.phase === 'HOLDING' && this.holdStartedAt) {
@@ -70,11 +123,20 @@ class SterilizationService {
     const currentDhwTempRow = db.getState('main/DHW_Temp');
     const currentDhwTemp = currentDhwTempRow && !isNaN(parseFloat(currentDhwTempRow.value)) ? parseFloat(currentDhwTempRow.value) : null;
 
+    const isActive = this.phase === 'PREHEATING' || this.phase === 'BOOSTING' || this.phase === 'HOLDING' || isNativeSterActive;
+    let phase = this.phase;
+    let reason = this.reason;
+
+    if (isNativeSterActive && this.phase === 'IDLE') {
+      phase = 'HOLDING';
+      reason = 'Panasonicin viikkosterilointi käynnissä (lauantai-aamuyö · tavoite 65 °C)';
+    }
+
     return {
-      phase: this.phase,
-      isActive: this.phase === 'PREHEATING' || this.phase === 'BOOSTING' || this.phase === 'HOLDING',
-      reason: this.reason,
-      startedAt: this.startedAt,
+      phase,
+      isActive,
+      reason,
+      startedAt: this.startedAt || this.nativeSterStartedAt,
       holdStartedAt: this.holdStartedAt,
       holdRemainingSeconds,
       totalElapsedMinutes,
@@ -198,6 +260,36 @@ class SterilizationService {
 
     const currentDhwRow = db.getState('main/DHW_Temp');
     const currentTemp = currentDhwRow && !isNaN(parseFloat(currentDhwRow.value)) ? parseFloat(currentDhwRow.value) : null;
+
+    // ─── Native Panasonic Sterilization State Tracking (e.g. Saturday early-morning schedule) ───
+    const sterStateRow = db.getState('main/Sterilization_State');
+    const isNativeSterActive = sterStateRow?.value === '1';
+
+    if (isNativeSterActive && !this.lastNativeSterState) {
+      console.log(`[STERILIZATION] 🧼 Panasonicin sisäinen sterilointiohjelma käynnissä (lauantai-aamuyö / ajastus). Vesi nyt: ${currentTemp}°C`);
+      this.nativeSterStartedAt = now;
+      this.lastNativeSterState = true;
+      this.broadcastStatus();
+    } else if (!isNativeSterActive && this.lastNativeSterState) {
+      console.log(`[STERILIZATION] ✨ Panasonicin sisäinen sterilointiohjelma päättyi! Päivitetään viimeisimmän steriloinnin aikaleima.`);
+      this.lastNativeSterState = false;
+      this.nativeSterStartedAt = null;
+      db.updateState('dhw/sterilization/last_completed_at', String(now));
+      db.updateState('dhw/sterilization/state', 'IDLE');
+      this.broadcastStatus();
+
+      notificationService.sendNotification({
+        title: '✨ Legionellasterilointi suoritettu',
+        body: `Käyttövesi kävi ${currentTemp ? currentTemp + '°C' : '65°C'} (Panasonic-viikkopuhdistus).`,
+        category: 'energy',
+        importance: 'normal',
+      }).catch(() => {});
+    }
+
+    // If native sterilization is actively running, inhibit any Kotiäly sequence
+    if (isNativeSterActive) {
+      return;
+    }
 
     // ─── 1. If actively running sterilization sequence ───
     if (this.phase === 'PREHEATING' || this.phase === 'BOOSTING' || this.phase === 'HOLDING') {

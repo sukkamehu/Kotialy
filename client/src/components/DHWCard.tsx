@@ -614,18 +614,18 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
             <span style={{
               fontSize: 10,
               fontWeight: 600,
-              color: daysSinceLastSter >= 7 ? '#f59e0b' : 'var(--text-muted)',
-              background: daysSinceLastSter >= 7 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-              border: `1px solid ${daysSinceLastSter >= 7 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
+              color: daysSinceLastSter >= 8 ? '#f59e0b' : '#10b981',
+              background: daysSinceLastSter >= 8 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+              border: `1px solid ${daysSinceLastSter >= 8 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.25)'}`,
               padding: '2px 6px',
               borderRadius: 6,
             }}>
-              {lastSterDateStr ? `Edellinen: ${lastSterDateStr} (${Math.floor(daysSinceLastSter)} pv)` : 'Ei suoritettu'}
+              {lastSterDateStr ? `Edellinen: ${lastSterDateStr} (${Math.floor(daysSinceLastSter)} pv sitten)` : 'Ei suoritettu'}
             </span>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
-            Kuumennus 65 °C asti (10 min pito). Käynnistyy automaattisesti negatiivisella pörssihinnalla (≥7 pv välein) tai säännöllisesti 14 pv välein halvimmalla tunnilla.
+            Kuumennus 65 °C asti (10 min pito). Säännöllinen viikkopuhdistus lauantaisin aamuyöllä (Panasonic) sekä älykäs pörssisähköoptimointi negatiivisilla hinnoilla (≥7 pv välein).
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -684,6 +684,11 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
                 >
                   {sterStatus.settings.enabled ? '● Päällä' : '○ Pois'}
                 </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                <span>Säännöllinen viikkoajo:</span>
+                <span style={{ color: '#10b981', fontWeight: 600 }}>Lauantaisin aamuyöllä (Panasonic)</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
