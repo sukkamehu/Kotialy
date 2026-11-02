@@ -7,28 +7,32 @@
  *  - 24/7 circulation causes large standby thermal losses from the 284 L DHW cylinder into building structures.
  *
  * Intelligent Features:
- *  1. Night Standby / Sleep (Yölepo klo 23:00–06:00):
+ *  1. VILP DHW Heating Interlock (Latausinterlock):
+ *     - When Panasonic heat pump is heating DHW (3-way valve = 1), pauses circulation to prevent
+ *       stirring up the stratified water layers and to allow the cylinder to reach target fast,
+ *       returning heat pump quickly to heating the house floor buffer tank.
+ *  2. Post-DHW Prime Flush (Jälkilataushuuhtelu):
+ *     - Immediately when VILP DHW charging completes, runs a 3-minute flush to prime the upstairs
+ *       piping with freshly produced hot water.
+ *  3. Sauna Comfort Synchronization (Saunasynkronointi):
+ *     - When the sauna breaker / switch is ON, residents are bathing; keeps circulation active for instant hot water.
+ *  4. Heating Buffer Low Protection (Puskurivaraajan suojaus):
+ *     - Pauses circulation if floor heating buffer drops below threshold (< 28 °C).
+ *  5. Night Standby / Sleep (Yölepo klo 23:00–06:00):
  *     - Circulation is turned OFF when residents are asleep.
- *     - Prevents nocturnal DHW cylinder cooling and unnecessary pump wear.
- *  2. Duty-Cycle Pulse Circulation during active hours (Syklinen kierto, esim. 10 min ON / 15 min OFF):
- *     - Insulated hot water pipes retain heat for 15–20 minutes.
- *     - Intermittent pulsing cuts standby thermal loss & power consumption by ~60%
+ *  6. Duty-Cycle Pulse Circulation during active hours (Syklinen kierto, 4 min ON / 20 min OFF):
+ *     - Insulated hot water pipes retain heat for 20+ minutes.
+ *     - Intermittent pulsing cuts standby thermal loss & power consumption by ~70%
  *       while upstairs taps deliver warm water immediately without running cold water to drain.
- *  3. DHW Cylinder Temperature Protection (Varaajan suojaus):
- *     - If DHW temperature drops below safety threshold (< 40 °C) or during heat pump charge,
- *       pauses circulation to allow the cylinder to recover quickly.
- *  4. Nord Pool Spot Price Optimization (SETBACK-tunnit):
+ *  7. DHW Cylinder Temperature Protection (Varaajan suojaus):
+ *     - If DHW temperature drops below safety threshold (< 40 °C), pauses circulation.
+ *  8. Nord Pool Spot Price Optimization (SETBACK-tunnit):
  *     - During peak electricity price hours, pauses circulation to conserve stored hot water.
- *  5. Legionella Disinfection & Anti-Seize Exercise:
+ *  9. Legionella Disinfection & Anti-Seize Exercise:
  *     - Ensures hot water flushes through upstairs circulation during periodic sterilization cycles,
  *       plus runs a daily anti-seize exercise pulse (13:00–13:05).
- *  6. Quick Shower Boost (Pikaboost):
- *     - Instant 15 min, 30 min, 1h, 2h manual override from dashboard when taking a shower
- *       outside active hours.
- *  7. Constant Modes:
- *     - 'auto': Full smart intelligence
- *     - 'constant_on': 24/7 continuous circulation (matches legacy 230V direct wiring)
- *     - 'constant_off': Vacation / off
+ *  10. Quick Shower Boost (Pikaboost):
+ *     - Instant 15 min, 30 min, 1h, 2h manual override from dashboard.
  */
 
 const db = require('../db');
@@ -71,6 +75,8 @@ class UpstairsPumpDriver {
     this.lastAppliedAt = 0;
     this.currentReason = 'Alustetaan LKV-kiertovesipumpun ohjainta...';
     this.isAntiSeizeRunning = false;
+    this.lastThreeWayValve = null;
+    this.postDhwPrimeUntil = 0;
   }
 
   /**
@@ -104,7 +110,7 @@ class UpstairsPumpDriver {
   /**
    * Evaluate and apply LKV circulation pump strategy during APC evaluation loop
    * @param {string} directive - BOOST | NORMAL | SETBACK | ECO | DHW_CYCLE
-   * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, isDhwSlot }
+   * @param {object} context - { settings, price, outdoorTemp, bufferTemp, dhwTemp, isDhwSlot, threeWayValve }
    */
   async applyDirective(directive, context) {
     const { settings, outdoorTemp, bufferTemp, dhwTemp, isDhwSlot } = context;
@@ -124,17 +130,52 @@ class UpstairsPumpDriver {
 
     const nightStart = settings.dhw_pump_night_start != null ? Number(settings.dhw_pump_night_start) : 23;
     const nightEnd = settings.dhw_pump_night_end != null ? Number(settings.dhw_pump_night_end) : 6;
-    const cycleOnMin = settings.dhw_pump_cycle_on_minutes != null ? Math.max(1, Number(settings.dhw_pump_cycle_on_minutes)) : 10;
-    const cycleOffMin = settings.dhw_pump_cycle_off_minutes != null ? Math.max(1, Number(settings.dhw_pump_cycle_off_minutes)) : 15;
+    const cycleOnMin = settings.dhw_pump_cycle_on_minutes != null ? Math.max(1, Number(settings.dhw_pump_cycle_on_minutes)) : 4;
+    const cycleOffMin = settings.dhw_pump_cycle_off_minutes != null ? Math.max(1, Number(settings.dhw_pump_cycle_off_minutes)) : 20;
     const minTankTemp = settings.dhw_pump_min_tank_temp != null ? Number(settings.dhw_pump_min_tank_temp) : 40.0;
     const antiSeizeEnabled = settings.dhw_pump_anti_seize_enabled !== false;
     const priceSetbackEnabled = settings.dhw_pump_price_setback_enabled !== false;
     const weekendContinuous = settings.dhw_pump_weekend_continuous !== false && settings.upstairs_pump_weekend_continuous !== false;
 
+    // Advanced features configuration
+    const dhwPauseEnabled = settings.dhw_pump_dhw_pause_enabled !== false && settings.upstairs_pump_dhw_pause_enabled !== false;
+    const postDhwPrimeEnabled = settings.dhw_pump_post_dhw_prime_enabled !== false && settings.upstairs_pump_post_dhw_prime_enabled !== false;
+    const saunaSyncEnabled = settings.dhw_pump_sauna_sync_enabled !== false && settings.upstairs_pump_sauna_sync_enabled !== false;
+    const bufferProtectEnabled = settings.dhw_pump_buffer_protect_enabled !== false && settings.upstairs_pump_buffer_protect_enabled !== false;
+    const bufferProtectTemp = settings.dhw_pump_buffer_protect_temp != null
+      ? Number(settings.dhw_pump_buffer_protect_temp)
+      : (settings.upstairs_pump_buffer_protect_temp != null ? Number(settings.upstairs_pump_buffer_protect_temp) : 28.0);
+
     // Read current DHW temperature
     const currentDhwTemp = dhwTemp != null
       ? dhwTemp
       : (fullState['main/DHW_Temp']?.value ? parseFloat(fullState['main/DHW_Temp'].value) : null);
+
+    // Read current buffer tank temperature
+    const currentBufferTemp = bufferTemp != null
+      ? bufferTemp
+      : (fullState['main/Buffer_Temp']?.value ? parseFloat(fullState['main/Buffer_Temp'].value) : null);
+
+    // Read 3-way valve state (0 = Room / Floor heating, 1 = DHW domestic hot water)
+    const rawValve = context.threeWayValve !== undefined
+      ? context.threeWayValve
+      : fullState['main/ThreeWay_Valve_State']?.value;
+    const currentValve = rawValve !== undefined && rawValve !== null ? parseInt(rawValve, 10) : 0;
+    const isDhwCharging = currentValve === 1;
+
+    // Track 3-way valve transition for Post-DHW Prime flush
+    if (this.lastThreeWayValve === 1 && currentValve === 0) {
+      if (postDhwPrimeEnabled) {
+        this.postDhwPrimeUntil = now + 3 * 60 * 1000; // 3 min flush
+        log('VILP DHW charging completed: 3-minute post-DHW prime flush activated');
+      }
+    }
+    this.lastThreeWayValve = currentValve;
+
+    // Read Sauna breaker state
+    const saunaSwitch = fullState['tuya/sauna/switch']?.value;
+    const saunaState = fullState['tuya/sauna/state']?.value;
+    const isSaunaActive = saunaSwitch === '1' || saunaSwitch === 'true' || saunaState === 'true' || saunaState === '1';
 
     // Read sterilization state
     const sterState = fullState['dhw/sterilization/state']?.value;
@@ -178,32 +219,57 @@ class UpstairsPumpDriver {
       // B. Legionella / Sterilization cycle active: run circulation to sanitize upstairs loop
       else if (isSterilizationActive) {
         targetState = 'ON';
-        reason = 'Legionellatorjunta: LKV-kierto päällä yläkerran putkiston desinfioimiseksi';
+        reason = 'Legionellatorjunta: LKV-kierto päällä yläkerran putkiston desinfioimiseksi (65 °C)';
       }
-      // C. DHW Cylinder Temperature Safety Protection
+      // C. VILP DHW Heating Interlock
+      // Pause circulation while VILP heats DHW cylinder so water layers stay calm and floor heating resumes faster
+      else if (dhwPauseEnabled && isDhwCharging) {
+        targetState = 'OFF';
+        reason = 'VILP LKV-latausinterlock: Kierto tauolla varaajan kerrostuman säilyttämiseksi ja talon lämmityksen nopeuttamiseksi (3-tieventtiili = LKV)';
+      }
+      // D. Post-DHW Prime Flush
+      // Once VILP finishes DHW heating, flush freshly produced hot water through upstairs piping for 3 minutes
+      else if (postDhwPrimeEnabled && this.postDhwPrimeUntil > now) {
+        targetState = 'ON';
+        const primeSecLeft = Math.max(1, Math.ceil((this.postDhwPrimeUntil - now) / 1000));
+        reason = `Jälkilataushuuhtelu: VILP LKV-lataus päättynyt, huuhdellaan uusi kuuma vesi yläkertaan (${primeSecLeft}s jäljellä)`;
+      }
+      // E. DHW Cylinder Temperature Safety Protection
       // If DHW tank is below min temperature (e.g. < 40 °C), pause circulation so tank can recover
       else if (currentDhwTemp != null && currentDhwTemp < minTankTemp) {
         targetState = 'OFF';
         reason = `Varaajan suojaus: Käyttövesi liian viileää (${currentDhwTemp.toFixed(1)} °C < ${minTankTemp.toFixed(1)} °C) · Kierto tauolla varaajan lataamiseksi`;
       }
-      // D. Night Sleep / Standby Mode (Yölepo)
+      // F. Heating Buffer Tank Low Protection
+      // If house floor heating buffer is depleted (< 28 °C), pause circulation to prioritize house comfort
+      else if (bufferProtectEnabled && currentBufferTemp != null && currentBufferTemp < bufferProtectTemp) {
+        targetState = 'OFF';
+        reason = `Puskurin suojaus: Lämmitysvesi liian viileää (${currentBufferTemp.toFixed(1)} °C < ${bufferProtectTemp.toFixed(1)} °C) · Kierto tauolla lattialämmityksen elpymiseksi`;
+      }
+      // G. Sauna Comfort Synchronization
+      // When sauna is powered on, residents are bathing; keep circulation active for hot water comfort
+      else if (saunaSyncEnabled && isSaunaActive) {
+        targetState = 'ON';
+        reason = 'Saunasynkronointi: Kiukaan kytkin päällä · Jatkuva LKV-kierto saunojien mukavuuden varmistamiseksi';
+      }
+      // H. Night Sleep / Standby Mode (Yölepo)
       else if (isNight) {
         targetState = 'OFF';
         const startStr = String(nightStart).padStart(2, '0') + ':00';
         const endStr = String(nightEnd).padStart(2, '0') + ':00';
         reason = `Yölepo (${startStr}–${endStr}) · LKV-kierto pysäytetty lämpöhäviöiden estämiseksi`;
       }
-      // E. Viikonloppupäivisin aina päällä (Weekend daytime continuous circulation)
+      // I. Viikonloppupäivisin aina päällä (Weekend daytime continuous circulation)
       else if (isWeekend && weekendContinuous) {
         targetState = 'ON';
         reason = 'Viikonloppu: Jatkuva LKV-kierto päällä viikonloppupäivisin (Aina lämmintä vettä)';
       }
-      // F. Peak Electricity Price Setback (Hintahuippu / SETBACK arkipäivisin)
+      // J. Peak Electricity Price Setback (Hintahuippu / SETBACK arkipäivisin)
       else if (directive === 'SETBACK' && priceSetbackEnabled) {
         targetState = 'OFF';
         reason = 'Hintapiikkisäästö (SETBACK): LKV-kierto tauolla kalliin pörssisähkön aikana';
       }
-      // G. Weekday Daytime Active Comfort Windows with Intelligent Duty-Cycle Pulsing
+      // K. Weekday Daytime Active Comfort Windows with Intelligent Duty-Cycle Pulsing
       else {
         // Calculate deterministic duty-cycle phase based on current time
         const periodMs = (cycleOnMin + cycleOffMin) * 60 * 1000;
@@ -249,6 +315,9 @@ class UpstairsPumpDriver {
             mode,
             targetState,
             currentDhwTemp,
+            currentBufferTemp,
+            isDhwCharging,
+            isSaunaActive,
             override: isOverrideActive,
             antiSeize: antiSeizeActive,
           },
@@ -265,6 +334,9 @@ class UpstairsPumpDriver {
       mode,
       reason,
       dhwTemp: currentDhwTemp,
+      bufferTemp: currentBufferTemp,
+      isDhwCharging,
+      isSaunaActive,
       isOverrideActive,
       antiSeizeActive,
     };
@@ -331,12 +403,30 @@ class UpstairsPumpDriver {
     const isOverrideActive = overrideUntil > now && overrideState != null;
 
     const currentDhwTemp = fullState['main/DHW_Temp']?.value ? parseFloat(fullState['main/DHW_Temp'].value) : null;
+    const currentBufferTemp = fullState['main/Buffer_Temp']?.value ? parseFloat(fullState['main/Buffer_Temp'].value) : null;
+    const rawValve = fullState['main/ThreeWay_Valve_State']?.value;
+    const currentValve = rawValve !== undefined && rawValve !== null ? parseInt(rawValve, 10) : 0;
+    const isDhwCharging = currentValve === 1;
+
+    const saunaSwitch = fullState['tuya/sauna/switch']?.value;
+    const saunaState = fullState['tuya/sauna/state']?.value;
+    const isSaunaActive = saunaSwitch === '1' || saunaSwitch === 'true' || saunaState === 'true' || saunaState === '1';
+
     const dev = tuyaService.devicesById?.get(this.deviceId) || tuyaService.devices?.find(d => d.id === this.deviceId || (d.name && d.name.toLowerCase().includes('kiertovesipumppu')));
 
-    const cycleOnMin = settings.dhw_pump_cycle_on_minutes != null ? Number(settings.dhw_pump_cycle_on_minutes) : 10;
-    const cycleOffMin = settings.dhw_pump_cycle_off_minutes != null ? Number(settings.dhw_pump_cycle_off_minutes) : 15;
+    const cycleOnMin = settings.dhw_pump_cycle_on_minutes != null ? Number(settings.dhw_pump_cycle_on_minutes) : 4;
+    const cycleOffMin = settings.dhw_pump_cycle_off_minutes != null ? Number(settings.dhw_pump_cycle_off_minutes) : 20;
     const nightStart = settings.dhw_pump_night_start != null ? Number(settings.dhw_pump_night_start) : 23;
     const nightEnd = settings.dhw_pump_night_end != null ? Number(settings.dhw_pump_night_end) : 6;
+    const minTankTemp = settings.dhw_pump_min_tank_temp != null ? Number(settings.dhw_pump_min_tank_temp) : 40.0;
+    const bufferProtectTemp = settings.dhw_pump_buffer_protect_temp != null
+      ? Number(settings.dhw_pump_buffer_protect_temp)
+      : (settings.upstairs_pump_buffer_protect_temp != null ? Number(settings.upstairs_pump_buffer_protect_temp) : 28.0);
+
+    const dhwPauseEnabled = settings.dhw_pump_dhw_pause_enabled !== false && settings.upstairs_pump_dhw_pause_enabled !== false;
+    const postDhwPrimeEnabled = settings.dhw_pump_post_dhw_prime_enabled !== false && settings.upstairs_pump_post_dhw_prime_enabled !== false;
+    const saunaSyncEnabled = settings.dhw_pump_sauna_sync_enabled !== false && settings.upstairs_pump_sauna_sync_enabled !== false;
+    const bufferProtectEnabled = settings.dhw_pump_buffer_protect_enabled !== false && settings.upstairs_pump_buffer_protect_enabled !== false;
 
     const { hours, isWeekend } = getHelsinkiTime(new Date(now));
     const isNight = nightStart > nightEnd
@@ -377,7 +467,8 @@ class UpstairsPumpDriver {
       antiSeizeActive: this.isAntiSeizeRunning,
       lastAppliedAt: this.lastAppliedAt,
       dhwTemp: currentDhwTemp,
-      minTankTemp: settings.dhw_pump_min_tank_temp != null ? Number(settings.dhw_pump_min_tank_temp) : 40.0,
+      bufferTemp: currentBufferTemp,
+      minTankTemp,
       nightStart,
       nightEnd,
       cycleOnMinutes: cycleOnMin,
@@ -386,6 +477,15 @@ class UpstairsPumpDriver {
       priceSetbackEnabled: settings.dhw_pump_price_setback_enabled !== false,
       weekendContinuous,
       isWeekend,
+      isDhwCharging,
+      isSaunaActive,
+      dhwPauseEnabled,
+      postDhwPrimeEnabled,
+      saunaSyncEnabled,
+      bufferProtectEnabled,
+      bufferProtectTemp,
+      postDhwPrimeActive: this.postDhwPrimeUntil > now,
+      postDhwPrimeSecondsRemaining: this.postDhwPrimeUntil > now ? Math.max(0, Math.ceil((this.postDhwPrimeUntil - now) / 1000)) : 0,
       deviceId: settings.dhw_pump_device_id || settings.upstairs_pump_device_id || this.deviceId,
     };
   }

@@ -1057,29 +1057,29 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
           </p>
         </div>
 
-        {/* Card 2: LKV-kierukan ja puskurin yhteys */}
+        {/* Card 2: 3-tieventtiilin toiminta ja LKV-interlock */}
         <div className="card" style={{ padding: '18px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <span style={{ fontSize: 20 }}>💧</span>
+            <span style={{ fontSize: 20 }}>🔀</span>
             <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-              LKV-kierukan paluuvirtaus puskuriin (Lämpöakku)
+              3-tieventtiili: LKV vs. Lattialämmityksen puskuri
             </h4>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-            Käyttövesivaraajan (284L) latauskierukan paluuputki yhdistyy puskurivaraajan tulolinjaan. Kun VILP lämmittää käyttövettä 50–55 °C lämpötilaan, kierukasta poistuva vesi luovuttaa ylijäämälämpönsä puskurivaraajaan. Tämä lämpö siirtyy lattialämmitykseen, mikä tehostaa pörssisähkön halpatuntilatausta.
+            Panasonic VILP:n moottoroitu 3-tieventtiili ohjaa lämmityksen virtausta: käyttövesitilassa 100 % virtaa 284 L varaajan kierukkaan ja lämmitystilassa 100 L puskurivaraajaan. LKV-latauksen aikana puskurivaraaja ei vastaanota lämpöä. Uusi LKV-interlock rauhoittaa hanakierron latauksen ajaksi, mikä nopeuttaa tavoitelämmön saavuttamista ja palauttaa lämmityksen nopeasti takaisin lattioille.
           </p>
         </div>
 
-        {/* Card 3: LKV-kierto Grundfos Comfort */}
+        {/* Card 3: Älykäs LKV-kierto */}
         <div className="card" style={{ padding: '18px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <span style={{ fontSize: 20 }}>🔁</span>
             <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-              Käyttöveden mukavuuskierto (LKV-kierto)
+              Älykäs LKV-kierto (Tuya + APC-interlock)
             </h4>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-            Varaajan päällä sijaitseva pieni Grundfos COMFORT PM -pumppu kierrättää valmista lämmintä käyttövettä erillisessä hanakierrossa yläkertaan. Se takaa välittömän lämpimän veden suihkuihin ilman pitkää odotusaikaa ja toimii itsenäisesti lämmitysverkostosta erillään.
+            Grundfos COMFORT PM -pumppu kierrättää lämmintä käyttövettä yläkertaan. Älykäs ohjaus optimoi pulssit (4 min ON / 20 min OFF), lepuuttaa öisin, käynnistää 3 minuutin huuhtelun VILP-latauksen valmistuttua, synkronoi toiminnan saunan kiukaan kanssa ja suojaa varaajan sekä puskurin kerrostumaa.
           </p>
         </div>
       </div>

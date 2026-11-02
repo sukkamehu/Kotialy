@@ -109,12 +109,17 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [upstairsPumpMode, setUpstairsPumpModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
   const [lkvNightStart, setLkvNightStart] = useState<string>('23');
   const [lkvNightEnd, setLkvNightEnd] = useState<string>('6');
-  const [lkvCycleOn, setLkvCycleOn] = useState<string>('10');
-  const [lkvCycleOff, setLkvCycleOff] = useState<string>('15');
+  const [lkvCycleOn, setLkvCycleOn] = useState<string>('4');
+  const [lkvCycleOff, setLkvCycleOff] = useState<string>('20');
   const [lkvMinTankTemp, setLkvMinTankTemp] = useState<string>('40.0');
   const [upstairsPumpAntiSeize, setUpstairsPumpAntiSeize] = useState<boolean>(true);
   const [upstairsPumpPriceSetback, setUpstairsPumpPriceSetback] = useState<boolean>(true);
   const [upstairsPumpWeekendContinuous, setUpstairsPumpWeekendContinuous] = useState<boolean>(true);
+  const [upstairsPumpDhwPause, setUpstairsPumpDhwPause] = useState<boolean>(true);
+  const [upstairsPumpPostDhwPrime, setUpstairsPumpPostDhwPrime] = useState<boolean>(true);
+  const [upstairsPumpSaunaSync, setUpstairsPumpSaunaSync] = useState<boolean>(true);
+  const [upstairsPumpBufferProtect, setUpstairsPumpBufferProtect] = useState<boolean>(true);
+  const [upstairsPumpBufferProtectTemp, setUpstairsPumpBufferProtectTemp] = useState<string>('28.0');
   const [upstairsPumpOverrideDuration, setUpstairsPumpOverrideDuration] = useState<number>(0.5);
   const [smartCyclingEnabled, setSmartCyclingEnabled] = useState<boolean>(status?.settings?.smart_cycling_enabled !== false);
   const [smartCyclingBoost, setSmartCyclingBoost] = useState<string>(String(status?.settings?.smart_cycling_charge_boost_c ?? 3.0));
@@ -185,12 +190,17 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setUpstairsPumpModeState(status.settings.dhw_pump_mode ?? status.settings.upstairs_pump_mode ?? 'auto');
       setLkvNightStart(String(status.settings.dhw_pump_night_start ?? 23));
       setLkvNightEnd(String(status.settings.dhw_pump_night_end ?? 6));
-      setLkvCycleOn(String(status.settings.dhw_pump_cycle_on_minutes ?? 10));
-      setLkvCycleOff(String(status.settings.dhw_pump_cycle_off_minutes ?? 15));
+      setLkvCycleOn(String(status.settings.dhw_pump_cycle_on_minutes ?? 4));
+      setLkvCycleOff(String(status.settings.dhw_pump_cycle_off_minutes ?? 20));
       setLkvMinTankTemp(String(status.settings.dhw_pump_min_tank_temp ?? 40.0));
       setUpstairsPumpAntiSeize(status.settings.dhw_pump_anti_seize_enabled !== false && status.settings.upstairs_pump_anti_seize_enabled !== false);
       setUpstairsPumpPriceSetback(status.settings.dhw_pump_price_setback_enabled !== false && status.settings.upstairs_pump_price_setback_enabled !== false);
       setUpstairsPumpWeekendContinuous(status.settings.dhw_pump_weekend_continuous !== false && status.settings.upstairs_pump_weekend_continuous !== false);
+      setUpstairsPumpDhwPause(status.settings.dhw_pump_dhw_pause_enabled !== false && status.settings.upstairs_pump_dhw_pause_enabled !== false);
+      setUpstairsPumpPostDhwPrime(status.settings.dhw_pump_post_dhw_prime_enabled !== false && status.settings.upstairs_pump_post_dhw_prime_enabled !== false);
+      setUpstairsPumpSaunaSync(status.settings.dhw_pump_sauna_sync_enabled !== false && status.settings.upstairs_pump_sauna_sync_enabled !== false);
+      setUpstairsPumpBufferProtect(status.settings.dhw_pump_buffer_protect_enabled !== false && status.settings.upstairs_pump_buffer_protect_enabled !== false);
+      setUpstairsPumpBufferProtectTemp(String(status.settings.dhw_pump_buffer_protect_temp ?? status.settings.upstairs_pump_buffer_protect_temp ?? 28.0));
       setSmartCyclingEnabled(status.settings.smart_cycling_enabled !== false);
       setSmartCyclingBoost(String(status.settings.smart_cycling_charge_boost_c ?? 3.0));
       setSmartCyclingMinRest(String(status.settings.smart_cycling_min_rest_min ?? 60));
@@ -276,15 +286,25 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       dhw_pump_mode: upstairsPumpMode,
       dhw_pump_night_start: parseInt(lkvNightStart, 10) || 23,
       dhw_pump_night_end: parseInt(lkvNightEnd, 10) || 6,
-      dhw_pump_cycle_on_minutes: parseFloat(lkvCycleOn) || 10,
-      dhw_pump_cycle_off_minutes: parseFloat(lkvCycleOff) || 15,
+      dhw_pump_cycle_on_minutes: parseFloat(lkvCycleOn) || 4,
+      dhw_pump_cycle_off_minutes: parseFloat(lkvCycleOff) || 20,
       dhw_pump_min_tank_temp: parseFloat(lkvMinTankTemp) || 40.0,
       dhw_pump_anti_seize_enabled: Boolean(upstairsPumpAntiSeize),
       dhw_pump_price_setback_enabled: Boolean(upstairsPumpPriceSetback),
       dhw_pump_weekend_continuous: Boolean(upstairsPumpWeekendContinuous),
+      dhw_pump_dhw_pause_enabled: Boolean(upstairsPumpDhwPause),
+      dhw_pump_post_dhw_prime_enabled: Boolean(upstairsPumpPostDhwPrime),
+      dhw_pump_sauna_sync_enabled: Boolean(upstairsPumpSaunaSync),
+      dhw_pump_buffer_protect_enabled: Boolean(upstairsPumpBufferProtect),
+      dhw_pump_buffer_protect_temp: parseFloat(upstairsPumpBufferProtectTemp) || 28.0,
       upstairs_pump_anti_seize_enabled: Boolean(upstairsPumpAntiSeize),
       upstairs_pump_price_setback_enabled: Boolean(upstairsPumpPriceSetback),
       upstairs_pump_weekend_continuous: Boolean(upstairsPumpWeekendContinuous),
+      upstairs_pump_dhw_pause_enabled: Boolean(upstairsPumpDhwPause),
+      upstairs_pump_post_dhw_prime_enabled: Boolean(upstairsPumpPostDhwPrime),
+      upstairs_pump_sauna_sync_enabled: Boolean(upstairsPumpSaunaSync),
+      upstairs_pump_buffer_protect_enabled: Boolean(upstairsPumpBufferProtect),
+      upstairs_pump_buffer_protect_temp: parseFloat(upstairsPumpBufferProtectTemp) || 28.0,
       smart_cycling_enabled: Boolean(smartCyclingEnabled),
       smart_cycling_charge_boost_c: parseFloat(smartCyclingBoost) || 3.0,
       smart_cycling_min_rest_min: parseInt(smartCyclingMinRest, 10) || 60,
@@ -1841,6 +1861,26 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                       🔄 Huuhtelu- ja jumiutumissuojan ajo aktiivinen
                     </div>
                   )}
+                  {(up as any)?.isDhwCharging && (
+                    <div style={{ fontSize: 11, color: '#f87171', fontWeight: 600, marginTop: 4 }}>
+                      🛑 VILP LKV-latausinterlock: VILP lataa parhaillaan käyttövettä — kierto tauolla kerrostuman suojaamiseksi
+                    </div>
+                  )}
+                  {(up as any)?.postDhwPrimeActive && (
+                    <div style={{ fontSize: 11, color: '#38bdf8', fontWeight: 600, marginTop: 4 }}>
+                      ✨ Jälkilataushuuhtelu aktiivinen ({(up as any)?.postDhwPrimeSecondsRemaining ?? 0}s jäljellä)
+                    </div>
+                  )}
+                  {(up as any)?.isSaunaActive && (
+                    <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 4 }}>
+                      🧖 Saunasynkronointi: Kiukaan kytkin päällä — kierto pidetään päällä saunojille
+                    </div>
+                  )}
+                  {(up as any)?.bufferTemp != null && (up as any)?.bufferProtectEnabled && (up as any)?.bufferTemp < ((up as any)?.bufferProtectTemp ?? 28) && (
+                    <div style={{ fontSize: 11, color: '#fb923c', fontWeight: 600, marginTop: 4 }}>
+                      🛡️ Puskurin suojaus: Lämmitysvesi viileää ({(up as any).bufferTemp.toFixed(1)} °C) — kierto tauolla
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -2150,8 +2190,86 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                 </div>
               </div>
 
-              {/* Checkboxes: Price Setback, Weekend Continuous & Anti-Seize */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Checkboxes: Advanced intelligence & safeguards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={upstairsPumpDhwPause}
+                    onChange={(e) => setUpstairsPumpDhwPause(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#ef4444' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>VILP LKV-latausinterlock (Kerrostumasuoja)</strong>: Pysäyttää kierron heti, kun Panasonic VILP ryhtyy lämmittämään käyttövettä (3-tieventtiili kääntyy LKV-asentoon). Estää 284 L varaajan kerrostuman sekoittumisen, nopeuttaa tavoitelämmön saavuttamista ja palauttaa lämpöpumpun paljon nopeammin lämmittämään talon lattioita.
+                  </span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={upstairsPumpPostDhwPrime}
+                    onChange={(e) => setUpstairsPumpPostDhwPrime(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#38bdf8' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Jälkilataushuuhtelu (3 min prime)</strong>: Ajaa automaattisen 3 minuutin huuhtelun välittömästi VILP:n käyttövesilatauksen päätyttyä, jotta tuore kuuma vesi saavuttaa yläkerran hanat heti ilman odotusta.
+                  </span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={upstairsPumpSaunaSync}
+                    onChange={(e) => setUpstairsPumpSaunaSync(e.target.checked)}
+                    disabled={readOnly}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#f59e0b' }}
+                  />
+                  <span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Saunasynkronointi (Kiukaan seuranta)</strong>: Pitää LKV-kierron jatkuvasti päällä aina kun sähkökiukaan pääkytkin on kytketty päälle. Takaa saunojille viiveettömän lämpimän veden suihkuihin myös syklitaukojen tai yöajan aikana.
+                  </span>
+                </label>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={upstairsPumpBufferProtect}
+                      onChange={(e) => setUpstairsPumpBufferProtect(e.target.checked)}
+                      disabled={readOnly}
+                      style={{ width: 16, height: 16, marginTop: 2, accentColor: '#fb923c' }}
+                    />
+                    <span>
+                      <strong style={{ color: 'var(--text-primary)' }}>Puskurivaraajan kylmäsuojaus</strong>: Tauottaa LKV-kierron, jos lämmitysverkon 100 L puskurivaraajan lämpötila laskee liian alas. Priorisoi talon peruslämmön säilymisen.
+                    </span>
+                  </label>
+                  {upstairsPumpBufferProtect && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 26 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Puskurin alaraja:</span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="20"
+                        max="35"
+                        value={upstairsPumpBufferProtectTemp}
+                        onChange={(e) => setUpstairsPumpBufferProtectTemp(e.target.value)}
+                        disabled={readOnly}
+                        style={{
+                          width: 80,
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          background: 'rgba(255,255,255,0.05)',
+                          color: 'var(--text-primary)',
+                          fontSize: 12,
+                        }}
+                      />
+                      <span style={{ fontSize: 12, color: '#fb923c', fontWeight: 600 }}>°C</span>
+                    </div>
+                  )}
+                </div>
+
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
                   <input
                     type="checkbox"

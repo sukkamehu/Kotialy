@@ -1019,7 +1019,12 @@ router.post('/apc/lkv-pump/mode', requireAdmin, express.json(), handlePumpMode);
 
 /**
  * POST /api/apc/upstairs-pump/settings
- * Body: { night_start, night_end, cycle_on_minutes, cycle_off_minutes, min_tank_temp, anti_seize_enabled, price_setback_enabled }
+ * Body: {
+ *   night_start, night_end, cycle_on_minutes, cycle_off_minutes, min_tank_temp,
+ *   anti_seize_enabled, price_setback_enabled, weekend_continuous,
+ *   dhw_pause_enabled, post_dhw_prime_enabled, sauna_sync_enabled,
+ *   buffer_protect_enabled, buffer_protect_temp
+ * }
  */
 async function handlePumpSettings(req, res) {
   try {
@@ -1031,6 +1036,12 @@ async function handlePumpSettings(req, res) {
       min_tank_temp,
       anti_seize_enabled,
       price_setback_enabled,
+      weekend_continuous,
+      dhw_pause_enabled,
+      post_dhw_prime_enabled,
+      sauna_sync_enabled,
+      buffer_protect_enabled,
+      buffer_protect_temp,
       // legacy support
       target_temp,
       temp_hysteresis,
@@ -1067,6 +1078,30 @@ async function handlePumpSettings(req, res) {
       const val = weekend_continuous ? '1' : '0';
       dbModule.updateApcSetting('dhw_pump_weekend_continuous', val);
       dbModule.updateApcSetting('upstairs_pump_weekend_continuous', val);
+    }
+    if (dhw_pause_enabled !== undefined) {
+      const val = dhw_pause_enabled ? '1' : '0';
+      dbModule.updateApcSetting('dhw_pump_dhw_pause_enabled', val);
+      dbModule.updateApcSetting('upstairs_pump_dhw_pause_enabled', val);
+    }
+    if (post_dhw_prime_enabled !== undefined) {
+      const val = post_dhw_prime_enabled ? '1' : '0';
+      dbModule.updateApcSetting('dhw_pump_post_dhw_prime_enabled', val);
+      dbModule.updateApcSetting('upstairs_pump_post_dhw_prime_enabled', val);
+    }
+    if (sauna_sync_enabled !== undefined) {
+      const val = sauna_sync_enabled ? '1' : '0';
+      dbModule.updateApcSetting('dhw_pump_sauna_sync_enabled', val);
+      dbModule.updateApcSetting('upstairs_pump_sauna_sync_enabled', val);
+    }
+    if (buffer_protect_enabled !== undefined) {
+      const val = buffer_protect_enabled ? '1' : '0';
+      dbModule.updateApcSetting('dhw_pump_buffer_protect_enabled', val);
+      dbModule.updateApcSetting('upstairs_pump_buffer_protect_enabled', val);
+    }
+    if (buffer_protect_temp !== undefined && !isNaN(parseFloat(buffer_protect_temp))) {
+      dbModule.updateApcSetting('dhw_pump_buffer_protect_temp', parseFloat(buffer_protect_temp));
+      dbModule.updateApcSetting('upstairs_pump_buffer_protect_temp', parseFloat(buffer_protect_temp));
     }
 
     if (target_temp !== undefined && !isNaN(parseFloat(target_temp))) {

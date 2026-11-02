@@ -51,6 +51,16 @@ export interface ApcSettings {
   dhw_pump_anti_seize_enabled?: boolean;
   dhw_pump_weekend_continuous?: boolean;
   upstairs_pump_weekend_continuous?: boolean;
+  dhw_pump_dhw_pause_enabled?: boolean;
+  dhw_pump_post_dhw_prime_enabled?: boolean;
+  dhw_pump_sauna_sync_enabled?: boolean;
+  dhw_pump_buffer_protect_enabled?: boolean;
+  dhw_pump_buffer_protect_temp?: number;
+  upstairs_pump_dhw_pause_enabled?: boolean;
+  upstairs_pump_post_dhw_prime_enabled?: boolean;
+  upstairs_pump_sauna_sync_enabled?: boolean;
+  upstairs_pump_buffer_protect_enabled?: boolean;
+  upstairs_pump_buffer_protect_temp?: number;
   dhw_pump_override_until?: number;
   dhw_pump_override_state?: 'ON' | 'OFF' | null;
   dhw_pump_device_id?: string;
@@ -127,6 +137,16 @@ export interface UpstairsPumpStatus {
   priceSetbackEnabled: boolean;
   weekendContinuous?: boolean;
   isWeekend?: boolean;
+  isDhwCharging?: boolean;
+  isSaunaActive?: boolean;
+  bufferTemp?: number | null;
+  dhwPauseEnabled?: boolean;
+  postDhwPrimeEnabled?: boolean;
+  saunaSyncEnabled?: boolean;
+  bufferProtectEnabled?: boolean;
+  bufferProtectTemp?: number;
+  postDhwPrimeActive?: boolean;
+  postDhwPrimeSecondsRemaining?: number;
   deviceId?: string;
 }
 

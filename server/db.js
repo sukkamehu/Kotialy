@@ -763,13 +763,23 @@ function getApcSettings() {
     dhw_pump_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
     dhw_pump_night_start: 23,
     dhw_pump_night_end: 6,
-    dhw_pump_cycle_on_minutes: 10,
-    dhw_pump_cycle_off_minutes: 15,
+    dhw_pump_cycle_on_minutes: 4,
+    dhw_pump_cycle_off_minutes: 20,
     dhw_pump_min_tank_temp: 40.0,
     dhw_pump_price_setback_enabled: true,
     dhw_pump_anti_seize_enabled: true,
     dhw_pump_weekend_continuous: true,
     upstairs_pump_weekend_continuous: true,
+    dhw_pump_dhw_pause_enabled: true,
+    dhw_pump_post_dhw_prime_enabled: true,
+    dhw_pump_sauna_sync_enabled: true,
+    dhw_pump_buffer_protect_enabled: true,
+    dhw_pump_buffer_protect_temp: 28.0,
+    upstairs_pump_dhw_pause_enabled: true,
+    upstairs_pump_post_dhw_prime_enabled: true,
+    upstairs_pump_sauna_sync_enabled: true,
+    upstairs_pump_buffer_protect_enabled: true,
+    upstairs_pump_buffer_protect_temp: 28.0,
     dhw_pump_override_until: 0,
     dhw_pump_override_state: null,
     dhw_pump_device_id: 'bfb6ed442015162bc97kca',
@@ -841,6 +851,28 @@ function getApcSettings() {
       const val = r.value === '1' || r.value === 'true';
       settings.upstairs_pump_weekend_continuous = val;
       settings.dhw_pump_weekend_continuous = val;
+    } else if (r.key === 'upstairs_pump_dhw_pause_enabled' || r.key === 'dhw_pump_dhw_pause_enabled') {
+      const val = r.value === '1' || r.value === 'true';
+      settings.upstairs_pump_dhw_pause_enabled = val;
+      settings.dhw_pump_dhw_pause_enabled = val;
+    } else if (r.key === 'upstairs_pump_post_dhw_prime_enabled' || r.key === 'dhw_pump_post_dhw_prime_enabled') {
+      const val = r.value === '1' || r.value === 'true';
+      settings.upstairs_pump_post_dhw_prime_enabled = val;
+      settings.dhw_pump_post_dhw_prime_enabled = val;
+    } else if (r.key === 'upstairs_pump_sauna_sync_enabled' || r.key === 'dhw_pump_sauna_sync_enabled') {
+      const val = r.value === '1' || r.value === 'true';
+      settings.upstairs_pump_sauna_sync_enabled = val;
+      settings.dhw_pump_sauna_sync_enabled = val;
+    } else if (r.key === 'upstairs_pump_buffer_protect_enabled' || r.key === 'dhw_pump_buffer_protect_enabled') {
+      const val = r.value === '1' || r.value === 'true';
+      settings.upstairs_pump_buffer_protect_enabled = val;
+      settings.dhw_pump_buffer_protect_enabled = val;
+    } else if (r.key === 'upstairs_pump_buffer_protect_temp' || r.key === 'dhw_pump_buffer_protect_temp') {
+      const n = parseFloat(r.value);
+      if (!isNaN(n)) {
+        settings.upstairs_pump_buffer_protect_temp = n;
+        settings.dhw_pump_buffer_protect_temp = n;
+      }
     } else if (
       r.key === 'mode' ||
       r.key === 'override_directive' ||
