@@ -224,8 +224,8 @@ class TuyaPlugDriver {
     } else {
       this.currentReason = 'Manuaalinen ohitus peruttu · Palattu pörssiohjaukseen';
       // Immediately evaluate spot price to apply correct automation state
-      const directive = db.getTopicState('apc/directive')?.value || 'NORMAL';
-      const priceTopic = db.getTopicState('nordpool/current_price');
+      const directive = db.getState('apc/directive')?.value || 'NORMAL';
+      const priceTopic = db.getState('nordpool/current_price');
       const currentPrice = priceTopic?.value ? parseFloat(priceTopic.value) : null;
       await this.applyDirective(directive, { price: { price: currentPrice } });
     }
