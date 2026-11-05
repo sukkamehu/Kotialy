@@ -1220,15 +1220,36 @@ router.get('/apc/tuya-plug/status', (req, res) => {
 });
 
 /**
+ * POST /api/apc/tuya-plug/toggle
+ * Toggle device power with temporary manual override
+ * Body: { state: 'ON' | 'OFF', duration_hours: 2 }
+ */
+router.post('/apc/tuya-plug/toggle', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const tuyaPlugDriver = require('../devices/tuya-plug-driver');
+    let { state, duration_hours, hours } = req.body || {};
+    const effectiveHours = duration_hours !== undefined ? Number(duration_hours) : (hours !== undefined ? Number(hours) : 2);
+    if (!state) {
+      const cur = tuyaPlugDriver.getStatus();
+      state = cur.isOn ? 'OFF' : 'ON';
+    }
+    const status = await tuyaPlugDriver.setManualOverride(state, effectiveHours);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/apc/tuya-plug/override
- * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8 }
+ * Body: { state: 'ON' | 'OFF' | null, duration_hours: 0 | 1 | 2 | 4 | 8, hours }
  */
 router.post('/apc/tuya-plug/override', requireAdmin, express.json(), async (req, res) => {
   try {
     const tuyaPlugDriver = require('../devices/tuya-plug-driver');
-    const { state, duration_hours = 0 } = req.body || {};
-    const status = await tuyaPlugDriver.setManualOverride(state, duration_hours);
-    apcService.evaluate();
+    const { state, duration_hours, hours } = req.body || {};
+    const effectiveHours = duration_hours !== undefined ? Number(duration_hours) : (hours !== undefined ? Number(hours) : 0);
+    const status = await tuyaPlugDriver.setManualOverride(state, effectiveHours);
     res.json({ ok: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1920,6 +1941,14 @@ router.post('/tuya/switch', requireAdmin, express.json(), async (req, res) => {
       return res.status(400).json({ error: 'device_id required' });
     }
     const result = await tuyaService.setSwitchPower(device_id, Boolean(power));
+
+    // If controlling dryer plug, set manual override so APC won't immediately undo user's manual action
+    const settings = db.getApcSettings();
+    if (device_id === (settings.tuya_plug_device_id || 'bf48a78786f87488b4otcg')) {
+      const tuyaPlugDriver = require('../devices/tuya-plug-driver');
+      await tuyaPlugDriver.setManualOverride(Boolean(power) ? 'ON' : 'OFF', 2);
+    }
+
     res.json({ ok: true, result });
   } catch (err) {
     res.status(500).json({ error: err.message });

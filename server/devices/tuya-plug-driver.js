@@ -34,6 +34,39 @@ class TuyaPlugDriver {
   }
 
   /**
+   * Helper to get current hardware state
+   */
+  getCurrentHardwareState() {
+    try {
+      const settings = db.getApcSettings();
+      const devId = settings.tuya_plug_device_id || this.deviceId;
+      const dev = tuyaService.devicesById?.get(devId) ||
+                  tuyaService.devices?.find(d => d.id === devId || (d.name && d.name.toLowerCase().includes('energy+')));
+
+      if (dev?.properties?.state !== undefined) {
+        return Boolean(dev.properties.state) ? 'ON' : 'OFF';
+      }
+      if (dev?.properties?.switch_1 !== undefined) {
+        return Boolean(dev.properties.switch_1) ? 'ON' : 'OFF';
+      }
+
+      const fullState = db.getFullState();
+      const rawVal = fullState['tuya/energy_alypistorasia_home_connect_ip20/state']?.value ??
+                     fullState['tuya/energy_alypistorasia_home_connect_ip20/switch_1']?.value ??
+                     fullState['tuya/energy_alypistorasia/state']?.value ??
+                     fullState['apc/tuya_plug/state']?.value;
+
+      if (rawVal !== undefined && rawVal !== null) {
+        return (rawVal === 'true' || rawVal === '1' || rawVal === 'ON') ? 'ON' : 'OFF';
+      }
+    } catch (err) {
+      warn('getCurrentHardwareState error:', err.message);
+    }
+
+    return this.lastState || 'OFF';
+  }
+
+  /**
    * Helper to send command to Tuya relay
    */
   async sendCommand(state) {
@@ -67,11 +100,8 @@ class TuyaPlugDriver {
     const settings = db.getApcSettings();
     const now = Date.now();
 
-    // Read current hardware state from DB
-    const fullState = db.getFullState();
-    const currentStatRaw = fullState['tuya/energy_alypistorasia/state']?.value ??
-                           fullState['tuya/energy_alypistorasia_home_connect_ip20/state']?.value;
-    const currentStat = (currentStatRaw === 'true' || currentStatRaw === '1' || currentStatRaw === 'ON' || this.lastState === 'ON') ? 'ON' : 'OFF';
+    // Read current hardware state accurately
+    const currentStat = this.getCurrentHardwareState();
 
     const mode = settings.tuya_plug_mode || 'auto'; // 'auto' | 'constant_on' | 'constant_off'
     const overrideUntil = Number(settings.tuya_plug_override_until || 0);
@@ -193,6 +223,11 @@ class TuyaPlugDriver {
       this.currentReason = `Manuaalinen ohitus aktivoitu (${overrideState} · jäljellä ~${minLeft} min)`;
     } else {
       this.currentReason = 'Manuaalinen ohitus peruttu · Palattu pörssiohjaukseen';
+      // Immediately evaluate spot price to apply correct automation state
+      const directive = db.getTopicState('apc/directive')?.value || 'NORMAL';
+      const priceTopic = db.getTopicState('nordpool/current_price');
+      const currentPrice = priceTopic?.value ? parseFloat(priceTopic.value) : null;
+      await this.applyDirective(directive, { price: { price: currentPrice } });
     }
 
     return this.getStatus();
@@ -229,10 +264,7 @@ class TuyaPlugDriver {
     const dev = tuyaService.devicesById?.get(devId) ||
                 tuyaService.devices?.find(d => d.id === devId || (d.name && d.name.toLowerCase().includes('energy+')));
 
-    const fullState = db.getFullState();
-    const currentStatRaw = fullState['tuya/energy_alypistorasia/state']?.value ??
-                           fullState['tuya/energy_alypistorasia_home_connect_ip20/state']?.value;
-    const currentState = (currentStatRaw === 'true' || currentStatRaw === '1' || currentStatRaw === 'ON' || this.lastState === 'ON') ? 'ON' : 'OFF';
+    const currentState = this.getCurrentHardwareState();
 
     const overrideUntil = Number(settings.tuya_plug_override_until || 0);
     const overrideState = settings.tuya_plug_override_state || null;

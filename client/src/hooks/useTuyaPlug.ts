@@ -57,10 +57,10 @@ export function useTuyaPlug() {
     if (!status?.deviceId) return false;
     setSaving(true);
     try {
-      const res = await apiFetch('/api/tuya/switch', {
+      const res = await apiFetch('/api/apc/tuya-plug/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: status.deviceId, power: nextPower }),
+        body: JSON.stringify({ state: nextPower ? 'ON' : 'OFF', duration_hours: 2 }),
       });
       if (res.ok) {
         await fetchStatus();
@@ -80,7 +80,7 @@ export function useTuyaPlug() {
       const res = await apiFetch('/api/apc/tuya-plug/override', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state, hours }),
+        body: JSON.stringify({ state, duration_hours: hours, hours }),
       });
       if (res.ok) {
         await fetchStatus();
