@@ -10,7 +10,7 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
   const { status, loading, saving, togglePower, setOverride, updateSettings } = useTuyaPlug();
   const { priceCentsKWh } = useElectricityPrice();
 
-  const [priceInput, setPriceInput] = useState<string>("15.0");
+  const [priceInput, setPriceInput] = useState<string>("12.0");
   const [isEditingPrice, setIsEditingPrice] = useState(false);
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
   if (loading && !status) {
     return (
       <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
-        ⏳ Ladataan Tuya Energy+ -älypistorasian tietoja...
+        ⏳ Ladataan kuivausrummun älypistorasian tietoja...
       </div>
     );
   }
@@ -33,7 +33,7 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
   const currentA = status?.telemetry?.current_a ?? 0;
   const energyKwh = status?.telemetry?.today_energy_kwh ?? 0;
   const mode = status?.mode || "auto";
-  const maxPrice = status?.maxPriceLimit ?? 15.0;
+  const maxPrice = status?.maxPriceLimit ?? 12.0;
   const isOverride = status?.overrideActive;
   const overrideMin = status?.overrideMinutesRemaining ?? 0;
 
@@ -117,12 +117,12 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
               boxShadow: isOn ? "0 0 15px rgba(74, 222, 128, 0.25)" : "none",
             }}
           >
-            🔌
+            💨
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "var(--text-primary)" }}>
-                {status?.name || "Energy+ Älypistorasia Home Connect IP20"}
+                {status?.name || "Kuivausrumpu (Energy+ Tuya)"}
               </h3>
               <span
                 style={{
@@ -148,11 +148,11 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
                   border: "1px solid rgba(168, 85, 247, 0.25)",
                 }}
               >
-                APC Hintaleikkuri
+                Kuivausrummun spot-ohjaus
               </span>
             </div>
             <p style={{ margin: "3px 0 0", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-              Malli: smart-PFW02-G · ID: {status?.deviceId}
+              Malli: Energy+ Smart-PFW02-G · ID: {status?.deviceId} · Katkaisuraja 12.0 snt/kWh + tuntiennakointi
             </p>
           </div>
         </div>
@@ -294,13 +294,13 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "1.5rem" }}>🔌</span>
+            <span style={{ fontSize: "1.5rem" }}>💨</span>
             <div>
               <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                16A ON/OFF -kytkinrele (Ei virtamittausta)
+                Kuivausrummun virransyöttö (16A rele)
               </div>
               <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>
-                Malli: Energy+ Smart-PFW02-G · Rele ohjaa virtaa pörssisähkön hinnan mukaan.
+                Malli: Energy+ Smart-PFW02-G · Ohjaa kuivausrumpua automaattisesti pörssisähkön hinnan ja tuntiennakoinnin mukaan (ei energiamittausta).
               </div>
             </div>
           </div>
@@ -309,7 +309,7 @@ export const TuyaPlugCard: React.FC<TuyaPlugCardProps> = ({ readOnly = false }) 
               Toimintatila
             </div>
             <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#38bdf8", marginTop: 2 }}>
-              Pörssiohjaus aktiivinen
+              Kuivausrumpuohjaus aktiivinen
             </div>
           </div>
         </div>

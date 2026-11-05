@@ -54,11 +54,18 @@ const TapoSettingsModal: React.FC<TapoSettingsModalProps> = ({
     device.id === 'pikkuvarasto' ||
     device.type === 'storage_heating';
 
+  const isVentilation =
+    device.id === 'ilmanvaihtokone' ||
+    device.type === 'ventilation' ||
+    device.type === 'monitoring';
+
   const isAppliance =
-    device.id === 'pesukone' ||
-    device.id === 'kuivausrumpu' ||
-    device.type.includes('appliance') ||
-    device.max_price_cents != null;
+    !isVentilation &&
+    (device.id === 'pesukone' ||
+      device.id === 'kuivausrumpu' ||
+      device.id === 'tuya_energy_plug' ||
+      device.type.includes('appliance') ||
+      device.max_price_cents != null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,6 +235,25 @@ const TapoSettingsModal: React.FC<TapoSettingsModalProps> = ({
                   : 'Virransyöttö katkaistu kokonaan.'}
               </span>
             </div>
+
+            {/* Ventilation Notice */}
+            {isVentilation && (
+              <div
+                style={{
+                  padding: '14px',
+                  background: 'rgba(56, 189, 248, 0.08)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', marginBottom: '4px' }}>
+                  🌀 Jatkuva ilmanvaihto (Vain energiankulutusmittaus)
+                </div>
+                <span style={{ display: 'block', fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.4 }}>
+                  Ilmanvaihtokoneen virransyöttöä ei katkaista automaattisesti hintarajojen mukaan asumisterveyden ja ilmanvaihdon jatkuvuuden turvaamiseksi. Pistorasia mittaa reaaliaikaista tehoa ja kumulatiivista energiankulutusta.
+                </span>
+              </div>
+            )}
 
             {/* Price Limit for Appliances */}
             {isAppliance && (
@@ -614,18 +640,18 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
 
   const tuyaDevice: TapoDevice | null = tuyaPlugStatus ? {
     id: 'tuya_energy_plug',
-    name: tuyaPlugStatus.name || 'Energy+ Älypistorasia',
+    name: tuyaPlugStatus.name || 'Kuivausrumpu (Energy+ Tuya)',
     ip: 'Tuya Cloud',
-    type: 'general_plug',
+    type: 'appliance_dryer',
     state: tuyaPlugStatus.isOn ? 'ON' : 'OFF',
-    power_w: tuyaPlugStatus.telemetry?.power_w || 0,
-    today_energy_kwh: tuyaPlugStatus.telemetry?.today_energy_kwh || 0,
-    total_energy_kwh: tuyaPlugStatus.telemetry?.today_energy_kwh || 0,
-    voltage_v: tuyaPlugStatus.telemetry?.voltage_v || null,
-    current_a: tuyaPlugStatus.telemetry?.current_a || null,
+    power_w: 0,
+    today_energy_kwh: 0,
+    total_energy_kwh: 0,
+    voltage_v: null,
+    current_a: null,
     has_power_metering: false,
     auto_mode: (tuyaPlugStatus.mode as any) || 'auto',
-    max_price_cents: tuyaPlugStatus.maxPriceLimit ?? 15.0,
+    max_price_cents: tuyaPlugStatus.maxPriceLimit ?? 12.0,
     isOverrideActive: tuyaPlugStatus.overrideActive,
     override_until: tuyaPlugStatus.overrideUntil,
     override_state: tuyaPlugStatus.overrideState,
@@ -633,8 +659,8 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
   } : null;
 
   const allDevices: TapoDevice[] = tuyaDevice ? [tuyaDevice, ...devices] : devices;
-  const combinedTotalPowerW = totalPowerW + (tuyaPlugStatus?.telemetry?.power_w || 0);
-  const combinedTotalTodayEnergyKwh = totalTodayEnergyKwh + (tuyaPlugStatus?.telemetry?.today_energy_kwh || 0);
+  const combinedTotalPowerW = totalPowerW;
+  const combinedTotalTodayEnergyKwh = totalTodayEnergyKwh;
 
   const [settingsDeviceId, setSettingsDeviceId] = useState<string | null>(null);
   const [overrideDeviceId, setOverrideDeviceId] = useState<string | null>(null);
@@ -662,7 +688,7 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
         await updateTuyaSettings({
           name: newSettings.name,
           mode: newSettings.auto_mode,
-          maxPriceLimit: newSettings.max_price_cents != null ? newSettings.max_price_cents : 15.0,
+          maxPriceLimit: newSettings.max_price_cents != null ? newSettings.max_price_cents : 12.0,
         });
       } else {
         await updateSettings(id, newSettings);
@@ -877,7 +903,8 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
             const isTuya = dev.id === 'tuya_energy_plug';
             const isStorage = dev.id === 'isovarasto' || dev.id === 'pikkuvarasto' || dev.type === 'storage_heating';
             const isWashing = dev.id === 'pesukone' || dev.type === 'appliance_washing_machine';
-            const isDryer = dev.id === 'kuivausrumpu' || dev.type === 'appliance_dryer';
+            const isDryer = dev.id === 'kuivausrumpu' || dev.id === 'tuya_energy_plug' || dev.type === 'appliance_dryer';
+            const isVentilation = dev.id === 'ilmanvaihtokone' || dev.type === 'ventilation' || dev.type === 'monitoring';
 
             const isOn = dev.state === 'ON';
             const power = dev.power_w || 0;
@@ -891,9 +918,15 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
             // Icon & Category text
             let icon = '⚡';
             let catLabel = 'Pistorasia';
-            if (isTuya) {
-              icon = '🔌';
-              catLabel = 'Energy+ (Pörssiohjaus)';
+            if (isVentilation) {
+              icon = '🌀';
+              catLabel = 'Ilmanvaihtokone (Vain mittaus)';
+            } else if (isTuya) {
+              icon = '💨';
+              catLabel = 'Kuivausrumpu (Energy+ Tuya)';
+            } else if (isDryer) {
+              icon = '💨';
+              catLabel = 'Kuivausrumpu';
             } else if (dev.id === 'isovarasto') {
               icon = '🔥';
               catLabel = 'Isovarasto (Lämmitys)';
@@ -903,9 +936,6 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
             } else if (isWashing) {
               icon = '🧺';
               catLabel = 'Pyykinpesukone';
-            } else if (isDryer) {
-              icon = '💨';
-              catLabel = 'Kuivausrumpu';
             }
 
             // Power meter fill percent (0 - 2500 W max)
@@ -1243,7 +1273,21 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                       <span style={{ fontWeight: 600, color: isOverride ? '#fbbf24' : 'var(--text-primary)' }}>
                         {catLabel}
                       </span>
-                      {maxPrice != null && (
+                      {isVentilation ? (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            background: 'rgba(56, 189, 248, 0.15)',
+                            color: '#38bdf8',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                          }}
+                        >
+                          🟢 Ei katkaista
+                        </span>
+                      ) : maxPrice != null && (
                         <span
                           style={{
                             fontSize: '0.72rem',
@@ -1261,7 +1305,9 @@ export const TapoPlugsCard: React.FC<TapoPlugsCardProps> = ({ onOpenTrend, readO
                     </div>
                     <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
                       {dev.last_action_reason ||
-                        (isStorage
+                        (isVentilation
+                          ? 'Jatkuva ilmanvaihto · Vain energiankulutusmittaus'
+                          : isStorage
                           ? 'Halpa sähkö → Lämpövaraus (+22°C) · Pakkassuojaus (+10°C)'
                           : isWashing
                           ? 'Käynnistys sallittu kun sähkö ≤ 15,0 snt/kWh'

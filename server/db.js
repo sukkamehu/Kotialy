@@ -807,7 +807,7 @@ function getApcSettings() {
     sterilization_target_c: 65,
     sterilization_hold_min: 10,
     tuya_plug_mode: 'auto', // 'auto' | 'constant_on' | 'constant_off'
-    tuya_plug_max_price_cents: 15.0,
+    tuya_plug_max_price_cents: 12.0,
     tuya_plug_device_id: 'bf48a78786f87488b4otcg',
     mitsu_mode: 'smart_assist', // 'smart_assist' | 'fan_only' | 'cool' | 'heat' | 'off'
     mitsu_frost_assist_temp: -12.0,
@@ -1357,12 +1357,12 @@ const stmtUpsertTapoDevice = db.prepare(`
           temp_sensor_topic: null,
         },
         {
-          id: 'kuivausrumpu',
-          name: 'Kuivausrumpu',
+          id: 'ilmanvaihtokone',
+          name: 'Ilmanvaihtokone',
           ip: '192.168.68.68',
-          type: 'appliance_dryer',
-          auto_mode: 'auto',
-          max_price_cents: 12.0,
+          type: 'ventilation',
+          auto_mode: 'constant_on',
+          max_price_cents: null,
           min_temp_c: null,
           max_temp_c: null,
           temp_sensor_topic: null,
@@ -1393,6 +1393,32 @@ const stmtUpsertTapoDevice = db.prepare(`
         );
       }
       console.log('[DB] Seeded 4 default Tapo P115 smart plugs');
+    }
+
+    // Migration: If old Tapo plug 'kuivausrumpu' exists, migrate it to 'ilmanvaihtokone'
+    try {
+      const oldDryer = db.prepare("SELECT * FROM tapo_devices WHERE id = 'kuivausrumpu'").get();
+      if (oldDryer) {
+        const hasIv = db.prepare("SELECT count(*) as count FROM tapo_devices WHERE id = 'ilmanvaihtokone'").get();
+        if (!hasIv || hasIv.count === 0) {
+          db.prepare(`
+            UPDATE tapo_devices 
+            SET id = 'ilmanvaihtokone', 
+                name = 'Ilmanvaihtokone', 
+                type = 'ventilation', 
+                auto_mode = 'constant_on', 
+                max_price_cents = NULL, 
+                state = 'ON',
+                last_action_reason = 'Jatkuva ilmanvaihto · Vain energiankulutusmittaus'
+            WHERE id = 'kuivausrumpu'
+          `).run();
+          console.log('[DB] Migrated Tapo plug kuivausrumpu -> ilmanvaihtokone (ventilation monitoring)');
+        } else {
+          db.prepare("DELETE FROM tapo_devices WHERE id = 'kuivausrumpu'").run();
+        }
+      }
+    } catch (migErr) {
+      console.warn('[DB] Tapo migration kuivausrumpu -> ilmanvaihtokone note:', migErr.message);
     }
   } catch (err) {
     console.error('[DB] Failed to seed default Tapo devices:', err.message);

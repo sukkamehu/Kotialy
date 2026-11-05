@@ -698,6 +698,18 @@ const TOPICS = {
     category: 'energy',
     type: 'number',
   },
+  'tapo/ilmanvaihtokone/power': {
+    label: 'Ilmanvaihtokone Teho',
+    unit: 'W',
+    category: 'power',
+    type: 'number',
+  },
+  'tapo/ilmanvaihtokone/energy': {
+    label: 'Ilmanvaihtokone Kulutus tänään',
+    unit: 'kWh',
+    category: 'energy',
+    type: 'number',
+  },
   'mitsubishi/mitsubishi_alakerta/current_temperature': {
     label: 'Mitsubishi ILP Alakerta Lämpötila',
     unit: '°C',
@@ -757,6 +769,8 @@ const CHART_TOPICS = [
   'tapo/pesukone/energy',
   'tapo/kuivausrumpu/power',
   'tapo/kuivausrumpu/energy',
+  'tapo/ilmanvaihtokone/power',
+  'tapo/ilmanvaihtokone/energy',
 ];
 
 /**

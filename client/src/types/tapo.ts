@@ -2,6 +2,8 @@ export type TapoDeviceType =
   | 'storage_heating'
   | 'appliance_washing_machine'
   | 'appliance_dryer'
+  | 'ventilation'
+  | 'monitoring'
   | 'general_plug';
 
 export type TapoAutoMode = 'auto' | 'constant_on' | 'constant_off';

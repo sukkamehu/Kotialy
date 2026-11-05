@@ -459,6 +459,7 @@ class HerrforsClient {
     const tapoPikkuvarastoHistory = db.getTopicHistory('tapo/pikkuvarasto/power', effectiveFrom - 3600000, effectiveTo);
     const tapoPesukoneHistory = db.getTopicHistory('tapo/pesukone/power', effectiveFrom - 3600000, effectiveTo);
     const tapoKuivausrumpuHistory = db.getTopicHistory('tapo/kuivausrumpu/power', effectiveFrom - 3600000, effectiveTo);
+    const tapoIlmanvaihtoHistory = db.getTopicHistory('tapo/ilmanvaihtokone/power', effectiveFrom - 3600000, effectiveTo);
 
     // Local outdoor sensor history (preferred over Herrfors grid utility's weather station)
     const outdoorRtlHistory = db.getTopicHistory('rtl433/outdoor/temperature', effectiveFrom - 3600000, effectiveTo);
@@ -644,6 +645,7 @@ class HerrforsClient {
         tapoPowerW = helperAvgPower(tapoIsovarastoHistory, slotStart, slotEnd) +
                      helperAvgPower(tapoPikkuvarastoHistory, slotStart, slotEnd) +
                      helperAvgPower(tapoPesukoneHistory, slotStart, slotEnd) +
+                     helperAvgPower(tapoIlmanvaihtoHistory, slotStart, slotEnd) +
                      helperAvgPower(tapoKuivausrumpuHistory, slotStart, slotEnd);
       }
 

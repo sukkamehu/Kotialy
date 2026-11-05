@@ -130,7 +130,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [indoorTargetTemp, setIndoorTargetTemp] = useState<string>(String(status?.settings?.indoor_target_temp_c ?? 21.3));
   const [indoorMinTemp, setIndoorMinTemp] = useState<string>(String(status?.settings?.indoor_min_temp_c ?? 20.5));
   const [tuyaPlugMode, setTuyaPlugModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
-  const [tuyaPlugMaxPrice, setTuyaPlugMaxPrice] = useState<string>('15.0');
+  const [tuyaPlugMaxPrice, setTuyaPlugMaxPrice] = useState<string>('12.0');
   const [tuyaPlugOverrideDuration, setTuyaPlugOverrideDuration] = useState<number>(1);
   const [compressorExerciseEnabled, setCompressorExerciseEnabled] = useState<boolean>(true);
   const [compressorExerciseInterval, setCompressorExerciseInterval] = useState<string>('30');
@@ -269,7 +269,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setIndoorTargetTemp(String(status.settings.indoor_target_temp_c ?? 21.3));
       setIndoorMinTemp(String(status.settings.indoor_min_temp_c ?? 20.5));
       setTuyaPlugModeState(status.settings.tuya_plug_mode ?? 'auto');
-      setTuyaPlugMaxPrice(String(status.settings.tuya_plug_max_price_cents ?? 15.0));
+      setTuyaPlugMaxPrice(String(status.settings.tuya_plug_max_price_cents ?? 12.0));
       setCompressorExerciseEnabled(status.settings.compressor_exercise_enabled !== false);
       setCompressorExerciseInterval(String(status.settings.compressor_exercise_interval_days ?? 30));
       setCompressorExerciseMinRun(String(status.settings.compressor_exercise_min_run_min ?? 15));
@@ -377,7 +377,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       indoor_target_temp_c: parseFloat(indoorTargetTemp) || 21.3,
       indoor_min_temp_c: parseFloat(indoorMinTemp) || 20.5,
       tuya_plug_mode: tuyaPlugMode,
-      tuya_plug_max_price_cents: parseFloat(tuyaPlugMaxPrice) || 15.0,
+      tuya_plug_max_price_cents: parseFloat(tuyaPlugMaxPrice) || 12.0,
       compressor_exercise_enabled: Boolean(compressorExerciseEnabled),
       compressor_exercise_interval_days: parseFloat(compressorExerciseInterval) || 30,
       compressor_exercise_min_run_min: parseInt(compressorExerciseMinRun, 10) || 15,
@@ -2642,13 +2642,13 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
             }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 16 }}>🔌</span>
+                  <span style={{ fontSize: 16 }}>💨</span>
                   <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#c084fc' }}>
-                    Energy+ Älypistorasia (Kuormanohjaus)
+                    Kuivausrumpu (Energy+ Tuya)
                   </h3>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)' }}>
-                  Katkoo sähköt automaattisesti aina kun pörssisähkön hinta ylittää asetetun hintakatkaisurajan.
+                  Katkoo kuivausrummun sähköt automaattisesti aina kun pörssisähkön hinta ylittää asetetun hintakatkaisurajan ja ennakoi kalliit tunnit.
                 </p>
               </div>
 
@@ -2716,7 +2716,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                   }}
                 />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Sähköt katkaistaan automaattisesti aina kun spot-hinta on tämän rajan yläpuolella (oletus 15.0 snt/kWh).
+                  Sähköt katkaistaan automaattisesti aina kun spot-hinta on tämän rajan yläpuolella (oletus 12.0 snt/kWh).
                 </div>
               </div>
 

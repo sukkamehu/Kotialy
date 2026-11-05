@@ -214,7 +214,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
           bg: 'rgba(56, 189, 248, 0.12)',
         },
       ],
-      description: 'Energy+ älypistorasia (15 snt hintakatkaisu), Isovaraston ja pikkuvaraston pakkassuojaus, pesukone & kuivausrumpu.',
+      description: 'Kuivausrumpu (Energy+ 12 snt hintakatkaisu), Isovaraston ja pikkuvaraston pakkassuojaus, pesukone & ilmanvaihtokoneen kulutusmittaus.',
     },
     {
       id: 'trends' as CategoryId,

@@ -70,6 +70,8 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'tapo/pesukone/energy', label: '⚡ Pesukone kulutus', color: '#0284c7', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
   { key: 'tapo/kuivausrumpu/power', label: '💨 Kuivausrumpu teho', color: '#c084fc', unit: 'W', yAxisId: 'right', category: 'tapo' },
   { key: 'tapo/kuivausrumpu/energy', label: '⚡ Kuivausrumpu kulutus', color: '#9333ea', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/ilmanvaihtokone/power', label: '🌀 Ilmanvaihtokone teho', color: '#06b6d4', unit: 'W', yAxisId: 'right', category: 'tapo' },
+  { key: 'tapo/ilmanvaihtokone/energy', label: '⚡ Ilmanvaihtokone kulutus', color: '#0891b2', unit: 'kWh', yAxisId: 'right', category: 'tapo' },
 ];
 
 type QuickPreset = '1h' | '6h' | '24h' | 'today' | 'yesterday' | '7d' | '30d' | 'custom_day' | 'custom_range';

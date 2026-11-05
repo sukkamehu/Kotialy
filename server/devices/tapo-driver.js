@@ -260,7 +260,12 @@ class TapoDriver {
             targetState = evalResult.targetState;
             reason = evalResult.reason;
           }
-          // Kuivausrumpu
+          // Ilmanvaihtokone / Pelkkä kulutusmittaus (Ei koskaan katkaista)
+          else if (dev.id === 'ilmanvaihtokone' || dev.type === 'ventilation' || dev.type === 'monitoring') {
+            targetState = 'ON';
+            reason = 'Jatkuva ilmanvaihto · Vain energiankulutusmittaus';
+          }
+          // Kuivausrumpu (Tapo fallback jos vielä käytössä)
           else if (dev.id === 'kuivausrumpu' || dev.type === 'appliance_dryer') {
             const maxPriceLimit = dev.max_price_cents != null ? dev.max_price_cents : 12.0;
             const evalResult = this.evaluateApplianceSchedule(dev, currentPriceCents, maxPriceLimit, now);

@@ -11,6 +11,7 @@
 
 const db = require('../db');
 const tuyaService = require('./tuya-service');
+const nordpoolClient = require('../nordpool-client');
 
 function log(...args) {
   console.log('[TUYA_PLUG_DRIVER]', ...args);
@@ -23,13 +24,13 @@ function warn(...args) {
 class TuyaPlugDriver {
   constructor() {
     this.id = 'tuya_plug';
-    this.name = 'Energy+ Älypistorasia (Tuya)';
-    this.type = 'smart_plug';
+    this.name = 'Kuivausrumpu (Energy+ Tuya)';
+    this.type = 'appliance_dryer';
     this.deviceId = 'bf48a78786f87488b4otcg';
     this.lastState = null;
     this.lastAppliedDirective = null;
     this.lastAppliedAt = 0;
-    this.currentReason = 'Alustetaan älypistorasian ohjainta...';
+    this.currentReason = 'Alustetaan kuivausrummun ohjainta...';
   }
 
   /**
@@ -79,7 +80,7 @@ class TuyaPlugDriver {
 
     const maxPriceLimit = settings.tuya_plug_max_price_cents != null
       ? Number(settings.tuya_plug_max_price_cents)
-      : 15.0;
+      : 12.0;
 
     // Current spot price in c/kWh (already normalized in APC context)
     const currentPriceCents = context?.price?.price != null ? Number(context.price.price) : null;
@@ -105,11 +106,38 @@ class TuyaPlugDriver {
     else {
       if (currentPriceCents != null && currentPriceCents > maxPriceLimit) {
         targetState = 'OFF';
-        reason = `Pörssisähkö kallista (${currentPriceCents.toFixed(1)} snt > ${maxPriceLimit.toFixed(1)} snt/kWh) · Sähköt katkaistu`;
+        reason = `Sähkö kallista (${currentPriceCents.toFixed(1)} snt/kWh > ${maxPriceLimit.toFixed(1)} snt/kWh) · Kuivausrummun käynnistys estetty`;
+      } else if (currentPriceCents != null) {
+        // Next-hour look-ahead for appliance schedule (similar to washing machine)
+        const upcomingPrices = typeof nordpoolClient.getPrices === 'function'
+          ? nordpoolClient.getPrices(now, now + 3 * 3600 * 1000)
+          : [];
+        const nextHourEntry = upcomingPrices.find((p) => p.start_time > now);
+        const nextHourPriceCents = nextHourEntry ? nextHourEntry.price / 10 : null;
+
+        const currentMinute = new Date(now).getMinutes();
+        const minsLeftInCurrentHour = 60 - currentMinute;
+        const nextHourFormatted = `${String((new Date(now).getHours() + 1) % 24).padStart(2, '0')}:00`;
+
+        if (nextHourPriceCents != null && nextHourPriceCents > maxPriceLimit) {
+          if (minsLeftInCurrentHour <= 40) {
+            targetState = 'OFF';
+            reason = `Ennakointi: Seuraava tunti ylittää hintarajan (${nextHourPriceCents.toFixed(1)} snt/kWh > ${maxPriceLimit.toFixed(1)} snt/kWh klo ${nextHourFormatted} alkaen) · Käynnistys estetty`;
+          } else if (nextHourPriceCents > maxPriceLimit * 1.3) {
+            targetState = 'OFF';
+            reason = `Ennakointi: Tulossa hintapiikki (${nextHourPriceCents.toFixed(1)} snt/kWh klo ${nextHourFormatted}) · Odotetaan edullisempaa aikaa`;
+          } else {
+            targetState = 'ON';
+            reason = `Sähkö edullista (${currentPriceCents.toFixed(1)} snt/kWh) · Huom: Hinta nousee klo ${nextHourFormatted} (${nextHourPriceCents.toFixed(1)} snt/kWh) · Kuivausrumpu sallittu`;
+          }
+        } else {
+          targetState = 'ON';
+          const nextHourText = nextHourPriceCents != null ? `, seuraava tunti ${nextHourPriceCents.toFixed(1)} snt/kWh` : '';
+          reason = `Sähkö edullista (${currentPriceCents.toFixed(1)} snt/kWh${nextHourText}) · Kuivausrumpu käytettävissä`;
+        }
       } else {
         targetState = 'ON';
-        const priceLabel = currentPriceCents != null ? `${currentPriceCents.toFixed(1)} snt/kWh` : 'normaali';
-        reason = `Pörssisähkö edullista (${priceLabel} ≤ ${maxPriceLimit.toFixed(1)} snt/kWh) · Sähköt päällä`;
+        reason = 'Pörssisähkön hintatietoa ei saatavilla · Kuivausrumpu käytettävissä';
       }
     }
 
@@ -117,7 +145,7 @@ class TuyaPlugDriver {
 
     // Apply command if target state differs from last state
     if (this.lastState === null || this.lastState !== targetState || currentStat !== targetState) {
-      log(`⚡ Energy+ Älypistorasia tilamuutos: ${this.lastState || currentStat} -> ${targetState} (Syy: ${reason})`);
+      log(`⚡ Kuivausrumpu (Energy+ Tuya) tilamuutos: ${this.lastState || currentStat} -> ${targetState} (Syy: ${reason})`);
       await this.sendCommand(targetState);
     }
 
@@ -213,7 +241,7 @@ class TuyaPlugDriver {
 
     const maxPriceLimit = settings.tuya_plug_max_price_cents != null
       ? Number(settings.tuya_plug_max_price_cents)
-      : 15.0;
+      : 12.0;
 
     const power = dev?.properties?.power != null ? Number(dev.properties.power) : (parseFloat(fullState['tuya/energy_alypistorasia_home_connect_ip20/power']?.value) || 0);
     const voltage = dev?.properties?.voltage != null ? Number(dev.properties.voltage) : (parseFloat(fullState['tuya/energy_alypistorasia_home_connect_ip20/voltage']?.value) || 0);
