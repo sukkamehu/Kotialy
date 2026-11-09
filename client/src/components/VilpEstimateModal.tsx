@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { apiFetch } from '../lib/api';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
+import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
 import type { WeatherForecast } from '../types/weather';
 import type { NordpoolPrice } from '../types/nordpool';
 import {
@@ -72,7 +73,10 @@ export const VilpEstimateModal: React.FC<VilpEstimateModalProps> = ({
   const [prices, setPrices] = useState<NordpoolPrice[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const outsideTempNum = numVal(state, 'main/Outside_Temp');
+  const { data: outdoorConsensusData } = useOutdoorConsensus();
+  const hpOutsideTemp = numVal(state, 'main/Outside_Temp');
+  const consensusTemp = outdoorConsensusData?.consensus?.median ?? outdoorConsensusData?.consensus?.temperature ?? numVal(state, 'rtl433/outdoor/temperature');
+  const outsideTempNum = consensusTemp ?? hpOutsideTemp;
 
   // Close on Escape key
   useEffect(() => {

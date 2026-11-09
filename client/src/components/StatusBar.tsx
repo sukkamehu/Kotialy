@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { HeishamonState, MqttStatus } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import { useElectricityPrice } from '../hooks/useElectricityPrice';
+import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
 
 interface StatusBarProps {
   state: HeishamonState;
@@ -60,10 +61,19 @@ export function StatusBar({
   }, []);
 
   const { priceCentsKWh, avgPriceCentsKWh, minPriceCentsKWh, maxPriceCentsKWh, priceLevel } = useElectricityPrice();
+  const { data: outdoorConsensusData } = useOutdoorConsensus();
 
   const isSterilizationActive = state['main/Sterilization_State']?.value === '1';
   const sterilizationTemp = state['main/Sterilization_Temp']?.value;
-  const outsideTempNum = numVal(state, 'main/Outside_Temp');
+
+  // Outdoor temperature: prefer multi-sensor 433 MHz consensus (median), fallback to VILP
+  const rtlOutdoorFromState = numVal(state, 'rtl433/outdoor/temperature') ?? numVal(state, 'rtl433/outdoor/temperature_median');
+  const consensus = outdoorConsensusData?.consensus;
+  const consensusTemp = consensus?.median ?? consensus?.temperature ?? rtlOutdoorFromState;
+  const hpOutsideTemp = numVal(state, 'main/Outside_Temp');
+  const outsideTempNum = consensusTemp ?? hpOutsideTemp;
+  const isConsensusUsed = consensusTemp !== null && consensusTemp !== undefined;
+  const sensorCount = consensus?.sensorCount ?? 0;
   const error = state['main/Error']?.value;
   const hasError = Boolean(
     error &&
@@ -223,7 +233,7 @@ export function StatusBar({
               gap: 5,
               padding: '4px 9px',
             }}
-            title={`Laskennallinen VILP-sähkönkulutusarvio vuorokaudessa nykyisellä ulkolämpötilalla (${outsideTempNum?.toFixed(1)}°C):\n• Lämmitys: ~${heatingKwh.toFixed(1)} kWh sähköä (~${(heatingKwh * 5.0).toFixed(0)} kWh lämpöä)\n• Lämmin käyttövesi: ~${dhwKwh.toFixed(1)} kWh sähköä (~${(dhwKwh * 3.5).toFixed(0)} kWh lämpöä)\n= VILP sähkönkulutus ~${estimatedDailyKwh} kWh/pv (vastaa ~${(heatingKwh * 5.0 + dhwKwh * 3.5).toFixed(0)} kWh lämpöenergiaa)\n\n👉 Klikkaa avataksesi VILP-kulutusarvion ja lämmöntarpeen kehityksen`}
+            title={`Laskennallinen VILP-sähkönkulutusarvio vuorokaudessa nykyisellä ulkolämpötilalla (${outsideTempNum !== null ? (outsideTempNum > 0 ? '+' : '') + outsideTempNum.toFixed(1) : '—'}°C${isConsensusUsed ? ' [433 MHz konsensus]' : ''}):\n• Lämmitys: ~${heatingKwh.toFixed(1)} kWh sähköä (~${(heatingKwh * 5.0).toFixed(0)} kWh lämpöä)\n• Lämmin käyttövesi: ~${dhwKwh.toFixed(1)} kWh sähköä (~${(dhwKwh * 3.5).toFixed(0)} kWh lämpöä)\n= VILP sähkönkulutus ~${estimatedDailyKwh} kWh/pv (vastaa ~${(heatingKwh * 5.0 + dhwKwh * 3.5).toFixed(0)} kWh lämpöenergiaa)\n\n👉 Klikkaa avataksesi VILP-kulutusarvion ja lämmöntarpeen kehityksen`}
           >
             <span>🔋</span>
             <span>VILP-arvio: ~{estimatedDailyKwh} <span style={{ fontSize: 10, opacity: 0.85 }}>kWh/pv</span></span>
@@ -247,7 +257,7 @@ export function StatusBar({
           </div>
         )}
 
-        {/* Outside temp */}
+        {/* Outside temp (Primary: 433 MHz consensus median, Fallback: VILP) */}
         {outsideTempNum !== null && (
           <div
             className={`status-temp ${onOpenOutdoorModal ? 'status-temp-clickable' : ''}`}
@@ -260,13 +270,35 @@ export function StatusBar({
             }}
             role={onOpenOutdoorModal ? 'button' : undefined}
             tabIndex={onOpenOutdoorModal ? 0 : undefined}
-            title={onOpenOutdoorModal ? 'Klikkaa avataksesi ulkolämpötilan historia ja sääennuste' : undefined}
+            title={
+              isConsensusUsed
+                ? `Ulkolämpötila: ${outsideTempNum > 0 ? '+' : ''}${outsideTempNum.toFixed(1)} °C (433 MHz konsensus${sensorCount ? `, ${sensorCount} anturia` : ''}, mediaani)\nVILP: ${hpOutsideTemp !== null ? (hpOutsideTemp > 0 ? '+' : '') + hpOutsideTemp.toFixed(1) + ' °C' : '—'}\n\n👉 Klikkaa avataksesi ulkolämpötilan historia ja sääennuste`
+                : (onOpenOutdoorModal ? 'Klikkaa avataksesi ulkolämpötilan historia ja sääennuste' : undefined)
+            }
           >
-            <span style={{ fontSize: 13, marginRight: 1 }}>🌤️</span>
+            <span style={{ fontSize: 13, marginRight: 1 }}>{isConsensusUsed ? '🌲' : '🌤️'}</span>
             <span className="status-label status-hide-mobile">Ulkoilma</span>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cool-primary)' }}>
-              {outsideTempNum.toFixed(1)}°C
+              {outsideTempNum > 0 ? `+${outsideTempNum.toFixed(1)}` : outsideTempNum.toFixed(1)}°C
             </span>
+            {isConsensusUsed && (
+              <span
+                className="status-hide-mobile"
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: '1px 5px',
+                  borderRadius: 6,
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  color: '#4ade80',
+                  border: '1px solid rgba(34, 197, 94, 0.25)',
+                  marginLeft: 2,
+                }}
+                title={`433 MHz ulkoanturit (${sensorCount || '7'} kpl mediaani)`}
+              >
+                433 MHz
+              </span>
+            )}
           </div>
         )}
 

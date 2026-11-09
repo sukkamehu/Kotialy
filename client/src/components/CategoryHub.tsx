@@ -7,6 +7,7 @@ import { useOutdoorLights } from '../hooks/useOutdoorLights';
 import { useTapo } from '../hooks/useTapo';
 import { useMitsubishi } from '../hooks/useMitsubishi';
 import { useRtl433 } from '../hooks/useRtl433';
+import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
 
 export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'battery' | 'apc' | 'experimental';
 
@@ -26,8 +27,11 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const { status: mitsuStatus } = useMitsubishi();
   const { devices: rtlDevices, status: rtlStatus } = useRtl433();
 
-  // Metrics for quick summary badges
-  const outsideTemp = numVal(state, 'main/Outside_Temp');
+  const { data: outdoorConsensusData } = useOutdoorConsensus();
+
+  // Metrics for quick summary badges (prefer 433 MHz outdoor consensus median, fallback to VILP)
+  const consensusOutdoorTemp = outdoorConsensusData?.consensus?.median ?? outdoorConsensusData?.consensus?.temperature ?? numVal(state, 'rtl433/outdoor/temperature');
+  const outsideTemp = consensusOutdoorTemp ?? numVal(state, 'main/Outside_Temp');
   const inletTemp = numVal(state, 'main/Main_Inlet_Temp');
   const outletTemp = numVal(state, 'main/Main_Outlet_Temp');
   const dhwTemp = numVal(state, 'main/DHW_Temp');
@@ -309,7 +313,7 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
         },
         {
           label: 'Ulkoilma',
-          value: outsideTemp !== null ? `${outsideTemp.toFixed(1)} °C` : '--',
+          value: outsideTemp !== null ? `${outsideTemp > 0 ? '+' : ''}${outsideTemp.toFixed(1)} °C` : '--',
           color: '#38bdf8',
           bg: 'rgba(56, 189, 248, 0.12)',
         },

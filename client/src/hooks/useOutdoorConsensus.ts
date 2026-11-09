@@ -28,16 +28,44 @@ export interface OutdoorConsensusData {
   ts: number;
 }
 
-export function useOutdoorConsensus() {
-  const [data, setData] = useState<OutdoorConsensusData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+let cachedConsensus: OutdoorConsensusData | null = null;
+let lastConsensusFetch = 0;
+let inflightConsensusPromise: Promise<OutdoorConsensusData | null> | null = null;
 
-  const fetchConsensus = useCallback(async () => {
+async function doFetchConsensus(): Promise<OutdoorConsensusData | null> {
+  const now = Date.now();
+  if (cachedConsensus && now - lastConsensusFetch < 10000) {
+    return cachedConsensus;
+  }
+  if (inflightConsensusPromise) {
+    return inflightConsensusPromise;
+  }
+  inflightConsensusPromise = (async () => {
     try {
       const res = await apiFetch('/api/outdoor/consensus');
       if (res.ok) {
         const json: OutdoorConsensusData = await res.json();
+        cachedConsensus = json;
+        lastConsensusFetch = Date.now();
+        return json;
+      }
+    } finally {
+      inflightConsensusPromise = null;
+    }
+    return cachedConsensus;
+  })();
+  return inflightConsensusPromise;
+}
+
+export function useOutdoorConsensus() {
+  const [data, setData] = useState<OutdoorConsensusData | null>(cachedConsensus);
+  const [loading, setLoading] = useState<boolean>(cachedConsensus === null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchConsensus = useCallback(async () => {
+    try {
+      const json = await doFetchConsensus();
+      if (json) {
         setData(json);
         setError(null);
       }
@@ -63,6 +91,7 @@ export function useOutdoorConsensus() {
           body: JSON.stringify({ is_outdoor: isOutdoor }),
         });
         if (res.ok) {
+          lastConsensusFetch = 0; // Invalidate cache
           await fetchConsensus();
           return true;
         }

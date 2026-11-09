@@ -36,8 +36,8 @@ function TankSvg({
   const waterColor = temp !== null && temp > 55
     ? '#f59e0b'
     : temp !== null && temp > 45
-    ? '#fb923c'
-    : '#22d3ee';
+      ? '#fb923c'
+      : '#22d3ee';
 
   const waterGlow = temp !== null && temp > 45 ? 'rgba(245,158,11,0.3)' : 'rgba(34,211,238,0.2)';
 
@@ -63,7 +63,7 @@ function TankSvg({
         fill="none"
       >
         {/* Tank outline */}
-        <rect x="6" y="8" width="44" height="72" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        <rect x="6" y="8" width="44" height="72" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
         {/* Water fill */}
         <clipPath id="tank-clip">
           <rect x="7.5" y="9.5" width="41" height="69" rx="7" />
@@ -86,8 +86,8 @@ function TankSvg({
           return <line x1="7.5" y1={y} x2="48.5" y2={y} stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeDasharray="3,2" />;
         })()}
         {/* Tank caps */}
-        <rect x="16" y="2" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-        <rect x="16" y="80" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+        <rect x="16" y="2" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+        <rect x="16" y="80" width="24" height="8" rx="4" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
       </svg>
     </div>
   );
@@ -157,8 +157,8 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
 
   // LKV (Käyttövesi) circulation pump (Tuya WiFi Smart Relay)
   const lkvPumpRaw = state['tuya/kiertovesipumppu/state']?.value ??
-                     state['tuya/lkv_kiertovesipumppu/state']?.value ??
-                     state['tuya/ylakerran_kiertovesipumppu/state']?.value;
+    state['tuya/lkv_kiertovesipumppu/state']?.value ??
+    state['tuya/ylakerran_kiertovesipumppu/state']?.value;
   const lkvPumpDevice = apcStatus?.devices?.find((d) => d.driver === 'upstairs_pump') as any;
   const isLkvRunning = lkvPumpRaw === 'true' || lkvPumpRaw === '1' || lkvPumpRaw === 'ON' || lkvPumpDevice?.currentState === 'ON';
   const lkvMode = lkvPumpDevice?.mode ?? apcStatus?.settings?.dhw_pump_mode ?? apcStatus?.settings?.upstairs_pump_mode ?? 'auto';
@@ -184,18 +184,18 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   const cardBorder = isSterilization
     ? 'rgba(236,72,153,0.6)'
     : forceDHW
-    ? 'rgba(245,158,11,0.5)'
-    : isValveDHW
-    ? 'rgba(16, 185, 129, 0.55)'
-    : 'var(--border)';
+      ? 'rgba(245,158,11,0.5)'
+      : isValveDHW
+        ? 'rgba(16, 185, 129, 0.55)'
+        : 'var(--border)';
 
   const cardShadow = isSterilization
     ? '0 0 24px rgba(236,72,153,0.2)'
     : forceDHW
-    ? '0 0 20px rgba(245,158,11,0.15)'
-    : isValveDHW
-    ? '0 0 24px rgba(16, 185, 129, 0.22), inset 0 0 16px rgba(16, 185, 129, 0.04)'
-    : undefined;
+      ? '0 0 20px rgba(245,158,11,0.15)'
+      : isValveDHW
+        ? '0 0 24px rgba(16, 185, 129, 0.22), inset 0 0 16px rgba(16, 185, 129, 0.04)'
+        : undefined;
 
   const cardBg = isValveDHW && !isSterilization
     ? 'linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%)'
@@ -330,7 +330,7 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
                 {dhwHeatupMaxTime !== null && (
                   <span
                     style={{ fontSize: 10, color: 'var(--text-muted)' }}
-                    title={`HeishaMon v4.3.1: LKV-latauksen maksimiaika ${Math.round(dhwHeatupMaxTime)} min${roomOperationMaxTime !== null ? ` (vuorotteluaika ${Math.round(roomOperationMaxTime)} min)` : ''}`}
+                    title={`HeishaMon v4.3.1: LKV-latauksen maksimiaika ${Math.round(dhwHeatupMaxTime)} min${roomOperationMaxTime !== null ? ` | Lämmityksen maksimiaika ${Math.round(roomOperationMaxTime)} min` : ''}`}
                   >
                     · Max {Math.round(dhwHeatupMaxTime)} min
                   </span>
@@ -654,8 +654,8 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
                   {activeDhwSlot
                     ? `Halvan pörssijakson kuumennus käynnissä (${baseDhwTarget} °C)`
                     : nextDhwTimeStr
-                    ? `Odottaa vuorokauden halvinta jaksoa · Seuraava täyskuumennus (${baseDhwTarget} °C) klo ${nextDhwTimeStr}`
-                    : 'Ylläpitotila · Odottaa vuorokauden edullisinta latausjaksoa'}
+                      ? `Odottaa vuorokauden halvinta jaksoa · Seuraava täyskuumennus (${baseDhwTarget} °C) klo ${nextDhwTimeStr}`
+                      : 'Ylläpitotila · Odottaa vuorokauden edullisinta latausjaksoa'}
                 </div>
               </div>
             );
