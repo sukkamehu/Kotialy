@@ -254,11 +254,17 @@ function handleMessage(topic, rawPayload) {
     }
 
     // If flagged as outdoor sensor, compute and record consensus (median/average)
+    // Only sensors seen within 30 minutes are considered active/fresh to prevent dead/stale sensors from corrupting data
     if (dev.isOutdoor) {
       if (NUMERIC_PROPS.has(prop) && typeof val === 'number') {
+        const SENSOR_STALE_TIMEOUT_MS = 30 * 60 * 1000; // 30 min staleness limit
         const allDevs = Object.values(deviceRegistry);
         const outdoorDevs = allDevs.filter(
-          (d) => Boolean(d.isOutdoor) && !d.isIgnored && typeof d.properties?.[prop] === 'number'
+          (d) => Boolean(d.isOutdoor) &&
+            !d.isIgnored &&
+            typeof d.properties?.[prop] === 'number' &&
+            d.lastSeen &&
+            (now - d.lastSeen) <= SENSOR_STALE_TIMEOUT_MS
         );
         const vals = outdoorDevs.map((d) => d.properties[prop]);
         if (vals.length > 0) {

@@ -10,7 +10,6 @@ import {
   ComposedChart,
   Area,
   Line,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -31,6 +30,7 @@ type HistoryPreset = '6h' | '24h' | '48h' | 'today' | 'yesterday' | '7d' | '30d'
 
 interface CombinedDataPoint {
   time: number;
+  consensusTemp: number | null;
   measuredTemp: number | null;
   forecastTemp: number | null;
   feelsLike: number | null;
@@ -43,6 +43,7 @@ interface CombinedDataPoint {
 interface HistoryDataPoint {
   time: number;
   outsideTemp: number | null;
+  consensusTemp?: number | null;
   outsidePipeTemp?: number | null;
   evaOutletTemp?: number | null;
 }
@@ -229,13 +230,14 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
     const historyFrom = activeTab === 'combined' ? now - combinedPastHours * 3600 * 1000 : historyFromMs;
     const historyTo = activeTab === 'combined' ? now : historyToMs;
 
+    const baseTopics = ['rtl433/outdoor/temperature', 'main/Outside_Temp'];
     const topicsToFetch = includePipeTemp && activeTab === 'history'
-      ? ['main/Outside_Temp', 'main/Outside_Pipe_Temp']
-      : ['main/Outside_Temp'];
+      ? [...baseTopics, 'main/Outside_Pipe_Temp']
+      : baseTopics;
 
-    const historyPromise = topicsToFetch.length > 1
-      ? apiFetch(`/api/history/multi?topics=${encodeURIComponent(topicsToFetch.join(','))}&from=${historyFrom}&to=${historyTo}`).then((r) => r.json())
-      : apiFetch(`/api/history?topic=main/Outside_Temp&from=${historyFrom}&to=${historyTo}`).then((r) => r.json());
+    const historyPromise = apiFetch(
+      `/api/history/multi?topics=${encodeURIComponent(topicsToFetch.join(','))}&from=${historyFrom}&to=${historyTo}`
+    ).then((r) => r.json());
 
     const weatherForecastPromise = apiFetch('/api/weather/forecast?hours=72').then((r) => r.json()).catch(() => ({ forecast: [] }));
     const weatherCurrentPromise = apiFetch('/api/weather/current').then((r) => r.json()).catch(() => null);
@@ -245,36 +247,56 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
       .then(([historyRes, forecastRes, currentRes, dailyRes]) => {
         if (!isMounted) return;
 
-        // Process history
-        if (topicsToFetch.length > 1) {
-          const multi = historyRes.data || {};
-          const outsideRows = multi['main/Outside_Temp'] || [];
-          const pipeRows = multi['main/Outside_Pipe_Temp'] || [];
-          
-          // Map timestamps
-          const timeMap = new Map<number, HistoryDataPoint>();
-          for (const r of outsideRows) {
-            const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
-            timeMap.set(t, { time: Number(r.recorded_at), outsideTemp: Number(r.value), outsidePipeTemp: null });
-          }
-          for (const r of pipeRows) {
-            const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
-            const existing = timeMap.get(t);
-            if (existing) {
-              existing.outsidePipeTemp = Number(r.value);
-            } else {
-              timeMap.set(t, { time: Number(r.recorded_at), outsideTemp: null, outsidePipeTemp: Number(r.value) });
-            }
-          }
-          const sorted = Array.from(timeMap.values()).sort((a, b) => a.time - b.time);
-          setHistoryData(sorted);
-        } else {
-          const rows = (historyRes.data || []).map((r: any) => ({
+        // Process history (multi-topic merge with 1-min rounding)
+        const multi = historyRes.data || {};
+        const rtlRows = multi['rtl433/outdoor/temperature'] || [];
+        const outsideRows = multi['main/Outside_Temp'] || [];
+        const pipeRows = multi['main/Outside_Pipe_Temp'] || [];
+
+        const timeMap = new Map<number, HistoryDataPoint>();
+
+        for (const r of rtlRows) {
+          const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
+          timeMap.set(t, {
             time: Number(r.recorded_at),
-            outsideTemp: Number(r.value),
-          }));
-          setHistoryData(rows);
+            consensusTemp: Number(r.value),
+            outsideTemp: null,
+            outsidePipeTemp: null,
+          });
         }
+
+        for (const r of outsideRows) {
+          const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
+          const existing = timeMap.get(t);
+          if (existing) {
+            existing.outsideTemp = Number(r.value);
+          } else {
+            timeMap.set(t, {
+              time: Number(r.recorded_at),
+              consensusTemp: null,
+              outsideTemp: Number(r.value),
+              outsidePipeTemp: null,
+            });
+          }
+        }
+
+        for (const r of pipeRows) {
+          const t = Math.round(Number(r.recorded_at) / 60000) * 60000;
+          const existing = timeMap.get(t);
+          if (existing) {
+            existing.outsidePipeTemp = Number(r.value);
+          } else {
+            timeMap.set(t, {
+              time: Number(r.recorded_at),
+              consensusTemp: null,
+              outsideTemp: null,
+              outsidePipeTemp: Number(r.value),
+            });
+          }
+        }
+
+        const sorted = Array.from(timeMap.values()).sort((a, b) => a.time - b.time);
+        setHistoryData(sorted);
 
         setWeatherForecast(forecastRes.forecast || []);
         setWeatherCurrent(currentRes?.message ? null : currentRes);
@@ -305,7 +327,8 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
       if (h.time >= pastCutoff && h.time <= now) {
         points.push({
           time: h.time,
-          measuredTemp: h.outsideTemp,
+          consensusTemp: h.consensusTemp ?? null,
+          measuredTemp: h.outsideTemp ?? null,
           forecastTemp: null,
           feelsLike: null,
           rainMm: null,
@@ -316,18 +339,19 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
       }
     }
 
-    // Connect the seam at 'now'
-    const latestMeasured = historyData.length > 0 ? historyData[historyData.length - 1].outsideTemp : currentHeatpumpTemp;
-    if (points.length > 0 && latestMeasured !== null) {
-      const lastPt = points[points.length - 1];
-      lastPt.forecastTemp = latestMeasured;
+    // Connect the seam at 'now': set forecastTemp on the last history point to the current temperature
+    const latestPt = points.length > 0 ? points[points.length - 1] : null;
+    const seamTemp = latestPt?.consensusTemp ?? latestPt?.measuredTemp ?? currentHeatpumpTemp;
+    if (latestPt && seamTemp !== null) {
+      latestPt.forecastTemp = seamTemp;
     }
 
-    // Add forecast points
+    // Add forecast points strictly from 'now' forward
     for (const f of weatherForecast) {
-      if (f.time >= now - 15 * 60 * 1000 && f.time <= futureCutoff) {
+      if (f.time >= now && f.time <= futureCutoff) {
         points.push({
           time: f.time,
+          consensusTemp: null,
           measuredTemp: null,
           forecastTemp: f.temperature,
           feelsLike: f.feels_like,
@@ -442,12 +466,22 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
           </span>
         </div>
 
+        {pt.consensusTemp !== null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 2, background: '#4ade80' }} />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Piha 433 MHz:</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#4ade80', marginLeft: 'auto' }}>
+              {pt.consensusTemp > 0 ? `+${pt.consensusTemp.toFixed(1)}` : pt.consensusTemp.toFixed(1)} °C
+            </span>
+          </div>
+        )}
+
         {pt.measuredTemp !== null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: '#22d3ee' }} />
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lämpöpumppu anturi:</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>VILP ulkoilma:</span>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#22d3ee', marginLeft: 'auto' }}>
-              {pt.measuredTemp.toFixed(1)} °C
+              {pt.measuredTemp > 0 ? `+${pt.measuredTemp.toFixed(1)}` : pt.measuredTemp.toFixed(1)} °C
             </span>
           </div>
         )}
@@ -1054,21 +1088,12 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={combinedTimelineData} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="gradMeasured" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#22d3ee" stopOpacity={0.0} />
-                        </linearGradient>
-                        <linearGradient id="gradForecast" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#a78bfa" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
+                    <ComposedChart data={combinedTimelineData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                       <XAxis
                         dataKey="time"
                         type="number"
+                        scale="time"
                         domain={['dataMin', 'dataMax']}
                         tickFormatter={(ts) => formatTickTime(ts, combinedPastHours + combinedFutureHours)}
                         stroke="var(--text-muted)"
@@ -1080,22 +1105,25 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                         yAxisId="temp"
                         stroke="var(--text-muted)"
                         fontSize={11}
+                        width={40}
                         tickLine={false}
                         axisLine={false}
                         domain={['auto', 'auto']}
                         tickFormatter={(v) => `${Math.round(v * 10) / 10}°`}
                       />
-                      <YAxis
-                        yAxisId="rain"
-                        orientation="right"
-                        stroke="#38bdf8"
-                        fontSize={10}
-                        tickLine={false}
-                        axisLine={false}
-                        domain={[0, 'auto']}
-                        tickFormatter={(v) => `${v}mm`}
-                        hide={combinedStats.totalRainMm === 0}
-                      />
+                      {combinedStats.totalRainMm > 0 && (
+                        <YAxis
+                          yAxisId="rain"
+                          orientation="right"
+                          stroke="#38bdf8"
+                          fontSize={10}
+                          width={32}
+                          tickLine={false}
+                          axisLine={false}
+                          domain={[0, 'auto']}
+                          tickFormatter={(v) => `${v}mm`}
+                        />
+                      )}
                       <Tooltip content={<CombinedTooltip />} />
                       <Legend
                         verticalAlign="top"
@@ -1133,41 +1161,58 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                         }}
                       />
 
-                      {/* Rain Bars */}
-                      <Bar
-                        yAxisId="rain"
-                        dataKey="rainMm"
-                        fill="rgba(56, 189, 248, 0.4)"
-                        name="Sade-ennuste (mm)"
+                      {/* Rain Area on Right Axis */}
+                      {combinedStats.totalRainMm > 0 && (
+                        <Area
+                          yAxisId="rain"
+                          type="monotone"
+                          dataKey="rainMm"
+                          fill="rgba(56, 189, 248, 0.25)"
+                          stroke="#38bdf8"
+                          strokeWidth={1.5}
+                          name="Sade-ennuste (mm)"
+                          connectNulls
+                          isAnimationActive={false}
+                        />
+                      )}
+
+                      {/* 433 MHz Piha-konsensus Line (Primary) */}
+                      <Line
+                        yAxisId="temp"
+                        type="monotone"
+                        dataKey="consensusTemp"
+                        stroke="#4ade80"
+                        strokeWidth={2.5}
+                        dot={false}
+                        name="🌲 Piha (433 MHz)"
+                        connectNulls
                         isAnimationActive={false}
                       />
 
-                      {/* Measured History Area */}
-                      <Area
+                      {/* Panasonic VILP Outside Temp Line */}
+                      <Line
                         yAxisId="temp"
                         type="monotone"
                         dataKey="measuredTemp"
                         stroke="#22d3ee"
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#gradMeasured)"
-                        name="Mitattu (Lämpöpumppu)"
-                        connectNulls={false}
+                        strokeWidth={2}
+                        strokeDasharray="3 3"
+                        dot={false}
+                        name="🌤️ VILP ulkoilma"
+                        connectNulls
                         isAnimationActive={false}
                       />
 
-                      {/* Forecast Area */}
-                      <Area
+                      {/* Weather Forecast Line */}
+                      <Line
                         yAxisId="temp"
                         type="monotone"
                         dataKey="forecastTemp"
                         stroke="#a78bfa"
                         strokeWidth={2.5}
-                        strokeDasharray="5 5"
-                        fillOpacity={1}
-                        fill="url(#gradForecast)"
-                        name="Sääennuste (Met.no)"
-                        connectNulls={false}
+                        dot={false}
+                        name="🔮 Sääennuste (Met.no)"
+                        connectNulls
                         isAnimationActive={false}
                       />
                     </ComposedChart>
@@ -1192,10 +1237,10 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                     <span style={{ fontSize: 18 }}>🌲</span>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        Langattomat 433 MHz Piha- ja Ulkoanturit ({outdoorConsensus?.outdoorSensors.length || 0} kpl)
+                        Langattomat 433 MHz Piha- ja Ulkoanturit ({outdoorConsensus?.consensus.sensorCount ?? outdoorConsensus?.freshCount ?? outdoorConsensus?.outdoorSensors.length} aktiivista / {outdoorConsensus?.outdoorSensors.length || 0} kpl)
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        Korkean resoluution (0.1 °C) mittaus pihan eri puolilta verrattuna Panasonic VILP:n karkeaan kokonaislukuanturiin
+                        Korkean resoluution (0.1 °C) mittaus pihan eri puolilta. Yli 30 min vanhat mittaukset rajataan automaattisesti pois konsensuksesta.
                       </div>
                     </div>
                   </div>
@@ -1216,6 +1261,17 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                       const diffToHp = (temp !== undefined && currentHeatpumpTemp !== null)
                         ? Math.round((temp - currentHeatpumpTemp) * 10) / 10
                         : null;
+                      const isStale = Boolean(dev.isStale || (dev.lastSeen ? (Date.now() - dev.lastSeen > 30 * 60 * 1000) : true));
+                      const ageMinutes = dev.lastSeen ? Math.round((Date.now() - dev.lastSeen) / 60000) : null;
+                      const ageLabel = ageMinutes === null
+                        ? 'ei tietoa'
+                        : ageMinutes < 1
+                          ? 'juuri nyt'
+                          : ageMinutes < 60
+                            ? `${ageMinutes} min sitten`
+                            : ageMinutes < 1440
+                              ? `${Math.round(ageMinutes / 60)} h sitten`
+                              : `${Math.round(ageMinutes / 1440)} pv sitten`;
 
                       return (
                         <div
@@ -1223,17 +1279,29 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                           style={{
                             padding: '10px 12px',
                             borderRadius: 8,
-                            background: 'rgba(34,211,238,0.05)',
-                            border: '1px solid rgba(34,211,238,0.2)',
+                            background: isStale ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)',
+                            border: isStale ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(34,197,94,0.25)',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: 4,
+                            opacity: isStale ? 0.75 : 1,
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-                              {dev.customName || `${dev.model} #${dev.rawId || dev.id}`}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: isStale ? '#ef4444' : '#22c55e',
+                                  boxShadow: isStale ? 'none' : '0 0 6px #22c55e',
+                                }}
+                              />
+                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {dev.customName || `${dev.model} #${dev.rawId || dev.id}`}
+                              </span>
+                            </div>
                             <button
                               className="btn btn-ghost"
                               onClick={() => setOutdoorFlag(dev.id, false)}
@@ -1244,7 +1312,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                             </button>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: '#38bdf8' }}>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: isStale ? 'var(--text-muted)' : '#38bdf8' }}>
                               {temp !== undefined ? `${temp.toFixed(1)} °C` : '—'}
                             </span>
                             {hum !== undefined && (
@@ -1252,7 +1320,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                                 {hum.toFixed(0)} %
                               </span>
                             )}
-                            {diffToHp !== null && (
+                            {diffToHp !== null && !isStale && (
                               <span
                                 style={{
                                   fontSize: 11,
@@ -1265,6 +1333,10 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                                 {diffToHp >= 0 ? `+${diffToHp}` : diffToHp} °C
                               </span>
                             )}
+                          </div>
+                          <div style={{ fontSize: 10, color: isStale ? '#f87171' : 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                            <span>{isStale ? `⚠️ Poissa linjoilta (${ageLabel})` : `Päivitetty ${ageLabel}`}</span>
+                            {isStale && <span style={{ fontWeight: 600 }}>Ei mukana konsensuksessa</span>}
                           </div>
                         </div>
                       );
@@ -1401,17 +1473,12 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={historyData} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="gradHistoryOnly" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#22d3ee" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
+                    <ComposedChart data={historyData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                       <XAxis
                         dataKey="time"
                         type="number"
+                        scale="time"
                         domain={['dataMin', 'dataMax']}
                         tickFormatter={(ts) => formatTickTime(ts, historyDurationHours)}
                         stroke="var(--text-muted)"
@@ -1422,12 +1489,19 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                       <YAxis
                         stroke="var(--text-muted)"
                         fontSize={11}
+                        width={40}
                         tickLine={false}
                         axisLine={false}
                         domain={['auto', 'auto']}
                         tickFormatter={(v) => `${Math.round(v * 10) / 10}°`}
                       />
                       <Tooltip content={<HistoryTooltip />} />
+                      <Legend
+                        verticalAlign="top"
+                        height={30}
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: 11, paddingBottom: 6 }}
+                      />
                       {historyStats && (
                         <ReferenceLine
                           y={historyStats.avg}
@@ -1446,14 +1520,27 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                         stroke="rgba(56, 189, 248, 0.4)"
                         strokeDasharray="2 2"
                       />
-                      <Area
+                      {/* 433 MHz Piha-konsensus Line */}
+                      <Line
+                        type="monotone"
+                        dataKey="consensusTemp"
+                        name="🌲 Piha (433 MHz)"
+                        stroke="#4ade80"
+                        strokeWidth={2.5}
+                        dot={false}
+                        connectNulls
+                        isAnimationActive={false}
+                      />
+                      {/* Panasonic VILP Outside Temp Line */}
+                      <Line
                         type="monotone"
                         dataKey="outsideTemp"
-                        name="Ulkoilma (Outside_Temp)"
+                        name="🌤️ VILP ulkoilma"
                         stroke="#22d3ee"
                         strokeWidth={2}
-                        fillOpacity={1}
-                        fill="url(#gradHistoryOnly)"
+                        strokeDasharray="3 3"
+                        dot={false}
+                        connectNulls
                         isAnimationActive={false}
                       />
                       {includePipeTemp && (
@@ -1464,6 +1551,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                           stroke="#f59e0b"
                           strokeWidth={1.5}
                           dot={false}
+                          connectNulls
                           isAnimationActive={false}
                         />
                       )}

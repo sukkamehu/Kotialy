@@ -25,6 +25,10 @@ export interface Rtl433Device {
   isIgnored?: boolean;
   lastSeen?: number | null;
   online?: boolean;
+  isOnline?: boolean;
+  isStale?: boolean;
+  ageMinutes?: number | null;
+  ageSeconds?: number | null;
   packetCount?: number;
   properties: Rtl433Properties;
   raw?: any;

@@ -253,10 +253,14 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
   const panasonicOutsideTemp = state ? numVal(state, 'main/Outside_Temp') : null;
   const outsideDisplayTemp = panasonicOutsideTemp ?? ulkoSensor?.properties.temperature;
 
-  // 433 MHz outdoor sensors
+  // 433 MHz outdoor sensors (only fresh sensors seen within 30 min)
   const outdoorRtlSensors = useMemo(() => {
+    const now = Date.now();
     return rtlDevices.filter(
-      (d) => Boolean(d.isOutdoor) && !d.isIgnored && typeof d.properties?.temperature === 'number'
+      (d) => Boolean(d.isOutdoor) &&
+        !d.isIgnored &&
+        typeof d.properties?.temperature === 'number' &&
+        Boolean(d.lastSeen && (now - d.lastSeen) <= 30 * 60 * 1000)
     );
   }, [rtlDevices]);
 

@@ -592,6 +592,9 @@ router.get('/outdoor/consensus', (req, res) => {
   const hpTemp = hpTempState ? parseFloat(hpTempState.value) : null;
   const hpPipeTemp = hpPipeState ? parseFloat(hpPipeState.value) : null;
 
+  const now = Date.now();
+  const SENSOR_STALE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes max age for consensus
+
   const allDevices = rtl433Client.getDevices() || [];
 
   // Active devices with readings
@@ -599,14 +602,35 @@ router.get('/outdoor/consensus', (req, res) => {
     (d) => !d.isIgnored && typeof d.properties?.temperature === 'number'
   );
 
-  // Explicitly marked outdoor sensors
-  const outdoorSensors = activeDevices.filter((d) => Boolean(d.isOutdoor));
+  // Explicitly marked outdoor sensors with staleness check
+  const outdoorSensorsRaw = activeDevices.filter((d) => Boolean(d.isOutdoor));
+  const outdoorSensors = outdoorSensorsRaw.map((d) => {
+    const ageMs = d.lastSeen ? now - d.lastSeen : Infinity;
+    const isStale = ageMs > SENSOR_STALE_TIMEOUT_MS;
+    return {
+      ...d,
+      isStale,
+      isOnline: !isStale,
+      ageMinutes: d.lastSeen ? Math.round(ageMs / 60000) : null,
+      ageSeconds: d.lastSeen ? Math.round(ageMs / 1000) : null,
+    };
+  });
 
-  // If no sensors are explicitly tagged yet, identify potential outdoor sensors
-  const candidateSensors = activeDevices.filter((d) => !d.isOutdoor);
+  // Only FRESH outdoor sensors contribute to consensus (median & average)
+  const freshOutdoorSensors = outdoorSensors.filter((d) => !d.isStale);
+  const staleCount = outdoorSensors.filter((d) => d.isStale).length;
 
-  const outdoorTemps = outdoorSensors.map((d) => d.properties.temperature);
-  const outdoorHumids = outdoorSensors
+  // Candidate sensors (not marked outdoor, but fresh)
+  const candidateSensors = activeDevices
+    .filter((d) => !d.isOutdoor && d.lastSeen && (now - d.lastSeen) <= SENSOR_STALE_TIMEOUT_MS)
+    .map((d) => ({
+      ...d,
+      isOnline: true,
+      ageMinutes: Math.round((now - d.lastSeen) / 60000),
+    }));
+
+  const outdoorTemps = freshOutdoorSensors.map((d) => d.properties.temperature);
+  const outdoorHumids = freshOutdoorSensors
     .map((d) => d.properties.humidity)
     .filter((h) => typeof h === 'number');
 
@@ -660,6 +684,8 @@ router.get('/outdoor/consensus', (req, res) => {
       updatedAt: hpTempState?.updated_at || null,
     },
     outdoorSensors,
+    freshCount: freshOutdoorSensors.length,
+    staleCount,
     candidateSensors,
     consensus: {
       temperature: consensusTemp,
@@ -669,12 +695,13 @@ router.get('/outdoor/consensus', (req, res) => {
       humidity: consensusHumidity,
       medianHumidity,
       averageHumidity: avgHumidity,
-      sensorCount: outdoorSensors.length,
+      sensorCount: freshOutdoorSensors.length,
+      totalTaggedCount: outdoorSensors.length,
       deltaToHeatpump,
       minTemp: outdoorTemps.length ? Math.min(...outdoorTemps) : null,
       maxTemp: outdoorTemps.length ? Math.max(...outdoorTemps) : null,
     },
-    ts: Date.now(),
+    ts: now,
   });
 });
 

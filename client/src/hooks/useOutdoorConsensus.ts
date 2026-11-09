@@ -11,6 +11,8 @@ export interface OutdoorConsensusData {
     updatedAt: number | null;
   };
   outdoorSensors: Rtl433Device[];
+  freshCount?: number;
+  staleCount?: number;
   candidateSensors: Rtl433Device[];
   consensus: {
     temperature: number | null;
@@ -21,6 +23,7 @@ export interface OutdoorConsensusData {
     medianHumidity?: number | null;
     averageHumidity?: number | null;
     sensorCount: number;
+    totalTaggedCount?: number;
     deltaToHeatpump: number | null;
     minTemp: number | null;
     maxTemp: number | null;
