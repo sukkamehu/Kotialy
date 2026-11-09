@@ -101,6 +101,8 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
   const forceHeater = state['main/Force_Heater_State']?.value === '1';
   const internalHeater = state['main/Internal_Heater_State']?.value === '1';
   const externalHeater = state['main/External_Heater_State']?.value === '1';
+  const dhwHeatupMaxTime = numVal(state, 'main/DHW_Heatup_Max_Time');
+  const roomOperationMaxTime = numVal(state, 'main/Room_Operation_Max_Time');
 
   // Power – prefer XTOP, fallback to TOP
   const dhwProdXtop = numVal(state, 'extra/DHW_Power_Production');
@@ -321,10 +323,18 @@ export function DHWCard({ state, onOpenTrend, readOnly = false }: DHWCardProps) 
               </span>
             </div>
             {target !== null && temp !== null && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: temp >= target ? 'var(--online)' : 'var(--warning)' }}>
                   {temp >= target ? '✓ Tavoite saavutettu' : `${(target - temp).toFixed(1)} °C tavoitteeseen`}
                 </span>
+                {dhwHeatupMaxTime !== null && (
+                  <span
+                    style={{ fontSize: 10, color: 'var(--text-muted)' }}
+                    title={`HeishaMon v4.3.1: LKV-latauksen maksimiaika ${Math.round(dhwHeatupMaxTime)} min${roomOperationMaxTime !== null ? ` (vuorotteluaika ${Math.round(roomOperationMaxTime)} min)` : ''}`}
+                  >
+                    · Max {Math.round(dhwHeatupMaxTime)} min
+                  </span>
+                )}
               </div>
             )}
           </div>

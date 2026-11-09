@@ -103,6 +103,7 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
     state['main/Outdoor_Heater_State']?.value === '1' ||
     state['main/Internal_Heater_State']?.value === '1';
   const quietLevel = numVal(state, 'main/Quiet_Mode_Level');
+  const quietActual = state['main/Quiet_Mode_Actual_State']?.value === '1';
   const heatingOffTemp = numVal(state, 'main/Heating_Off_Outdoor_Temp');
 
   const { send, pending, error, success } = useCommand();
@@ -158,6 +159,11 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
           {defrosting && (
             <div className="badge" style={{ background: 'rgba(34,211,238,0.15)', color: 'var(--cool-primary)', border: '1px solid rgba(34,211,238,0.3)', fontSize: 10 }}>
               ❄️ Sulatus
+            </div>
+          )}
+          {quietActual && (
+            <div className="badge" style={{ background: 'rgba(129,140,248,0.15)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.3)', fontSize: 10 }} title="Hiljainen tila on fyysisesti aktiivinen kompressorilla (HeishaMon v4.3.1 TOP160)">
+              🤫 Hiljainen
             </div>
           )}
         </div>
@@ -509,21 +515,40 @@ export function OutdoorCard({ state, onOpenTrend, onOpenOutdoorWeather, readOnly
         {(() => {
           const isQuietAuto = apcStatus?.enabled && apcStatus?.settings?.quiet_mode_auto_enabled !== false;
           return (
-            <SegmentedControl
-              label="🤫 Hiljainen tila"
-              options={QUIET_LEVELS}
-              value={quietLevel === null ? null : Math.round(quietLevel)}
-              onSelect={(v) => send('commands/SetQuietMode', v,
-                v === 0 ? 'Hiljainen tila pois' : `Hiljainen tila: Taso ${v}`)}
-              pending={pending}
-              disabled={readOnly}
-              idPrefix="btn-quiet"
-              hint={
-                isQuietAuto
-                  ? `✨ APC ohjaa automaattisesti ulkolämmön mukaan (${outsideTemp != null ? `${outsideTemp.toFixed(1)} °C` : ''} → ${quietLevel && quietLevel > 0 ? `Taso ${Math.round(quietLevel)}` : 'Pois päältä'})`
-                  : 'korkeampi taso = hiljaisempi ääni, alempi maksimiteho'
-              }
-            />
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>🤫 Hiljainen tila</span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 10,
+                    background: quietActual ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    color: quietActual ? '#4ade80' : 'var(--text-muted)',
+                    border: quietActual ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+                  }}
+                  title="HeishaMon v4.3.1 TOP160: Kertoo onko hiljainen rajoitus kompressorilla todella päällä"
+                >
+                  {quietActual ? '🟢 Kompressorilla aktiivinen' : quietLevel && quietLevel > 0 ? '⏸️ Odottaa / Ei rajoitettu' : 'Pois päältä'}
+                </span>
+              </div>
+              <SegmentedControl
+                label=""
+                options={QUIET_LEVELS}
+                value={quietLevel === null ? null : Math.round(quietLevel)}
+                onSelect={(v) => send('commands/SetQuietMode', v,
+                  v === 0 ? 'Hiljainen tila pois' : `Hiljainen tila: Taso ${v}`)}
+                pending={pending}
+                disabled={readOnly}
+                idPrefix="btn-quiet"
+                hint={
+                  isQuietAuto
+                    ? `✨ APC ohjaa automaattisesti ulkolämmön mukaan (${outsideTemp != null ? `${outsideTemp.toFixed(1)} °C` : ''} → ${quietLevel && quietLevel > 0 ? `Taso ${Math.round(quietLevel)}` : 'Pois päältä'})`
+                    : 'korkeampi taso = hiljaisempi ääni, alempi maksimiteho'
+                }
+              />
+            </div>
           );
         })()}
 

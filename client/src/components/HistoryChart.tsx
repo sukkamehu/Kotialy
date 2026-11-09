@@ -26,11 +26,13 @@ const CHART_TOPICS: ChartTopicConfig[] = [
   { key: 'main/Main_Outlet_Temp', label: 'Meno', color: '#f59e0b', unit: '°C', yAxisId: 'left', category: 'vilp' },
   { key: 'main/DHW_Temp', label: 'Käyttövesi', color: '#10b981', unit: '°C', yAxisId: 'left', category: 'vilp' },
   { key: 'main/Buffer_Temp', label: 'Puskuri', color: '#a78bfa', unit: '°C', yAxisId: 'left', category: 'vilp' },
+  { key: 'main/Heat_Request_Temp_With_Buffer', label: '🎯 Pyynti puskurin kanssa', color: '#c084fc', unit: '°C', yAxisId: 'left', dash: '3 3', category: 'vilp' },
   { key: 'main/Compressor_Freq', label: 'Komp. Hz', color: '#fb923c', unit: 'Hz', yAxisId: 'right', category: 'vilp' },
   { key: 'main/Heat_Power_Consumption', label: 'VILP Ottoteho', color: '#f43f5e', unit: 'W', yAxisId: 'right', category: 'vilp' },
   { key: 'main/Heat_Power_Production', label: 'Lämmitysteho', color: '#f97316', unit: 'W', yAxisId: 'right', category: 'vilp' },
   { key: 'main/Pump_Flow', label: 'Virtaus', color: '#34d399', unit: 'L/min', yAxisId: 'right', category: 'vilp' },
   { key: 'main/Defrosting_State', label: '❄️ Sulatus', color: '#67e8f9', unit: '', yAxisId: 'right', dash: '3 3', category: 'vilp' },
+  { key: 'main/Quiet_Mode_Actual_State', label: '🤫 Hiljainen tila (toteutunut)', color: '#818cf8', unit: '', yAxisId: 'right', dash: '2 2', category: 'vilp' },
 
   // ─── Mitsubishi ILP Ilmalämpöpumput ───────────────────────────
   { key: 'mitsubishi/mitsubishi_alakerta/current_temperature', label: '🛋️ ILP Alakerta huonelämpö', color: '#38bdf8', unit: '°C', yAxisId: 'left', category: 'smartlife' },

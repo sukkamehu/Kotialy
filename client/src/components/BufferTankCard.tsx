@@ -118,6 +118,7 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
   const mainTargetTemp = numVal(state, 'main/Main_Target_Temp');
   const bufferDelta = numVal(state, 'main/Buffer_Tank_Delta');
   const z1Request = numVal(state, 'main/Z1_Heat_Request_Temp');
+  const heatRequestWithBuffer = numVal(state, 'main/Heat_Request_Temp_With_Buffer');
 
   // Power – prefer XTOP values, fallback to main topics
   const heatProdXT = numVal(state, 'extra/Heat_Power_Production');
@@ -408,6 +409,24 @@ export function BufferTankCard({ state, onOpenTrend, readOnly = false }: BufferT
                   <span style={{ color: 'var(--text-muted)' }}>VILP pyynti:</span>
                   <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
                     {mainTargetTemp.toFixed(1)}°C
+                  </span>
+                </div>
+              )}
+              {heatRequestWithBuffer !== null && (
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: onOpenTrend ? 'pointer' : 'default' }}
+                  onClick={() => onOpenTrend?.({
+                    topic: 'main/Heat_Request_Temp_With_Buffer',
+                    label: 'Lämmitysveden pyynti puskurin kanssa',
+                    unit: '°C',
+                    color: '#c084fc',
+                    currentValue: heatRequestWithBuffer,
+                  })}
+                  title="VILPin laskema tavoite puskurin deltan huomioiden (HeishaMon v4.3.1)"
+                >
+                  <span style={{ color: 'var(--text-muted)' }}>Pyynti (puskuri):</span>
+                  <span style={{ fontWeight: 700, color: '#c084fc' }}>
+                    {heatRequestWithBuffer > 0 ? `+${heatRequestWithBuffer}` : heatRequestWithBuffer}
                   </span>
                 </div>
               )}
