@@ -2,12 +2,38 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import type { CostSummary, DailyCost } from '../types/costs';
 
+const MONTH_NAMES_FI: Record<string, string> = {
+  '01': 'Tammikuu',
+  '02': 'Helmikuu',
+  '03': 'Maaliskuu',
+  '04': 'Huhtikuu',
+  '05': 'Toukokuu',
+  '06': 'Kesäkuu',
+  '07': 'Heinäkuu',
+  '08': 'Elokuu',
+  '09': 'Syyskuu',
+  '10': 'Lokakuu',
+  '11': 'Marraskuu',
+  '12': 'Joulukuu',
+};
+
+function formatMonthLabel(monthKey: string, short = false): string {
+  if (!monthKey || !monthKey.includes('-')) return monthKey || '';
+  const [year, month] = monthKey.split('-');
+  const name = MONTH_NAMES_FI[month] || month;
+  if (short) {
+    const currentYear = new Date().getFullYear().toString();
+    return year === currentYear ? name : `${name} '${year.slice(2)}`;
+  }
+  return `${name} ${year}`;
+}
+
 export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}) {
   const [summary, setSummary] = useState<CostSummary | null>(null);
   const [dailyCosts, setDailyCosts] = useState<DailyCost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [rangeDays, setRangeDays] = useState<number>(7);
+  const [selectedRange, setSelectedRange] = useState<string>('7');
 
   // Settings form state
   const [transferMode, setTransferMode] = useState<'day_night' | 'flat'>('day_night');
@@ -19,9 +45,16 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
 
   const fetchData = async () => {
     try {
+      let dailyUrl = `/api/costs/daily?days=${selectedRange}`;
+      if (selectedRange === 'all') {
+        dailyUrl = '/api/costs/daily?days=all';
+      } else if (/^\d{4}-\d{2}$/.test(selectedRange)) {
+        dailyUrl = `/api/costs/daily?month=${selectedRange}`;
+      }
+
       const [sumRes, dailyRes] = await Promise.all([
         apiFetch('/api/costs/summary'),
-        apiFetch(`/api/costs/daily?days=${rangeDays}`),
+        apiFetch(dailyUrl),
       ]);
 
       const sumData: CostSummary = await sumRes.json();
@@ -48,7 +81,7 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
     fetchData();
     const interval = setInterval(fetchData, 60_000);
     return () => clearInterval(interval);
-  }, [rangeDays]);
+  }, [selectedRange]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,8 +113,35 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
   const yesterday = summary?.yesterday;
   const month = summary?.month;
 
+  const isMonthSelected = /^\d{4}-\d{2}$/.test(selectedRange);
+  const selectedMonthData = isMonthSelected
+    ? summary?.months?.find((m) => m.month === selectedRange) || null
+    : null;
+  const isAllSelected = selectedRange === 'all';
+
+  // Totals for current dailyCosts list (used for footer and 'all' KPI)
+  const totalConsumption = dailyCosts.reduce((s, d) => s + (d.total_consumption_kwh || 0), 0);
+  const totalProduction = dailyCosts.reduce((s, d) => s + (d.total_production_kwh || 0), 0);
+  const totalCost = dailyCosts.reduce((s, d) => s + (d.total_cost_eur || 0), 0);
+  const totalSavings = dailyCosts.reduce((s, d) => s + (d.savings_eur || 0), 0);
+  const avgCop = totalConsumption > 0 ? Number((totalProduction / totalConsumption).toFixed(2)) : null;
+  const periodAvgPrice = totalConsumption > 0 ? Number(((totalCost / totalConsumption) * 100).toFixed(1)) : null;
+
   // Max daily cost for scaling the mini-bar visualization
   const maxCost = Math.max(...dailyCosts.map((d) => d.total_cost_eur), 1);
+
+  // Dynamic header badge savings
+  const activeSavings = isAllSelected
+    ? totalSavings
+    : isMonthSelected
+      ? (selectedMonthData?.savings_eur ?? 0)
+      : (month?.savings_eur ?? 0);
+
+  const savingsBadgeLabel = isAllSelected
+    ? `Säästö yhteensä (${dailyCosts.length} pv)`
+    : isMonthSelected
+      ? `Säästö (${formatMonthLabel(selectedRange, true)})`
+      : 'Säästö tässä kuussa';
 
   return (
     <div className="card">
@@ -89,9 +149,9 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
         <span className="card-icon">💶</span>
         <span className="card-title">Päivittäiset Energiakustannukset & Säästöt</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {month && month.savings_eur > 0 && (
+          {activeSavings > 0 && (
             <div className="badge badge-heat" style={{ fontSize: 12, fontWeight: 700, background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
-              Säästö tässä kuussa: ~{month.savings_eur.toFixed(1)} €
+              {savingsBadgeLabel}: ~{activeSavings.toFixed(1)} €
             </div>
           )}
           {!readOnly && (
@@ -330,46 +390,141 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
             </div>
           </div>
 
-          {/* Current Month */}
+          {/* Third Metric Box: Month or All selection */}
           <div className="metric-box">
-            <span className="metric-label">Kuluva kuukausi ({month?.month || ''})</span>
+            <span className="metric-label">
+              {isAllSelected
+                ? `Kaikki tallennetut (${dailyCosts.length} pv)`
+                : isMonthSelected
+                  ? `${selectedRange === month?.month ? 'Kuluva kuukausi' : 'Valittu kuukausi'} (${formatMonthLabel(selectedRange)})`
+                  : `Kuluva kuukausi (${formatMonthLabel(month?.month || '')})`}
+            </span>
             <span className="metric-value" style={{ color: 'var(--text-primary)', fontSize: 22 }}>
-              {month ? `${month.total_cost_eur.toFixed(2)} €` : '—'}
+              {isAllSelected
+                ? `${totalCost.toFixed(2)} €`
+                : isMonthSelected
+                  ? `${(selectedMonthData?.total_cost_eur ?? 0).toFixed(2)} €`
+                  : month
+                    ? `${month.total_cost_eur.toFixed(2)} €`
+                    : '—'}
             </span>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              Yhteensä: <strong style={{ color: 'var(--text-primary)' }}>{month?.total_consumption_kwh.toFixed(0) ?? 0} kWh</strong>
-              {month?.savings_eur ? (
-                <> • Säästö: <strong style={{ color: '#34d399' }}>~{month.savings_eur.toFixed(0)} €</strong></>
-              ) : null}
+              {isAllSelected ? (
+                <>
+                  Yhteensä: <strong style={{ color: 'var(--text-primary)' }}>{totalConsumption.toFixed(0)} kWh</strong>
+                  {totalSavings > 0 ? (
+                    <> • Säästö: <strong style={{ color: '#34d399' }}>~{totalSavings.toFixed(0)} €</strong></>
+                  ) : null}
+                  {avgCop != null ? (
+                    <> • COP: <strong style={{ color: 'var(--online)' }}>{avgCop}</strong></>
+                  ) : null}
+                </>
+              ) : isMonthSelected ? (
+                <>
+                  Yhteensä: <strong style={{ color: 'var(--text-primary)' }}>{selectedMonthData?.total_consumption_kwh.toFixed(0) ?? 0} kWh</strong>
+                  {selectedMonthData?.savings_eur ? (
+                    <> • Säästö: <strong style={{ color: '#34d399' }}>~{selectedMonthData.savings_eur.toFixed(0)} €</strong></>
+                  ) : null}
+                  {selectedMonthData?.cop != null ? (
+                    <> • COP: <strong style={{ color: 'var(--online)' }}>{selectedMonthData.cop}</strong></>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  Yhteensä: <strong style={{ color: 'var(--text-primary)' }}>{month?.total_consumption_kwh.toFixed(0) ?? 0} kWh</strong>
+                  {month?.savings_eur ? (
+                    <> • Säästö: <strong style={{ color: '#34d399' }}>~{month.savings_eur.toFixed(0)} €</strong></>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Daily History Table & Visualizer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Päiväkohtainen toteuma
-          </span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[7, 14, 30].map((d) => (
+        {/* Daily History Table & Visualizer Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Päiväkohtainen toteuma
+            </span>
+            <span style={{ marginLeft: 8, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+              • Tallennettu pysyvästi
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+            {/* Quick days */}
+            {(['7', '14', '30'] as const).map((d) => (
               <button
                 key={d}
                 type="button"
-                onClick={() => setRangeDays(d)}
+                onClick={() => setSelectedRange(d)}
                 style={{
                   fontSize: 11,
-                  fontWeight: rangeDays === d ? 700 : 500,
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  background: rangeDays === d ? 'var(--heat-primary)' : 'rgba(255,255,255,0.05)',
-                  color: rangeDays === d ? '#fff' : 'var(--text-muted)',
-                  border: 'none',
+                  fontWeight: selectedRange === d ? 700 : 500,
+                  padding: '4px 9px',
+                  borderRadius: 6,
+                  background: selectedRange === d ? 'var(--heat-primary)' : 'rgba(255,255,255,0.05)',
+                  color: selectedRange === d ? '#fff' : 'var(--text-muted)',
+                  border: selectedRange === d ? '1px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.06)',
                   cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 {d} pv
               </button>
             ))}
+
+            <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+            {/* Available Months */}
+            {(summary?.months || []).map((m) => {
+              const isSelected = selectedRange === m.month;
+              const label = formatMonthLabel(m.month, true);
+              return (
+                <button
+                  key={m.month}
+                  type="button"
+                  onClick={() => setSelectedRange(m.month)}
+                  title={`${formatMonthLabel(m.month)} (${m.days_count} pv, ${m.total_cost_eur.toFixed(1)} €)`}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: isSelected ? 700 : 500,
+                    padding: '4px 9px',
+                    borderRadius: 6,
+                    background: isSelected ? 'var(--heat-primary)' : 'rgba(255,255,255,0.05)',
+                    color: isSelected ? '#fff' : 'var(--text-muted)',
+                    border: isSelected ? '1px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.06)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  📅 {label}
+                </button>
+              );
+            })}
+
+            <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+            {/* All recorded history */}
+            <button
+              type="button"
+              onClick={() => setSelectedRange('all')}
+              title="Näytä koko tallennettu päivähistoria"
+              style={{
+                fontSize: 11,
+                fontWeight: selectedRange === 'all' ? 700 : 500,
+                padding: '4px 9px',
+                borderRadius: 6,
+                background: selectedRange === 'all' ? 'var(--heat-primary)' : 'rgba(255,255,255,0.05)',
+                color: selectedRange === 'all' ? '#fff' : 'var(--text-muted)',
+                border: selectedRange === 'all' ? '1px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.06)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Kaikki
+            </button>
           </div>
         </div>
 
@@ -456,6 +611,44 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
                   );
                 })}
               </tbody>
+              {dailyCosts.length > 0 && (
+                <tfoot>
+                  <tr
+                    style={{
+                      borderTop: '2px solid rgba(255,255,255,0.12)',
+                      background: 'rgba(255,255,255,0.02)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <td style={{ padding: '10px 6px', color: 'var(--text-primary)' }}>
+                      Yhteensä ({dailyCosts.length} pv)
+                    </td>
+                    <td style={{ padding: '10px 6px', textAlign: 'right', color: 'var(--text-primary)' }}>
+                      {totalConsumption.toFixed(1)}
+                    </td>
+                    <td style={{ padding: '10px 6px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                      {totalProduction > 0 ? totalProduction.toFixed(1) : '—'}
+                    </td>
+                    <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                      {avgCop ? (
+                        <span style={{ color: avgCop >= 3.0 ? 'var(--online)' : 'var(--text-primary)', fontWeight: 700 }}>
+                          {avgCop}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td style={{ padding: '10px 6px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                      {periodAvgPrice != null ? `${periodAvgPrice.toFixed(1)} snt` : '—'}
+                    </td>
+                    <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 800, color: 'var(--heat-primary)' }}>
+                      {totalCost.toFixed(2)} €
+                    </td>
+                    <td style={{ padding: '10px 6px', textAlign: 'right', color: '#34d399', fontWeight: 700 }}>
+                      {totalSavings > 0 ? `+${totalSavings.toFixed(2)} €` : '—'}
+                    </td>
+                    <td style={{ padding: '10px 6px' }}></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}

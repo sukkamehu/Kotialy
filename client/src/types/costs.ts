@@ -43,5 +43,6 @@ export interface CostSummary {
   today: DailyCost;
   yesterday: DailyCost | null;
   month: MonthSummary;
+  months?: MonthSummary[];
   settings: CostSettings;
 }

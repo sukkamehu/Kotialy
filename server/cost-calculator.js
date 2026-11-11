@@ -269,6 +269,7 @@ function getCostSummary() {
       cop: monthCop,
       avg_price_cents_kwh: monthAvgPrice,
     },
+    months: db.getMonthlySummaries ? db.getMonthlySummaries() : [],
     settings: db.getCostSettings(),
   };
 }

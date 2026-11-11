@@ -8,6 +8,7 @@ const {
   getMultiTopicHistory,
   getDailyCosts,
   getDailyCost,
+  getMonthlySummaries,
   getCostSettings,
   updateCostSetting,
   getApcLogs,
@@ -768,23 +769,42 @@ router.post('/satellites/refresh-tles', requireAuthOrLan, async (req, res) => {
 // ─── Daily Energy Costs Routes ───────────────────────────────────────────────
 
 /**
- * GET /api/costs/daily?days=30&from=YYYY-MM-DD&to=YYYY-MM-DD
+ * GET /api/costs/daily?days=30&from=YYYY-MM-DD&to=YYYY-MM-DD&month=YYYY-MM
  * Returns daily aggregated costs and consumption history.
  */
 router.get('/costs/daily', (req, res) => {
-  const { from, to, days } = req.query;
-  const limit = days ? parseInt(days) : 30;
+  const { from, to, days, month } = req.query;
 
   // Make sure today is up to date
   const todayStr = costCalculator.toLocalDateStr(new Date());
   costCalculator.calculateDay(todayStr);
 
-  const rows = getDailyCosts(from, to, limit);
+  let rows;
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const startDate = `${month}-01`;
+    const endDate = `${month}-31`;
+    rows = getDailyCosts(startDate, endDate);
+  } else if (days === 'all') {
+    rows = getDailyCosts(null, null, 'all');
+  } else {
+    const limit = days ? parseInt(days) : 30;
+    rows = getDailyCosts(from, to, limit);
+  }
+
   res.json({
     costs: rows,
     count: rows.length,
     ts: Date.now(),
   });
+});
+
+/**
+ * GET /api/costs/months
+ * Returns monthly summarized metrics for all recorded months.
+ */
+router.get('/costs/months', (req, res) => {
+  const months = getMonthlySummaries ? getMonthlySummaries() : [];
+  res.json({ months });
 });
 
 /**

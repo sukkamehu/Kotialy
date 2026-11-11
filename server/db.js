@@ -334,6 +334,24 @@ const stmtGetDailyCostByDate = db.prepare(`
   WHERE date = ?
 `);
 
+const stmtGetAllDailyCosts = db.prepare(`
+  SELECT * FROM daily_costs
+  ORDER BY date ASC
+`);
+
+const stmtGetMonthlySummaries = db.prepare(`
+  SELECT 
+    substr(date, 1, 7) AS month,
+    COUNT(*) AS days_count,
+    ROUND(SUM(total_consumption_kwh), 1) AS total_consumption_kwh,
+    ROUND(SUM(total_production_kwh), 1) AS total_production_kwh,
+    ROUND(SUM(total_cost_eur), 2) AS total_cost_eur,
+    ROUND(SUM(savings_eur), 2) AS savings_eur
+  FROM daily_costs
+  GROUP BY substr(date, 1, 7)
+  ORDER BY month DESC
+`);
+
 const stmtGetCostSettings = db.prepare(`SELECT key, value FROM cost_settings`);
 
 const stmtUpsertCostSetting = db.prepare(`
@@ -658,8 +676,36 @@ function getDailyCosts(startDate, endDate, limit = 30) {
   if (startDate && endDate) {
     return stmtGetDailyCosts.all(startDate, endDate);
   }
+  if (limit === 'all' || limit === 0 || limit >= 9999) {
+    return stmtGetAllDailyCosts.all();
+  }
   const rows = stmtGetRecentDailyCosts.all(limit);
   return rows.reverse(); // chronological order
+}
+
+/**
+ * Get monthly aggregated cost summaries.
+ */
+function getMonthlySummaries() {
+  const rows = stmtGetMonthlySummaries.all();
+  return rows.map((r) => {
+    const cop = r.total_consumption_kwh > 0
+      ? Number((r.total_production_kwh / r.total_consumption_kwh).toFixed(2))
+      : null;
+    const avg_price_cents_kwh = r.total_consumption_kwh > 0
+      ? Number(((r.total_cost_eur / r.total_consumption_kwh) * 100).toFixed(2))
+      : null;
+    return {
+      month: r.month,
+      days_count: r.days_count,
+      total_cost_eur: r.total_cost_eur,
+      total_consumption_kwh: r.total_consumption_kwh,
+      total_production_kwh: r.total_production_kwh,
+      savings_eur: r.savings_eur,
+      cop,
+      avg_price_cents_kwh,
+    };
+  });
 }
 
 /**
@@ -1958,6 +2004,7 @@ module.exports = {
   upsertDailyCost,
   getDailyCosts,
   getDailyCost,
+  getMonthlySummaries,
   getCostSettings,
   updateCostSetting,
   getApcSettings,
