@@ -848,6 +848,115 @@ const TOPICS = {
     step: 1,
   },
 
+  // ─── HeishaMon v4.4.0 New Topics (TOP170-TOP198) ──────────────────────────
+  'main/Heat_Pump_Capacity': {
+    label: 'Nimellislämpöteho',
+    unit: 'kW',
+    category: 'heatpump',
+    type: 'number',
+  },
+  'main/Heat_Pump_Type': {
+    label: 'Lämpöpumpun tyyppi',
+    unit: '',
+    category: 'heatpump',
+    type: 'enum',
+    map: { 0: 'Standard', 1: 'T-CAP' },
+  },
+  'main/Defrost_Signal': {
+    label: 'Sulatussignaali',
+    unit: '',
+    category: 'heatpump',
+    type: 'enum',
+    map: { 0: 'Pois', 1: 'Aktiivinen' },
+  },
+  'main/Static_Pressure': {
+    label: 'Staattinen paine',
+    unit: '',
+    category: 'settings',
+    type: 'enum',
+    map: { 0: 'Normaali', 1: 'Korkea' },
+  },
+  'main/Heating_On_Outdoor_Temp': {
+    label: 'Lämmityksen kytkentälämpötila (ulko)',
+    unit: '°C',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Heating_On_Delay': {
+    label: 'Lämmityksen kytkentäviive',
+    unit: 'min',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/DHW_Booster_Delay': {
+    label: 'KV-lisälämmittimen kytkentäviive',
+    unit: 'min',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Anti_Stick_Mode': {
+    label: 'Pumpun jumisuojaus (Anti-stick)',
+    unit: '',
+    category: 'settings',
+    type: 'enum',
+    map: { 0: 'Pois', 1: 'Päällä' },
+  },
+  'main/Sensor_Offset_Outdoor': {
+    label: 'Ulkoanturin kalibrointipoikkeama',
+    unit: 'K',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Sensor_Offset_Return': {
+    label: 'Paluuvesianturin kalibrointipoikkeama',
+    unit: 'K',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Sensor_Offset_Flow': {
+    label: 'Menovesianturin kalibrointipoikkeama',
+    unit: 'K',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Sensor_Offset_DHW_Tank': {
+    label: 'Käyttövesianturin kalibrointipoikkeama',
+    unit: 'K',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Sensor_Offset_Remote_Th1': {
+    label: 'Huonetermostaatti 1 kalibrointipoikkeama',
+    unit: 'K',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Extra_Pump_Use': {
+    label: 'Lisäpumpun käyttö',
+    unit: '',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Extra_Pump_Mode': {
+    label: 'Lisäpumpun ohjaustila',
+    unit: '',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Bivalent_Operating_Mode': {
+    label: 'Bivalentti-käyttötapa',
+    unit: '',
+    category: 'settings',
+    type: 'number',
+  },
+  'main/Bivalent_External_Pump': {
+    label: 'Bivalentti ulkoinen pumppu',
+    unit: '',
+    category: 'settings',
+    type: 'enum',
+    map: { 0: 'Pois', 1: 'Päällä' },
+  },
+
   // ─── Tapo Smart Plugs ──────────────────────────────────────────────────
   'tapo/total_power': {
     label: 'Tapo Yhteisteho',
