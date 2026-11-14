@@ -969,7 +969,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
             <>
               {/* Prominent Combined Chart Area */}
               <div style={{ height: 350, minHeight: 350, width: '100%', position: 'relative' }}>
-                {loading ? (
+                {loading && combinedTimelineData.length === 0 ? (
                   <div
                     style={{
                       position: 'absolute',
@@ -1308,7 +1308,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
 
               {/* History Chart */}
               <div style={{ height: 300, width: '100%', position: 'relative' }}>
-                {loading ? (
+                {loading && historyData.length === 0 ? (
                   <div
                     style={{
                       position: 'absolute',

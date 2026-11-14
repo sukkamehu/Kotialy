@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTuya } from '../hooks/useTuya';
 import { useMitsubishi } from '../hooks/useMitsubishi';
 import { useRtl433 } from '../hooks/useRtl433';
@@ -77,11 +77,13 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
   const { devices: rtlDevices, status: rtlStatus, refresh: refreshRtl } = useRtl433();
 
   const [rtlModalOpen, setRtlModalOpen] = useState(false);
-  const [selectedSensor, setSelectedSensor] = useState<UnifiedClimateSensor | null>(null);
+  const [selectedSensorId, setSelectedSensorId] = useState<string>('mitsubishi_alakerta');
   const [historyPreset, setHistoryPreset] = useState<TemperatureHistoryPreset>('today');
   const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateString());
   const [historyData, setHistoryData] = useState<SensorHistoryPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const historyDataRef = useRef<SensorHistoryPoint[]>([]);
+  historyDataRef.current = historyData;
 
   const todayStr = useMemo(() => toLocalDateString(), []);
 
@@ -285,24 +287,28 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
   }, [outdoorRtlSensors]);
 
   // Auto-select first sensor (prefer Alakerta)
-  useEffect(() => {
-    if (!selectedSensor && unifiedSensors.length > 0) {
-      const defaultSensor =
-        unifiedSensors.find((s) => s.id === 'mitsubishi_alakerta') ||
-        unifiedSensors.find((s) => s.name.toLowerCase().includes('alakerta')) ||
-        unifiedSensors[0];
-      setSelectedSensor(defaultSensor);
-    } else if (selectedSensor) {
-      const refreshed = unifiedSensors.find((s) => s.id === selectedSensor.id);
-      if (refreshed && refreshed !== selectedSensor) {
-        setSelectedSensor(refreshed);
-      }
-    }
-  }, [unifiedSensors, selectedSensor]);
+  const selectedSensor = useMemo<UnifiedClimateSensor | null>(() => {
+    if (unifiedSensors.length === 0) return null;
+    return (
+      unifiedSensors.find((s) => s.id === selectedSensorId) ||
+      unifiedSensors.find((s) => s.id === 'mitsubishi_alakerta') ||
+      unifiedSensors.find((s) => s.name.toLowerCase().includes('alakerta')) ||
+      unifiedSensors[0]
+    );
+  }, [unifiedSensors, selectedSensorId]);
 
-  // Compute time range for history query
+  const setSelectedSensor = (s: UnifiedClimateSensor | null) => {
+    if (s) {
+      if (s.id !== selectedSensorId) {
+        setHistoryData([]); // Clear previous data when explicitly switching sensors
+      }
+      setSelectedSensorId(s.id);
+    }
+  };
+
+  // Compute time range for history query (bucketed to 5 minutes so nowMs doesn't trigger re-renders)
   const { fromMs, toMs, dateLabel } = useMemo(() => {
-    const nowMs = Date.now();
+    const nowMs = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
     if (historyPreset === 'today') {
       const [y, m, d] = todayStr.split('-').map(Number);
       const from = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
@@ -364,6 +370,10 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
     setHistoryPreset(nextStr === todayStr ? 'today' : 'day');
   };
 
+  const sensorKey = selectedSensor
+    ? `${selectedSensor.source}:${selectedSensor.id}:${selectedSensor.tempTopic}:${selectedSensor.targetTempTopic || ''}`
+    : '';
+
   // Fetch history for selected sensor
   useEffect(() => {
     if (!selectedSensor) {
@@ -372,7 +382,10 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
     }
 
     let isMounted = true;
-    setHistoryLoading(true);
+    // Only show full loading spinner if there is no data in historyData yet
+    if (historyDataRef.current.length === 0) {
+      setHistoryLoading(true);
+    }
 
     let allTopics = '';
     if (selectedSensor.source === 'mitsubishi') {
@@ -543,7 +556,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
     return () => {
       isMounted = false;
     };
-  }, [selectedSensor, fromMs, toMs]);
+  }, [sensorKey, fromMs, toMs]);
 
   // Compute min/max/avg for history summary
   const temps = historyData.map((d) => d.temperature).filter((t): t is number => typeof t === 'number');
@@ -1228,6 +1241,12 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                       </option>
                     ))}
                   </select>
+                  {historyLoading && historyData.length > 0 && (
+                    <span style={{ fontSize: 11, color: '#38bdf8', opacity: 0.85, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#38bdf8' }} />
+                      Päivitetään taustalla...
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
                   Aikajakso: <strong style={{ color: '#38bdf8' }}>{dateLabel}</strong>
@@ -1446,7 +1465,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
 
             {/* Recharts Line Graph */}
             <div style={{ width: '100%', height: 320, marginTop: 6, position: 'relative' }}>
-              {historyLoading && (
+              {historyLoading && historyData.length === 0 && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 8, zIndex: 10 }}>
                   <span style={{ fontSize: 13, color: '#38bdf8', fontWeight: 600 }}>Ladataan mittausdataa...</span>
                 </div>

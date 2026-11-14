@@ -420,9 +420,9 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Compute fromMs and toMs
+  // Compute fromMs and toMs (bucketed to 5 minutes so now doesn't trigger continuous re-fetches)
   const { fromMs, toMs, rangeDurationHours, formattedRangeLabel } = useMemo(() => {
-    const now = Date.now();
+    const now = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
     let from = now - 24 * 3600 * 1000;
     let to = now;
     let label = 'Viimeiset 24 tuntia';
@@ -1044,11 +1044,11 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
         </div>
 
         {/* Chart */}
-        {loading ? (
+        {loading && data.length === 0 ? (
           <div style={{ height: 340, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Ladataan trenditietoja...</span>
           </div>
-        ) : error ? (
+        ) : error && data.length === 0 ? (
           <div style={{ height: 340, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'var(--offline)', fontSize: 13 }}>{error}</span>
           </div>
@@ -1060,7 +1060,24 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
             </span>
           </div>
         ) : (
-          <div className="chart-container" style={{ height: 360 }}>
+          <div className="chart-container" style={{ height: 360, position: 'relative' }}>
+            {loading && (
+              <div style={{
+                position: 'absolute',
+                top: 8,
+                right: 12,
+                zIndex: 10,
+                fontSize: 11,
+                color: '#38bdf8',
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                padding: '2px 8px',
+                borderRadius: 6,
+                fontWeight: 600,
+              }}>
+                ● Päivitetään taustalla...
+              </div>
+            )}
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 5, right: hasRightAxis ? 10 : 15, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
