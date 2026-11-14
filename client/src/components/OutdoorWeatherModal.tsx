@@ -146,7 +146,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
   const isBaseHeater = state['main/Base_Pan_Heater']?.value === '1' || state['main/Outdoor_Heater_State']?.value === '1';
 
   // 433 MHz Outdoor Consensus
-  const { data: outdoorConsensus, setOutdoorFlag } = useOutdoorConsensus();
+  const { data: outdoorConsensus } = useOutdoorConsensus();
 
   // Active, fresh outdoor sensors only (strictly exclude stale >30min or ignored)
   const activeOutdoorSensors = useMemo(() => {

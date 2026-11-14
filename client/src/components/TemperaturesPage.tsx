@@ -71,7 +71,7 @@ interface TemperaturesPageProps {
   onNavigateTab?: (tab: string) => void;
 }
 
-export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNavigateTab }) => {
+export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNavigateTab: _onNavigateTab }) => {
   const { devices, loading, refreshing, refreshDevices } = useTuya();
   const { status: mitsuStatus, refresh: refreshMitsu } = useMitsubishi();
   const { devices: rtlDevices, status: rtlStatus, refresh: refreshRtl } = useRtl433();

@@ -10,7 +10,7 @@ export const ApcDecisionLogCard: React.FC<ApcDecisionLogCardProps> = ({
   maxEntries = 15,
   onOpenApc,
 }) => {
-  const { logs, status } = useApc();
+  const { logs } = useApc();
 
   return (
     <div

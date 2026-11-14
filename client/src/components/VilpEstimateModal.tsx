@@ -65,8 +65,8 @@ export const VilpEstimateModal: React.FC<VilpEstimateModalProps> = ({
   isOpen,
   onClose,
   state,
-  onOpenTrends,
-  onOpenApc,
+  onOpenTrends: _onOpenTrends,
+  onOpenApc: _onOpenApc,
 }) => {
   const [forecastHours, setForecastHours] = useState<'24h' | '48h'>('24h');
   const [weatherForecast, setWeatherForecast] = useState<WeatherForecast[]>([]);

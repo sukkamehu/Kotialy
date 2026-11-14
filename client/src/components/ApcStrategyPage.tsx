@@ -74,7 +74,6 @@ const STRATEGY_DETAILS: Record<ApcMode, {
 export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const {
     status,
-    logs,
     saving,
     refresh,
     toggleEnabled,

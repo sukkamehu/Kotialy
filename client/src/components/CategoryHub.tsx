@@ -6,7 +6,6 @@ import { useTuya } from '../hooks/useTuya';
 import { useOutdoorLights } from '../hooks/useOutdoorLights';
 import { useTapo } from '../hooks/useTapo';
 import { useMitsubishi } from '../hooks/useMitsubishi';
-import { useRtl433 } from '../hooks/useRtl433';
 import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
 
 export type CategoryId = 'heating' | 'temperatures' | 'sauna' | 'lighting' | 'plugs' | 'trends' | 'technical' | 'battery' | 'apc' | 'experimental';
@@ -25,7 +24,6 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const { status: outdoorLightsStatus } = useOutdoorLights();
   const { devices: tapoDevices } = useTapo();
   const { status: mitsuStatus } = useMitsubishi();
-  const { devices: rtlDevices, status: rtlStatus } = useRtl433();
 
   const { data: outdoorConsensusData } = useOutdoorConsensus();
 
@@ -36,7 +34,6 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
   const outletTemp = numVal(state, 'main/Main_Outlet_Temp');
   const dhwTemp = numVal(state, 'main/DHW_Temp');
   const heatPumpState = state['main/Heatpump_State']?.value === '1';
-  const flowRate = numVal(state, 'main/Pump_Flow');
 
   // Climate info (Tuya & Mitsubishi ILP)
   const climateSensors = tuyaDevices.filter((d) => d.type === 'climate');
