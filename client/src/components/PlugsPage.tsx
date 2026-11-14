@@ -1,6 +1,5 @@
 import React from "react";
 import { TapoPlugsCard } from "./TapoPlugsCard";
-import { OutdoorLightsCard } from "./OutdoorLightsCard";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useTapo } from "../hooks/useTapo";
 import { useTuyaPlug } from "../hooks/useTuyaPlug";
@@ -77,20 +76,62 @@ export const PlugsPage: React.FC<PlugsPageProps> = ({
         <TapoPlugsCard onOpenTrend={onOpenTrend} readOnly={readOnly} />
       </ErrorBoundary>
 
-      {/* WiFi Switch / Smart Metering Relay Section */}
+      {/* WiFi Switch / Smart Metering Relay Section (Energiamittaus ilman ohjauskytkimiä) */}
       <div style={{ marginTop: 8 }}>
-        <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>💡</span>
-          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            WiFi-Mittausrele (Ulkovalaistus)
-          </h3>
-          <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
-            Tuya 1P-Mtrg WiFi Switch energiamittauksella
+        <div style={{ marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>⚡</span>
+            <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              WiFi-Mittausrele (Ulkovalaistuksen energiamittaus)
+            </h3>
+          </div>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            Ulkovalojen kytkin- ja hämäräohjaus sijaitsee 💡 Valaistus -sivulla
           </span>
         </div>
-        <ErrorBoundary>
-          <OutdoorLightsCard readOnly={readOnly} />
-        </ErrorBoundary>
+
+        <div
+          className="card"
+          style={{
+            background: "linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: 16,
+            padding: "16px 20px",
+          }}
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
+            <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Hetkellinen teho</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#38bdf8", marginTop: 4 }}>
+                {outdoorLightsStatus?.telemetry?.power_w != null ? `${outdoorLightsStatus.telemetry.power_w.toFixed(1)} W` : "—"}
+              </div>
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Kokonaissähkö (kWh)</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#4ade80", marginTop: 4 }}>
+                {outdoorLightsStatus?.telemetry?.energy_kwh != null ? `${outdoorLightsStatus.telemetry.energy_kwh.toFixed(2)} kWh` : "—"}
+              </div>
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Jännite & Virta</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginTop: 4 }}>
+                {outdoorLightsStatus?.telemetry?.voltage_v != null ? `${outdoorLightsStatus.telemetry.voltage_v.toFixed(1)} V` : "—"}
+                <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 6 }}>
+                  ({outdoorLightsStatus?.telemetry?.current_a != null ? `${outdoorLightsStatus.telemetry.current_a.toFixed(2)} A` : "—"})
+                </span>
+              </div>
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Releen tila</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: outdoorLightsStatus?.isOn ? "#4ade80" : "var(--text-muted)", marginTop: 4 }}>
+                {outdoorLightsStatus?.isOn ? "⚡ Kytketty (Kuorma aktiivinen)" : "Pois päältä"}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

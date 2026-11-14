@@ -73,10 +73,9 @@ function normalizeTab(raw: string): DashboardTab {
   if (raw === 'dashboard') return 'heating';
   if (raw === 'smartlife' || raw === 'temperature' || raw === 'climate') return 'temperatures';
   if (raw === 'herrfors' || raw === 'history') return 'trends';
-  if (raw === 'hydraulics' || raw === 'heatpump_guide') return 'technical';
-  if (raw === 'battery' || raw === 'akku' || raw === 'sahkokaavio' || raw === 'akkujarjestelma') return 'battery';
+  if (raw === 'hydraulics' || raw === 'heatpump_guide' || raw === 'battery' || raw === 'akku' || raw === 'sahkokaavio' || raw === 'akkujarjestelma') return 'technical';
   if (raw === 'apc_strategy') return 'apc';
-  if (raw === 'radio' || raw === 'sdr' || raw === 'satellite' || raw === 'satelliitti') return 'experimental';
+  if (raw === 'radio' || raw === 'sdr' || raw === 'satellite' || raw === 'satelliitti') return 'trends';
   return 'hub';
 }
 
@@ -166,10 +165,8 @@ export function Dashboard({
     { id: 'lighting', label: 'Valaistus', icon: '💡', activeColor: '#facc15', activeBg: 'rgba(250, 204, 21, 0.2)' },
     { id: 'plugs', label: 'Älypistorasiat', icon: '🔌', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
     { id: 'trends', label: 'Trendit & Kulutus', icon: '📈', activeColor: '#c084fc', activeBg: 'rgba(192, 132, 252, 0.2)' },
-    { id: 'technical', label: 'Tekninen tila', icon: '🛠️', activeColor: '#22d3ee', activeBg: 'rgba(34, 211, 238, 0.2)' },
-    { id: 'battery', label: 'Akkujärjestelmä', icon: '🔋', activeColor: '#10b981', activeBg: 'rgba(16, 185, 129, 0.2)' },
+    { id: 'technical', label: 'Tekninen tila & Akku', icon: '🛠️', activeColor: '#22d3ee', activeBg: 'rgba(34, 211, 238, 0.2)' },
     { id: 'apc', label: 'APC-Strategia', icon: '⚡', activeColor: '#10b981', activeBg: 'rgba(16, 185, 129, 0.2)' },
-    { id: 'experimental', label: 'Radio & Sat (Kokeellinen)', icon: '🛰️', activeColor: '#38bdf8', activeBg: 'rgba(56, 189, 248, 0.2)' },
   ];
 
   return (

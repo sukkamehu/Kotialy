@@ -3,6 +3,7 @@ import { useApc } from '../hooks/useApc';
 import { apiFetch } from '../lib/api';
 import type { ApcMode, CompressorExerciseStatus } from '../types/apc';
 import type { CostSettings } from '../types/costs';
+import { ApcDecisionLogCard } from './ApcDecisionLogCard';
 
 interface ApcStrategyPageProps {
   readOnly?: boolean;
@@ -2831,74 +2832,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       </div>
 
       {/* Section 4: Live Decision Log Table */}
-      <div className="card" style={{ padding: '24px' }}>
-        <div style={{ marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-            4. APC Päätösloki & Reaaliaikaiset toimenpiteet
-          </h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-            Loki näyttää, miksi Kotiäly on tehnyt minkäkin ohjauspäätöksen (Spot-hinta, varaajan tila, sääennuste).
-          </p>
-        </div>
-
-        <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <th style={{ padding: '10px 14px', color: 'var(--text-secondary)', fontWeight: 600, width: 140 }}>Aika</th>
-                <th style={{ padding: '10px 14px', color: 'var(--text-secondary)', fontWeight: 600, width: 130 }}>Direktiivi</th>
-                <th style={{ padding: '10px 14px', color: 'var(--text-secondary)', fontWeight: 600 }}>Perustelu & Syy</th>
-                <th style={{ padding: '10px 14px', color: 'var(--text-secondary)', fontWeight: 600, width: 110 }}>Pörssihinta</th>
-                <th style={{ padding: '10px 14px', color: 'var(--text-secondary)', fontWeight: 600, width: 100 }}>Ulkoilma</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Ei vielä lokitapahtumia. Loki päivittyy automaattisesti ohjaustoimenpiteiden myötä.
-                  </td>
-                </tr>
-              ) : (
-                logs.slice(0, 20).map((log, idx) => (
-                  <tr
-                    key={log.id || idx}
-                    style={{
-                      borderBottom: idx < logs.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                      background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
-                    }}
-                  >
-                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: 12 }}>
-                      {new Date(log.timestamp).toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <span style={{
-                        padding: '3px 8px',
-                        borderRadius: 6,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: log.directive === 'BOOST' ? 'rgba(245, 158, 11, 0.2)' : log.directive === 'SETBACK' ? 'rgba(56, 189, 248, 0.2)' : log.directive === 'DHW_CYCLE' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.08)',
-                        color: log.directive === 'BOOST' ? '#f59e0b' : log.directive === 'SETBACK' ? '#38bdf8' : log.directive === 'DHW_CYCLE' ? '#10b981' : 'var(--text-secondary)',
-                      }}>
-                        {log.directive}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 14px', color: 'var(--text-primary)' }}>
-                      {log.reason || log.action}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#facc15', fontWeight: 600, fontSize: 12 }}>
-                      {log.price_cents != null ? `${log.price_cents.toFixed(2)} snt` : '—'}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#38bdf8', fontSize: 12 }}>
-                      {log.outdoor_temp != null ? `${log.outdoor_temp.toFixed(1)} °C` : '—'}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <ApcDecisionLogCard maxEntries={25} />
     </div>
   );
 }

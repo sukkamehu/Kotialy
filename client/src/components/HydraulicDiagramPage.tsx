@@ -1083,6 +1083,44 @@ export function HydraulicDiagramPage({ state, readOnly = false }: HydraulicDiagr
           </p>
         </div>
       </div>
+
+      {/* Kiinteistön ja Lämmitysjärjestelmän Mitoitustiedot */}
+      <div
+        className="card"
+        style={{
+          background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
+          border: '1px solid rgba(34, 211, 238, 0.25)',
+          borderRadius: 16,
+          padding: '18px 22px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>🏠</span> Kiinteistön ja Lämmitysjärjestelmän Mitoitustiedot
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+            • <strong>Rakennus:</strong> Lautakoolattu rossipohja 250 m²
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+            • <strong>Mitoitusteho:</strong> 9,2 kW (-26 °C)
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+            • <strong>Mitoitusvirtaus:</strong> 870 l/h (14,5 l/min), ΔT 9,1 °C
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+            • <strong>Puskurivaraaja:</strong> 100 L (4-putkikytkentä)
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+            • <strong>LKV-varaaja:</strong> 284 L kierukalla
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+            • <strong>VILP:</strong> Panasonic T-CAP 12 kW Monobloc
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

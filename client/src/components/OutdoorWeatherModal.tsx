@@ -117,8 +117,8 @@ function tempColor(t: number | null): string {
 export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherModalProps) {
   const [activeTab, setActiveTab] = useState<ModalViewTab>('combined');
 
-  // Combined preset
-  const [combinedPreset, setCombinedPreset] = useState<CombinedPreset>('24h_24h');
+  // Combined preset (Default: 48h historia + 48h ennuste)
+  const [combinedPreset, setCombinedPreset] = useState<CombinedPreset>('48h_48h');
 
   // History preset
   const [historyPreset, setHistoryPreset] = useState<HistoryPreset>('24h');
@@ -147,6 +147,15 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
 
   // 433 MHz Outdoor Consensus
   const { data: outdoorConsensus, setOutdoorFlag } = useOutdoorConsensus();
+
+  // Active, fresh outdoor sensors only (strictly exclude stale >30min or ignored)
+  const activeOutdoorSensors = useMemo(() => {
+    if (!outdoorConsensus?.outdoorSensors) return [];
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    return outdoorConsensus.outdoorSensors.filter(
+      (dev) => !dev.isIgnored && !dev.isStale && dev.lastSeen && dev.lastSeen >= cutoff
+    );
+  }, [outdoorConsensus]);
 
   // Listen for Escape key to close modal
   useEffect(() => {
@@ -958,105 +967,8 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
           {/* TAB 1: COMBINED (HISTORIA + ENNUSTE) */}
           {activeTab === 'combined' && (
             <>
-              {/* Summary Statistics Comparison */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: 10,
-                }}
-              >
-                <div
-                  style={{
-                    background: 'rgba(34,211,238,0.06)',
-                    border: '1px solid rgba(34,211,238,0.2)',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#22d3ee', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22d3ee' }} />
-                    Menneisyys (Mitattu)
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Min / Max:</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {combinedStats.pastMin !== null ? `${combinedStats.pastMin.toFixed(1)}°` : '—'} /{' '}
-                      {combinedStats.pastMax !== null ? `${combinedStats.pastMax.toFixed(1)}°` : '—'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Keskiarvo:</span>
-                    <span style={{ fontWeight: 600, color: '#22d3ee' }}>
-                      {combinedStats.pastAvg !== null ? `${combinedStats.pastAvg.toFixed(1)} °C` : '—'}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(167,139,250,0.06)',
-                    border: '1px solid rgba(167,139,250,0.2)',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#c4b5fd', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c4b5fd' }} />
-                    Tulevaisuus (Ennuste)
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Min / Max:</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {combinedStats.futureMin !== null ? `${combinedStats.futureMin.toFixed(1)}°` : '—'} /{' '}
-                      {combinedStats.futureMax !== null ? `${combinedStats.futureMax.toFixed(1)}°` : '—'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Keskiarvo / Sade:</span>
-                    <span style={{ fontWeight: 600, color: '#c4b5fd' }}>
-                      {combinedStats.futureAvg !== null ? `${combinedStats.futureAvg.toFixed(1)} °C` : '—'}{' '}
-                      <span style={{ color: '#38bdf8', fontSize: 11 }}>({combinedStats.totalRainMm.toFixed(1)} mm)</span>
-                    </span>
-                  </div>
-                </div>
-
-                {outdoorConsensus && (
-                  <div
-                    style={{
-                      background: 'rgba(56,189,248,0.06)',
-                      border: '1px solid rgba(56,189,248,0.2)',
-                      padding: '10px 14px',
-                      borderRadius: 8,
-                    }}
-                  >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#38bdf8' }} />
-                      433 MHz Piha-anturit ({outdoorConsensus.consensus.sensorCount} kpl)
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Keskiarvo:</span>
-                      <span style={{ fontWeight: 700, color: '#38bdf8' }}>
-                        {outdoorConsensus.consensus.temperature !== null ? `${outdoorConsensus.consensus.temperature.toFixed(1)} °C` : 'Ei määritetty'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 12 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Kosteus / Ero VILPiin:</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {outdoorConsensus.consensus.humidity !== null ? `${outdoorConsensus.consensus.humidity}%` : '—'}
-                        {outdoorConsensus.consensus.deltaToHeatpump !== null && (
-                          <span style={{ color: outdoorConsensus.consensus.deltaToHeatpump >= 0 ? '#4ade80' : '#38bdf8', fontSize: 11, marginLeft: 4 }}>
-                            ({outdoorConsensus.consensus.deltaToHeatpump >= 0 ? `+${outdoorConsensus.consensus.deltaToHeatpump}` : outdoorConsensus.consensus.deltaToHeatpump}°)
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Combined Chart Area */}
-              <div style={{ height: 320, width: '100%', position: 'relative' }}>
+              {/* Prominent Combined Chart Area */}
+              <div style={{ height: 350, minHeight: 350, width: '100%', position: 'relative' }}>
                 {loading ? (
                   <div
                     style={{
@@ -1087,7 +999,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                     <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Ei tietoja valitulle aikajanalle</span>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={350}>
                     <ComposedChart data={combinedTimelineData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                       <XAxis
@@ -1220,168 +1132,122 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                 )}
               </div>
 
-              {/* 433 MHz Multi-Sensor Outdoor Integration Panel */}
+              {/* Compact Summary Statistics Row */}
               <div
                 style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10,
-                  padding: '14px 16px',
-                  display: 'flex',
-                  flexDirection: 'column',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                   gap: 12,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>🌲</span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        Langattomat 433 MHz Piha- ja Ulkoanturit ({outdoorConsensus?.consensus.sensorCount ?? outdoorConsensus?.freshCount ?? outdoorConsensus?.outdoorSensors.length} aktiivista / {outdoorConsensus?.outdoorSensors.length || 0} kpl)
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        Korkean resoluution (0.1 °C) mittaus pihan eri puolilta. Yli 30 min vanhat mittaukset rajataan automaattisesti pois konsensuksesta.
-                      </div>
-                    </div>
+                <div
+                  style={{
+                    background: 'rgba(34,211,238,0.06)',
+                    border: '1px solid rgba(34,211,238,0.2)',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#22d3ee', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22d3ee' }} />
+                    Mitattu historia ({combinedPastHours}h)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Min / Max:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {combinedStats.pastMin !== null ? `${combinedStats.pastMin.toFixed(1)}°` : '—'} /{' '}
+                      {combinedStats.pastMax !== null ? `${combinedStats.pastMax.toFixed(1)}°` : '—'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Keskiarvo:</span>
+                    <span style={{ fontWeight: 600, color: '#22d3ee' }}>
+                      {combinedStats.pastAvg !== null ? `${combinedStats.pastAvg.toFixed(1)} °C` : '—'}
+                    </span>
                   </div>
                 </div>
 
-                {/* Active Outdoor Sensors Grid */}
-                {outdoorConsensus && outdoorConsensus.outdoorSensors.length > 0 ? (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                      gap: 8,
-                    }}
-                  >
-                    {outdoorConsensus.outdoorSensors.map((dev) => {
+                <div
+                  style={{
+                    background: 'rgba(167,139,250,0.06)',
+                    border: '1px solid rgba(167,139,250,0.2)',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#c4b5fd', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c4b5fd' }} />
+                    Ennuste ({combinedFutureHours}h)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Min / Max:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {combinedStats.futureMin !== null ? `${combinedStats.futureMin.toFixed(1)}°` : '—'} /{' '}
+                      {combinedStats.futureMax !== null ? `${combinedStats.futureMax.toFixed(1)}°` : '—'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Keskiarvo / Sade:</span>
+                    <span style={{ fontWeight: 600, color: '#c4b5fd' }}>
+                      {combinedStats.futureAvg !== null ? `${combinedStats.futureAvg.toFixed(1)} °C` : '—'}{' '}
+                      <span style={{ color: '#38bdf8', fontSize: 11 }}>({combinedStats.totalRainMm.toFixed(1)} mm)</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Outdoor 433 MHz Sensors Only */}
+              {activeOutdoorSensors.length > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(255,255,255,0.07)',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>🌲</span> Aktiiviset 433 MHz ulkoanturit ({activeOutdoorSensors.length} kpl)
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {activeOutdoorSensors.map((dev) => {
                       const temp = dev.properties?.temperature;
                       const hum = dev.properties?.humidity;
-                      const diffToHp = (temp !== undefined && currentHeatpumpTemp !== null)
-                        ? Math.round((temp - currentHeatpumpTemp) * 10) / 10
-                        : null;
-                      const isStale = Boolean(dev.isStale || (dev.lastSeen ? (Date.now() - dev.lastSeen > 30 * 60 * 1000) : true));
-                      const ageMinutes = dev.lastSeen ? Math.round((Date.now() - dev.lastSeen) / 60000) : null;
-                      const ageLabel = ageMinutes === null
-                        ? 'ei tietoa'
-                        : ageMinutes < 1
-                          ? 'juuri nyt'
-                          : ageMinutes < 60
-                            ? `${ageMinutes} min sitten`
-                            : ageMinutes < 1440
-                              ? `${Math.round(ageMinutes / 60)} h sitten`
-                              : `${Math.round(ageMinutes / 1440)} pv sitten`;
-
                       return (
                         <div
                           key={dev.id}
                           style={{
-                            padding: '10px 12px',
+                            padding: '6px 12px',
                             borderRadius: 8,
-                            background: isStale ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)',
-                            border: isStale ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(34,197,94,0.25)',
+                            background: 'rgba(34, 197, 94, 0.08)',
+                            border: '1px solid rgba(34, 197, 94, 0.25)',
                             display: 'flex',
-                            flexDirection: 'column',
-                            gap: 4,
-                            opacity: isStale ? 0.75 : 1,
+                            alignItems: 'center',
+                            gap: 10,
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span
-                                style={{
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: '50%',
-                                  background: isStale ? '#ef4444' : '#22c55e',
-                                  boxShadow: isStale ? 'none' : '0 0 6px #22c55e',
-                                }}
-                              />
-                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {dev.customName || `${dev.model} #${dev.rawId || dev.id}`}
-                              </span>
-                            </div>
-                            <button
-                              className="btn btn-ghost"
-                              onClick={() => setOutdoorFlag(dev.id, false)}
-                              style={{ padding: '2px 6px', fontSize: 10, color: '#f87171' }}
-                              title="Poista ulkoantureista"
-                            >
-                              ✕ Poista
-                            </button>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: isStale ? 'var(--text-muted)' : '#38bdf8' }}>
-                              {temp !== undefined ? `${temp.toFixed(1)} °C` : '—'}
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {dev.customName || `${dev.model} #${dev.rawId || dev.id}`}
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8' }}>
+                            {temp !== undefined ? `${temp.toFixed(1)} °C` : '—'}
+                          </span>
+                          {hum !== undefined && (
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                              {hum.toFixed(0)} %
                             </span>
-                            {hum !== undefined && (
-                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                {hum.toFixed(0)} %
-                              </span>
-                            )}
-                            {diffToHp !== null && !isStale && (
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  marginLeft: 'auto',
-                                  color: diffToHp >= 0 ? '#4ade80' : '#38bdf8',
-                                  fontWeight: 600,
-                                }}
-                                title="Ero lämpöpumpun anturiin"
-                              >
-                                {diffToHp >= 0 ? `+${diffToHp}` : diffToHp} °C
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 10, color: isStale ? '#f87171' : 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                            <span>{isStale ? `⚠️ Poissa linjoilta (${ageLabel})` : `Päivitetty ${ageLabel}`}</span>
-                            {isStale && <span style={{ fontWeight: 600 }}>Ei mukana konsensuksessa</span>}
-                          </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    Ei vielä erikseen merkittyjä ulkoantureita. Voit klikata alta havaitun anturin lisättäväksi ulkolämpömittauksiin:
-                  </div>
-                )}
-
-                {/* Candidate Sensors Section */}
-                {outdoorConsensus && outdoorConsensus.candidateSensors.length > 0 && (
-                  <div style={{ marginTop: 4 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-                      Muut havaitut anturit (klikuta lisätäksesi ulkoanturiksi):
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {outdoorConsensus.candidateSensors.slice(0, 8).map((c) => (
-                        <button
-                          key={c.id}
-                          className="btn btn-sm btn-ghost"
-                          onClick={() => setOutdoorFlag(c.id, true)}
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: 11,
-                            borderRadius: 6,
-                            background: 'rgba(255,255,255,0.04)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}
-                        >
-                          <span style={{ color: '#4ade80', fontWeight: 700 }}>+</span>
-                          <span>{c.customName || `${c.model} #${c.rawId || c.id}`}:</span>
-                          <strong style={{ color: '#38bdf8' }}>
-                            {c.properties?.temperature !== undefined ? `${c.properties.temperature.toFixed(1)}°` : '—'}
-                          </strong>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </>
           )}
 

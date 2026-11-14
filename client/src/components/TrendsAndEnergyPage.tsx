@@ -14,7 +14,7 @@ interface TrendsAndEnergyPageProps {
   readOnly?: boolean;
 }
 
-type TrendsSubTab = 'calendar' | 'herrfors' | 'vilp' | 'sensors' | 'stats' | 'all';
+type TrendsSubTab = 'calendar' | 'herrfors' | 'vilp' | 'sensors';
 
 const TAB_STORAGE_KEY = 'kotialy_trends_active_tab';
 
@@ -26,7 +26,7 @@ export const TrendsAndEnergyPage: React.FC<TrendsAndEnergyPageProps> = ({
   const [activeTab, setActiveTab] = useState<TrendsSubTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_STORAGE_KEY) as TrendsSubTab;
-      if (['calendar', 'herrfors', 'vilp', 'sensors', 'stats', 'all'].includes(saved)) {
+      if (['calendar', 'herrfors', 'vilp', 'sensors'].includes(saved)) {
         return saved;
       }
     } catch {
@@ -111,7 +111,7 @@ export const TrendsAndEnergyPage: React.FC<TrendsAndEnergyPageProps> = ({
             fontWeight: activeTab === 'vilp' ? 700 : 500,
           }}
         >
-          <span>🌡️</span> VILP & COP -kustannukset
+          <span>🌡️</span> VILP, COP & Tuotanto
         </button>
 
         <button
@@ -129,75 +129,40 @@ export const TrendsAndEnergyPage: React.FC<TrendsAndEnergyPageProps> = ({
         >
           <span>📉</span> Sensorit & Mittarihistoria
         </button>
-
-        <button
-          className={`btn btn-sm ${activeTab === 'stats' ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={() => handleSelectTab('stats')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            whiteSpace: 'nowrap',
-            borderRadius: 10,
-            padding: '8px 14px',
-            fontWeight: activeTab === 'stats' ? 700 : 500,
-          }}
-        >
-          <span>📊</span> Energiamittarit & Tuotanto
-        </button>
-
-        <button
-          className={`btn btn-sm ${activeTab === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={() => handleSelectTab('all')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            whiteSpace: 'nowrap',
-            borderRadius: 10,
-            padding: '8px 12px',
-            fontWeight: activeTab === 'all' ? 700 : 500,
-            opacity: activeTab === 'all' ? 1 : 0.75,
-          }}
-        >
-          <span>📑</span> Kaikki näkymät
-        </button>
       </div>
 
       {/* Tab Contents */}
 
       {/* 1. Kokonaissähkön Kalenteri */}
-      {(activeTab === 'calendar' || activeTab === 'all') && (
+      {activeTab === 'calendar' && (
         <ErrorBoundary>
           <ElectricityCalendarCard />
         </ErrorBoundary>
       )}
 
       {/* 2. Herrfors-erittelyt & SPOT-vertailu */}
-      {(activeTab === 'herrfors' || activeTab === 'all') && (
+      {activeTab === 'herrfors' && (
         <ErrorBoundary>
           <HerrforsAnalyticsCard readOnly={readOnly} />
         </ErrorBoundary>
       )}
 
-      {/* 3. VILP & COP -kustannukset */}
-      {(activeTab === 'vilp' || activeTab === 'all') && (
-        <ErrorBoundary>
-          <DailyCostsCard readOnly={readOnly} />
-        </ErrorBoundary>
+      {/* 3. VILP, COP & Energiamittarit */}
+      {activeTab === 'vilp' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <ErrorBoundary>
+            <DailyCostsCard readOnly={readOnly} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <EnergyStatsCard state={state} onOpenTrend={onOpenTrend} />
+          </ErrorBoundary>
+        </div>
       )}
 
       {/* 4. Sensorit & Mittarihistoria */}
-      {(activeTab === 'sensors' || activeTab === 'all') && (
+      {activeTab === 'sensors' && (
         <ErrorBoundary>
           <HistoryChart />
-        </ErrorBoundary>
-      )}
-
-      {/* 5. Energiamittarit & Tuotanto */}
-      {(activeTab === 'stats' || activeTab === 'all') && (
-        <ErrorBoundary>
-          <EnergyStatsCard state={state} onOpenTrend={onOpenTrend} />
         </ErrorBoundary>
       )}
     </div>

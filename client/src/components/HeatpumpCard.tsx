@@ -352,17 +352,19 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
 
         <div className="divider" />
 
-        {/* 3-Tieventtiili (PAW-3WYVLV4HW) tila & virtaus */}
+        {/* 3-Tieventtiili (PAW-3WYVLV4HW) venttiilimäinen visualisointi */}
         <div
           className="metric-clickable"
           style={{
             background: isValveDHW ? 'rgba(16, 185, 129, 0.08)' : isValveHeating ? 'rgba(167, 139, 250, 0.08)' : 'rgba(255, 255, 255, 0.03)',
-            border: `1px solid ${isValveDHW ? 'rgba(16, 185, 129, 0.25)' : isValveHeating ? 'rgba(167, 139, 250, 0.25)' : 'var(--border)'}`,
-            borderRadius: 10,
-            padding: '10px 12px',
+            border: `1px solid ${isValveDHW ? 'rgba(16, 185, 129, 0.35)' : isValveHeating ? 'rgba(167, 139, 250, 0.35)' : 'var(--border)'}`,
+            borderRadius: 12,
+            padding: '12px 14px',
             marginTop: 14,
             marginBottom: 12,
             cursor: 'pointer',
+            boxShadow: isValveDHW ? '0 0 16px rgba(16, 185, 129, 0.12)' : isValveHeating ? '0 0 16px rgba(167, 139, 250, 0.12)' : 'none',
+            transition: 'all 0.3s ease',
           }}
           title="Klikkaa nähdäksesi 3-tieventtiilin asennon trendi"
           onClick={() =>
@@ -375,11 +377,11 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
             })
           }
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 13 }}>🔀</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-                3-Tieventtiili (PAW-3WYVLV4HW) ↗
+              <span style={{ fontSize: 14 }}>🔀</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                3-Tieventtiili (PAW-3WYVLV4HW)
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -412,7 +414,93 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
               )}
             </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.35 }}>
+
+          {/* SVG Venttiilikaavio */}
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0 8px' }}>
+            <svg width="200" height="90" viewBox="0 0 200 90" fill="none">
+              {/* Lämmitys (Vasen) - Puskurivaraaja */}
+              <line
+                x1="70" y1="32" x2="15" y2="32"
+                stroke={isValveHeating ? 'var(--buffer-primary)' : 'rgba(255,255,255,0.15)'}
+                strokeWidth={isValveHeating ? 7 : 3.5}
+                strokeLinecap="round"
+                style={{ transition: 'all 0.4s', filter: isValveHeating ? 'drop-shadow(0 0 6px var(--buffer-primary))' : 'none' }}
+              />
+              <text x="12" y="18" fill={isValveHeating ? 'var(--buffer-primary)' : 'rgba(255,255,255,0.45)'} fontSize="9" fontWeight="700" fontFamily="Inter,sans-serif">
+                Puskuri (0)
+              </text>
+              {isValveHeating && (
+                <text x="38" y="28" fill="#fff" fontSize="10" fontWeight="800" fontFamily="Inter,sans-serif">◄</text>
+              )}
+
+              {/* Käyttövesi (Oikea) - LKV */}
+              <line
+                x1="130" y1="32" x2="185" y2="32"
+                stroke={isValveDHW ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.15)'}
+                strokeWidth={isValveDHW ? 7 : 3.5}
+                strokeLinecap="round"
+                style={{ transition: 'all 0.4s', filter: isValveDHW ? 'drop-shadow(0 0 6px var(--dhw-primary))' : 'none' }}
+              />
+              <text x="188" y="18" fill={isValveDHW ? 'var(--dhw-primary)' : 'rgba(255,255,255,0.45)'} fontSize="9" fontWeight="700" textAnchor="end" fontFamily="Inter,sans-serif">
+                LKV (1)
+              </text>
+              {isValveDHW && (
+                <text x="155" y="28" fill="#fff" fontSize="10" fontWeight="800" fontFamily="Inter,sans-serif">►</text>
+              )}
+
+              {/* Tulo VILPiltä (Alhaalta) */}
+              <line
+                x1="100" y1="52" x2="100" y2="76"
+                stroke={isOn ? '#f59e0b' : 'rgba(255,255,255,0.2)'}
+                strokeWidth="7"
+                strokeLinecap="round"
+                style={{ transition: 'all 0.4s', filter: isOn ? 'drop-shadow(0 0 6px rgba(245,158,11,0.4))' : 'none' }}
+              />
+              <text x="100" y="87" fill={isOn ? '#f59e0b' : 'rgba(255,255,255,0.45)'} fontSize="8.5" fontWeight="700" textAnchor="middle" fontFamily="Inter,sans-serif">
+                ▲ VILP Tulo
+              </text>
+
+              {/* Venttiilirunko */}
+              <circle cx="100" cy="32" r="18" fill="rgba(20,25,40,0.9)" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
+
+              {/* Sisäinen aktiivinen virtausreitti */}
+              {isValveHeating && (
+                <path
+                  d="M 100 48 Q 100 32 76 32"
+                  stroke="var(--buffer-primary)"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  fill="none"
+                  style={{ filter: 'drop-shadow(0 0 4px var(--buffer-primary))' }}
+                />
+              )}
+              {isValveDHW && (
+                <path
+                  d="M 100 48 Q 100 32 124 32"
+                  stroke="var(--dhw-primary)"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  fill="none"
+                  style={{ filter: 'drop-shadow(0 0 4px var(--dhw-primary))' }}
+                />
+              )}
+
+              {/* Venttiilin keskiö ja suuntaosoitin */}
+              <circle cx="100" cy="32" r="4.5" fill="#fff" />
+              <line
+                x1="100"
+                y1="32"
+                x2={isValveDHW ? "114" : isValveHeating ? "86" : "100"}
+                y2={isValveDHW ? "24" : isValveHeating ? "24" : "16"}
+                stroke="#fff"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                style={{ transition: 'all 0.4s ease' }}
+              />
+            </svg>
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.35, textAlign: 'center' }}>
             {isValveDHW
               ? 'Virtaus ohjautuu LKV-varaajan kierukalle'
               : isValveHeating

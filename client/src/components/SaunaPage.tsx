@@ -72,15 +72,24 @@ export const SaunaPage: React.FC<SaunaPageProps> = ({ readOnly = false }) => {
         </div>
       </div>
 
-      {/* 1. Main Sauna Heating Widget (SaunaCard) */}
-      <ErrorBoundary>
-        <SaunaCard readOnly={readOnly} />
-      </ErrorBoundary>
+      {/* Side-by-side Layout: Main Sauna Heating Widget (~60%) & Sauna Lighting (~40%) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: 20,
+          alignItems: 'start',
+        }}
+      >
+        {/* 1. Main Sauna Heating Widget (SaunaCard) */}
+        <ErrorBoundary>
+          <SaunaCard readOnly={readOnly} />
+        </ErrorBoundary>
 
-      {/* 2. Sauna Lighting & Atmosphere Control Card */}
-      <ErrorBoundary>
-        <div
-          className="card"
+        {/* 2. Sauna Lighting & Atmosphere Control Card */}
+        <ErrorBoundary>
+          <div
+            className="card"
           style={{
             background: anySaunaOn
               ? 'linear-gradient(145deg, rgba(234, 88, 12, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)'
@@ -329,6 +338,7 @@ export const SaunaPage: React.FC<SaunaPageProps> = ({ readOnly = false }) => {
           )}
         </div>
       </ErrorBoundary>
+      </div>
     </div>
   );
 };

@@ -594,7 +594,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             }}
           >
             <span>📻</span>
-            <span>433 MHz Laitteet ({rtlDevices.length})</span>
+            <span>433 MHz Laitteet ({rtlDevices.filter((d) => !d.isIgnored).length})</span>
           </button>
 
           <button
@@ -1181,157 +1181,60 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
         )}
       </div>
 
-      {/* Main Climate Sensors Grid & Interactive History Graph Card */}
-      <div className="card" style={{ background: 'linear-gradient(165deg, rgba(19, 29, 51, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 18, padding: '20px' }}>
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="card-icon" style={{ fontSize: 22 }}>📊</span>
-            <div>
-              <span className="card-title" style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                Kaikki Lämpö- ja Kosteusanturit ({unifiedSensors.length} kpl)
-              </span>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                Klikkaa mittaria tai ilmalämpöpumppua tutkiaksesi sen lämpötila- ja mittaushistoriaa eri aikajaksoilla
-              </div>
-            </div>
-          </div>
-          {onNavigateTab && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => onNavigateTab('experimental')}
-                style={{
-                  fontSize: 12,
-                  borderRadius: 8,
-                  border: '1px solid rgba(168, 85, 247, 0.35)',
-                  background: 'rgba(168, 85, 247, 0.12)',
-                  color: '#c084fc',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  padding: '5px 12px',
-                }}
-              >
-                🛰️ Radio & SDR 433 MHz
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Unified Climate Sensors Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12, marginBottom: 20 }}>
-          {unifiedSensors.map((sensor) => {
-            const isSelected = selectedSensor?.id === sensor.id;
-            const isMitsu = sensor.source === 'mitsubishi';
-
-            return (
-              <div
-                key={sensor.id}
-                onClick={() => setSelectedSensor(sensor)}
-                style={{
-                  background: isSelected
-                    ? (isMitsu ? 'rgba(14, 165, 233, 0.15)' : 'rgba(56, 189, 248, 0.12)')
-                    : (isMitsu ? 'rgba(14, 165, 233, 0.04)' : 'rgba(255, 255, 255, 0.03)'),
-                  border: isSelected
-                    ? (isMitsu ? '2px solid #0284c7' : '2px solid #38bdf8')
-                    : (isMitsu ? '1px solid rgba(14, 165, 233, 0.25)' : '1px solid rgba(255, 255, 255, 0.08)'),
-                  borderRadius: 14,
-                  padding: '14px 16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  cursor: 'pointer',
-                  transition: 'all 0.18s ease',
-                  boxShadow: isSelected ? '0 0 16px rgba(56, 189, 248, 0.25)' : 'none',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 700, fontSize: 13.5, color: isSelected ? '#38bdf8' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      {isMitsu ? (sensor.id.includes('alakerta') ? '🛋️' : '🏠') : sensor.source === 'rtl433' ? '📻' : '🌡️'} {sensor.name}
-                    </span>
-                    <span style={{ fontSize: 10, color: isMitsu ? '#38bdf8' : 'var(--text-muted)' }}>
-                      {sensor.subtitle || sensor.badge || (sensor.source === 'rtl433' ? '433 MHz RF' : 'Tuya Zigbee')}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {isSelected && (
-                      <span style={{ fontSize: 10, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.2)', padding: '2px 6px', borderRadius: 6, fontWeight: 700 }}>
-                        Valittu
-                      </span>
-                    )}
-                    {sensor.online ? (
-                      <span style={{ fontSize: 10, color: '#4ade80', background: 'rgba(34, 197, 94, 0.12)', padding: '2px 6px', borderRadius: 10 }}>Online</span>
-                    ) : (
-                      <span style={{ fontSize: 10, color: '#f87171', background: 'rgba(239, 68, 68, 0.12)', padding: '2px 6px', borderRadius: 10 }}>Offline</span>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
-                  <div>
-                    <span style={{ fontSize: 22, fontWeight: 800, color: isMitsu ? '#38bdf8' : '#fb923c' }}>
-                      {sensor.temperature != null ? `${sensor.temperature.toFixed(1)} °C` : '--'}
-                    </span>
-                  </div>
-                  {isMitsu ? (
-                    <div style={{ fontSize: 12.5, color: '#f59e0b', fontWeight: 600 }}>
-                      Pyynti {sensor.targetTemperature != null ? `${sensor.targetTemperature}°C` : '--'}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 13.5, color: '#38bdf8', fontWeight: 600 }}>
-                      {sensor.humidity != null ? `💧 ${sensor.humidity} %` : ''}
-                    </div>
-                  )}
-                </div>
-
-                {isMitsu ? (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 6, marginTop: 2 }}>
-                    <span>Tila: <strong style={{ color: 'var(--text-secondary)' }}>{sensor.mode === 'HEAT' ? 'Lämmitys' : sensor.mode === 'COOL' ? 'Jäähdytys' : sensor.mode ?? 'AUTO'}</strong></span>
-                    <span>Puhallin: <strong style={{ color: 'var(--text-secondary)' }}>{sensor.fanMode ?? 'AUTO'}</strong></span>
-                  </div>
-                ) : (
-                  sensor.battery != null && (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 6, marginTop: 2 }}>
-                      <span>🔋 Paristo:</span>
-                      <span style={{ color: sensor.battery > 30 ? 'var(--text-secondary)' : '#f87171', fontWeight: 600 }}>
-                        {sensor.battery} %
-                      </span>
-                    </div>
-                  )
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Selected Sensor Deep Dive Graph Section */}
-        {selectedSensor && (
-          <div
-            style={{
-              background: 'rgba(0, 0, 0, 0.35)',
-              border: '1px solid rgba(56, 189, 248, 0.25)',
-              borderRadius: 14,
-              padding: '18px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            }}
-          >
-            {/* Top Toolbar of Graph */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 22 }}>📈</span>
-                <div>
+      {/* Interactive Climate History Graph Card */}
+      {selectedSensor && (
+        <div
+          className="card"
+          style={{
+            background: 'linear-gradient(165deg, rgba(19, 29, 51, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+            border: '1px solid rgba(56, 189, 248, 0.25)',
+            borderRadius: 18,
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          {/* Top Toolbar of Graph with Sensor Selector */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 24 }}>📈</span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {selectedSensor.name} — Mittaushistoria
+                    Mittaushistoria:
                   </span>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Aikajakso: <strong style={{ color: '#38bdf8' }}>{dateLabel}</strong>
-                    {selectedSensor.source === 'mitsubishi' && ' · Huonelämpötila & Asetuspyynti'}
-                  </div>
+                  <select
+                    value={selectedSensor?.id || ''}
+                    onChange={(e) => {
+                      const s = unifiedSensors.find((x) => x.id === e.target.value);
+                      if (s) setSelectedSensor(s);
+                    }}
+                    style={{
+                      background: 'rgba(15, 23, 42, 0.9)',
+                      border: '1px solid rgba(56, 189, 248, 0.4)',
+                      color: '#38bdf8',
+                      padding: '4px 12px',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      outline: 'none',
+                    }}
+                  >
+                    {unifiedSensors.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.temperature != null ? `${s.temperature.toFixed(1)} °C` : '--'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Aikajakso: <strong style={{ color: '#38bdf8' }}>{dateLabel}</strong>
+                  {selectedSensor.source === 'mitsubishi' && ' · Huonelämpötila & Asetuspyynti'}
                 </div>
               </div>
+            </div>
 
               {/* Timeframe Presets */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1664,7 +1567,6 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
             </div>
           </div>
         )}
-      </div>
 
       {/* Leak & Door Environmental Security Sensors */}
       {(waterLeakSensors.length > 0 || doorSensors.length > 0) && (

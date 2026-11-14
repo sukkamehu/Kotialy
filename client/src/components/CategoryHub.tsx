@@ -247,8 +247,8 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
     },
     {
       id: 'technical' as CategoryId,
-      title: 'Tekninen tila & Muistio',
-      subtitle: 'Hydraulikaavio, Virtausanturit & Panasonic-asetukset',
+      title: 'Tekninen tila & Akku',
+      subtitle: 'Hydraulikaavio, 12kW Hybridi & 15kWh LiFePO4 -sähkökaavio',
       icon: '🛠️',
       color: '#22d3ee',
       glow: 'rgba(34, 211, 238, 0.25)',
@@ -256,44 +256,19 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
       borderColor: 'rgba(34, 211, 238, 0.35)',
       badges: [
         {
-          label: 'Virtaus',
-          value: flowRate !== null ? `${flowRate.toFixed(1)} l/min` : '--',
+          label: 'Hydrauliikka',
+          value: '4-putki + 100L',
           color: '#22d3ee',
           bg: 'rgba(6, 182, 212, 0.15)',
         },
         {
-          label: 'Kytkentä',
-          value: '4-putki + 100L',
-          color: '#a78bfa',
-          bg: 'rgba(167, 139, 250, 0.12)',
-        },
-      ],
-      description: 'Interaktiivinen kytkentäkaavio ja putkistolämmöt yhdistettynä Panasonic-asetusmuistioon.',
-    },
-    {
-      id: 'battery' as CategoryId,
-      title: 'Akkujärjestelmä & Sähkökaavio',
-      subtitle: '12 kW Hybridi, 15 kWh LiFePO4, ATS-erotus & EPS',
-      icon: '🔋',
-      color: '#10b981',
-      glow: 'rgba(16, 185, 129, 0.25)',
-      gradient: 'linear-gradient(145deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%)',
-      borderColor: 'rgba(16, 185, 129, 0.35)',
-      badges: [
-        {
-          label: 'Järjestelmä',
-          value: '12 kW 3N~ 400V',
+          label: 'Akusto',
+          value: '15 kWh LiFePO4',
           color: '#10b981',
           bg: 'rgba(16, 185, 129, 0.15)',
         },
-        {
-          label: 'Akkukapasiteetti',
-          value: '15 kWh LiFePO4',
-          color: '#38bdf8',
-          bg: 'rgba(56, 189, 248, 0.12)',
-        },
       ],
-      description: 'Täydellinen 3-vaiheinen sähkökaavio, ATS-verkonerotus, varavoimasyöttö (EPS), kaapeloinnit ja EMS-ohjauslogiikka.',
+      description: 'Putkiston interaktiivinen kytkentäkaavio, 3-vaiheinen akkujärjestelmä (ATS & EPS) ja Panasonic-asetusmuistio.',
     },
     {
       id: 'apc' as CategoryId,
@@ -319,31 +294,6 @@ export const CategoryHub: React.FC<CategoryHubProps> = ({
         },
       ],
       description: 'Pörssisähkön hintahuippujen väistö, halpojen tuntien varaustehot ja automaattiset suojarajat.',
-    },
-    {
-      id: 'experimental' as CategoryId,
-      title: 'Radio & Satelliitti',
-      subtitle: 'RTL-SDR 433 MHz, NOAA / Meteor Sääsatelliitit & Spektri',
-      icon: '🛰️',
-      color: '#38bdf8',
-      glow: 'rgba(56, 189, 248, 0.25)',
-      gradient: 'linear-gradient(145deg, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%)',
-      borderColor: 'rgba(56, 189, 248, 0.35)',
-      badges: [
-        {
-          label: 'RTL-SDR',
-          value: rtlStatus.connected ? '433.92 MHz LIVE' : 'Offline',
-          color: rtlStatus.connected ? '#4ade80' : '#f87171',
-          bg: rtlStatus.connected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-        },
-        {
-          label: 'Anturit',
-          value: `${rtlDevices.length} kpl live`,
-          color: '#38bdf8',
-          bg: 'rgba(56, 189, 248, 0.12)',
-        },
-      ],
-      description: 'Ohjelmistoradio (SDR), reaaliaikaiset sääsatelliittikuvat (EUMETSAT & FMI tutka), NOAA-ylilennot ja RF-anturit.',
     },
   ];
 

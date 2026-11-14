@@ -7,6 +7,7 @@ import { OutdoorCard } from './OutdoorCard';
 import { CameraCard } from './CameraCard';
 import { MitsubishiCard } from './MitsubishiCard';
 import { UnifiedForecastCard } from './UnifiedForecastCard';
+import { ApcDecisionLogCard } from './ApcDecisionLogCard';
 import { ErrorBoundary } from './ErrorBoundary';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
@@ -78,6 +79,13 @@ export const HeatingPage: React.FC<HeatingPageProps> = ({
       <div>
         <ErrorBoundary>
           <UnifiedForecastCard onOpenApc={onOpenApc} />
+        </ErrorBoundary>
+      </div>
+
+      {/* Row 4: APC Decision Log & Live Real-time Operations */}
+      <div>
+        <ErrorBoundary>
+          <ApcDecisionLogCard onOpenApc={onOpenApc} maxEntries={10} />
         </ErrorBoundary>
       </div>
     </div>
