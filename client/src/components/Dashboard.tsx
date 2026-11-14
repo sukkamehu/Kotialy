@@ -73,7 +73,7 @@ function normalizeTab(raw: string): DashboardTab {
   if (raw === 'dashboard') return 'heating';
   if (raw === 'smartlife' || raw === 'temperature' || raw === 'climate') return 'temperatures';
   if (raw === 'herrfors' || raw === 'history') return 'trends';
-  if (raw === 'hydraulics' || raw === 'heatpump_guide' || raw === 'battery' || raw === 'akku' || raw === 'sahkokaavio' || raw === 'akkujarjestelma') return 'technical';
+  if (raw === 'hydraulics' || raw === 'heatpump_guide' || raw === 'battery' || raw === 'akku' || raw === 'sahkokaavio' || raw === 'akkujarjestelma' || raw === 'settings' || raw === 'asetukset' || raw === 'asetusmuistio') return 'technical';
   if (raw === 'apc_strategy') return 'apc';
   if (raw === 'radio' || raw === 'sdr' || raw === 'satellite' || raw === 'satelliitti') return 'trends';
   return 'hub';

@@ -14,7 +14,16 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
   state,
   readOnly = false,
 }) => {
-  const [subTab, setSubTab] = useState<'hydraulics' | 'battery' | 'settings'>('hydraulics');
+  const getInitialSubTab = (): 'hydraulics' | 'battery' | 'settings' => {
+    if (typeof window !== 'undefined') {
+      const h = (window.location.hash || '').toLowerCase();
+      if (h.includes('setting') || h.includes('asetus')) return 'settings';
+      if (h.includes('battery') || h.includes('akku')) return 'battery';
+    }
+    return 'hydraulics';
+  };
+
+  const [subTab, setSubTab] = useState<'hydraulics' | 'battery' | 'settings'>(getInitialSubTab);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 36 }}>
@@ -123,7 +132,7 @@ export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> =
       {/* View 3: Panasonic Settings Memo */}
       {subTab === 'settings' && (
         <ErrorBoundary>
-          <PanasonicSettingsCard />
+          <PanasonicSettingsCard state={state} />
         </ErrorBoundary>
       )}
     </div>
