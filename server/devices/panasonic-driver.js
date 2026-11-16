@@ -65,7 +65,7 @@ class PanasonicDriver {
    * Calculate adaptive Smart Cycling limits based on outdoor and indoor temperatures.
    * Tailored for low-thermal-mass wooden joist subfloors (rossipohja).
    */
-  getAdaptiveCyclingLimits(settings, outdoorTemp, indoorTemp) {
+  getAdaptiveCyclingLimits(settings, outdoorTemp, indoorTemp, directive = 'NORMAL') {
     const rawMinRest = settings.smart_cycling_min_rest_min ?? 60;
     const rawRestSetback = settings.smart_cycling_rest_setback_c ?? -2.0;
     const chargeBoost = settings.smart_cycling_charge_boost_c ?? 3.0;
@@ -92,9 +92,14 @@ class PanasonicDriver {
       }
     }
 
-    // Jos sisälämpötila on tavoitetta matalampi (< 21.0°C), ei sallita negatiivista lepopudotusta lainkaan
-    const targetIndoor = settings.indoor_target_temp_c ?? 21.3;
-    if (settings.indoor_feedback_enabled !== false && indoorTemp != null && indoorTemp < targetIndoor - 0.3) {
+    // Jos sähkö on halpaa (BOOST), tavoitellaan lämpövarausta (esim. +1.5°C) eikä sallita lepopudotusta
+    const boostDelta = directive === 'BOOST' ? (settings.indoor_boost_delta_c ?? 1.5) : 0;
+    const targetIndoor = (settings.indoor_target_temp_c ?? 21.3) + boostDelta;
+    if (directive === 'BOOST') {
+      restSetback = Math.max(0.0, restSetback);
+      minRestMin = Math.min(minRestMin, 15);
+    } else if (settings.indoor_feedback_enabled !== false && indoorTemp != null && indoorTemp < targetIndoor - 0.3) {
+      // Jos sisälämpötila on tavoitetta matalampi, ei sallita negatiivista lepopudotusta
       restSetback = Math.max(0.0, restSetback);
       minRestMin = Math.min(minRestMin, 20);
     }
@@ -174,7 +179,9 @@ class PanasonicDriver {
     // ─── Sisälämpötilakompensaatio (Huoneanturipalaute: Alakerta + Yläkerran työhuone) ───
     let indoorTrim = 0;
     if (settings.indoor_feedback_enabled !== false && indoorTemp != null) {
-      const targetIndoor = settings.indoor_target_temp_c ?? 21.3;
+      // Halvan sähkön lämpövaraus: Sallitaan asunnon lämmetä enemmän BOOST-jaksoilla (+1.0...+1.5°C)
+      const boostDelta = directive === 'BOOST' ? (settings.indoor_boost_delta_c ?? 1.5) : 0;
+      const targetIndoor = (settings.indoor_target_temp_c ?? 21.3) + boostDelta;
       const indoorDelta = targetIndoor - indoorTemp;
 
       if (indoorDelta >= 0.3) {
@@ -196,7 +203,7 @@ class PanasonicDriver {
 
     if (isSmartCyclingEnabled && !isDhwActive) {
       const isCompressorRunning = (compressorFreq > 0) && (heatpumpState === 1);
-      const { minRestMin, restSetback, chargeBoost, maxRunMin } = this.getAdaptiveCyclingLimits(settings, outdoorTemp, indoorTemp);
+      const { minRestMin, restSetback, chargeBoost, maxRunMin } = this.getAdaptiveCyclingLimits(settings, outdoorTemp, indoorTemp, directive);
 
       // Transition 1: Compressor just started heating
       if (isCompressorRunning && !this.lastCompressorRunning) {
@@ -253,7 +260,11 @@ class PanasonicDriver {
           targetShift = Math.max(targetShift, baseShift + chargeBoost);
         }
       } else if (this.cyclingPhase === 'RESTING') {
-        targetShift = Math.min(targetShift, baseShift + restSetback);
+        if (directive === 'BOOST') {
+          targetShift = Math.max(targetShift, baseShift);
+        } else {
+          targetShift = Math.min(targetShift, baseShift + restSetback);
+        }
       }
     } else {
       // If disabled or in DHW mode, reset running flag

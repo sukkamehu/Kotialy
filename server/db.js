@@ -846,6 +846,7 @@ function getApcSettings() {
     smart_cycling_max_run_min: 75,
     indoor_feedback_enabled: true,
     indoor_target_temp_c: 21.3,
+    indoor_boost_delta_c: 1.5,
     indoor_min_temp_c: 20.5,
     smart_sterilization_enabled: true,
     sterilization_min_days: 7,

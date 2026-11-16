@@ -275,6 +275,7 @@ class TuyaPlugDriver {
       ? Number(settings.tuya_plug_max_price_cents)
       : 12.0;
 
+    const fullState = db.getFullState();
     const power = dev?.properties?.power != null ? Number(dev.properties.power) : (parseFloat(fullState['tuya/energy_alypistorasia_home_connect_ip20/power']?.value) || 0);
     const voltage = dev?.properties?.voltage != null ? Number(dev.properties.voltage) : (parseFloat(fullState['tuya/energy_alypistorasia_home_connect_ip20/voltage']?.value) || 0);
     const current = dev?.properties?.current != null ? Number(dev.properties.current) : (parseFloat(fullState['tuya/energy_alypistorasia_home_connect_ip20/current']?.value) || 0);

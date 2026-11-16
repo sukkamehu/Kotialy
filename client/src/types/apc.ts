@@ -86,6 +86,7 @@ export interface ApcSettings {
   smart_cycling_max_run_min?: number;
   indoor_feedback_enabled?: boolean;
   indoor_target_temp_c?: number;
+  indoor_boost_delta_c?: number;
   indoor_min_temp_c?: number;
   compressor_exercise_enabled?: boolean;
   compressor_exercise_interval_days?: number;

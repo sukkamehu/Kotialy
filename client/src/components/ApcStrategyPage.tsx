@@ -128,6 +128,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [smartCyclingMaxRun, setSmartCyclingMaxRun] = useState<string>(String(status?.settings?.smart_cycling_max_run_min ?? 75));
   const [indoorFeedbackEnabled, setIndoorFeedbackEnabled] = useState<boolean>(status?.settings?.indoor_feedback_enabled !== false);
   const [indoorTargetTemp, setIndoorTargetTemp] = useState<string>(String(status?.settings?.indoor_target_temp_c ?? 21.3));
+  const [indoorBoostDelta, setIndoorBoostDelta] = useState<string>(String(status?.settings?.indoor_boost_delta_c ?? 1.5));
   const [indoorMinTemp, setIndoorMinTemp] = useState<string>(String(status?.settings?.indoor_min_temp_c ?? 20.5));
   const [tuyaPlugMode, setTuyaPlugModeState] = useState<'auto' | 'constant_on' | 'constant_off'>('auto');
   const [tuyaPlugMaxPrice, setTuyaPlugMaxPrice] = useState<string>('12.0');
@@ -267,6 +268,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       setSmartCyclingMaxRun(String(status.settings.smart_cycling_max_run_min ?? 75));
       setIndoorFeedbackEnabled(status.settings.indoor_feedback_enabled !== false);
       setIndoorTargetTemp(String(status.settings.indoor_target_temp_c ?? 21.3));
+      setIndoorBoostDelta(String(status.settings.indoor_boost_delta_c ?? 1.5));
       setIndoorMinTemp(String(status.settings.indoor_min_temp_c ?? 20.5));
       setTuyaPlugModeState(status.settings.tuya_plug_mode ?? 'auto');
       setTuyaPlugMaxPrice(String(status.settings.tuya_plug_max_price_cents ?? 12.0));
@@ -375,6 +377,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
       smart_cycling_max_run_min: parseInt(smartCyclingMaxRun, 10) || 75,
       indoor_feedback_enabled: Boolean(indoorFeedbackEnabled),
       indoor_target_temp_c: parseFloat(indoorTargetTemp) || 21.3,
+      indoor_boost_delta_c: parseFloat(indoorBoostDelta) || 1.5,
       indoor_min_temp_c: parseFloat(indoorMinTemp) || 20.5,
       tuya_plug_mode: tuyaPlugMode,
       tuya_plug_max_price_cents: parseFloat(tuyaPlugMaxPrice) || 12.0,
@@ -1839,7 +1842,7 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
               </label>
 
               {indoorFeedbackEnabled && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                   <div>
                     <label style={{ fontSize: 11, color: '#10b981', display: 'block', marginBottom: 4, fontWeight: 600 }}>
                       Tavoitelämpötila (°C)
@@ -1864,7 +1867,35 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
                       }}
                     />
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                      Tavoitelämpötila omakotitalossa
+                      Perustavoite omakotitalossa
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Halvan sähkön boost (+°C)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.0"
+                      max="3.0"
+                      value={indoorBoostDelta}
+                      onChange={(e) => setIndoorBoostDelta(e.target.value)}
+                      disabled={readOnly}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        color: '#38bdf8',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {`Lämpövaraus BOOST-aikana (max ~${((parseFloat(indoorTargetTemp) || 21.3) + (parseFloat(indoorBoostDelta) || 0)).toFixed(1)} °C)`}
                     </div>
                   </div>
 
