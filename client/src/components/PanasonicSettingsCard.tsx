@@ -114,19 +114,19 @@ const DEFAULT_SETTINGS: HeatPumpSettingItem[] = [
     category: 'heating',
     name: 'Työsäiliö / Puskurivaraaja (Buffer Tank)',
     menuPath: 'Toiminnan määritys → Järjestelmäasetukset → Puskurisäiliö',
-    recommendedValue: 'Odottaa Zone-1 anturia (Kyllä, ΔT 5 °C kytkettäessä)',
+    recommendedValue: 'Pois päältä (Ei)',
     allowedRange: 'Kyllä / Ei',
-    previousValue: 'Pois päältä',
-    reason: 'Aktivoidaan heti kun 6,5 kΩ Zone 1 / Buffer -anturi on fyysisesti kytketty. Siihen asti Kotiälyn älykäs puskurisyklaus hoitaa pätkäkäynnin eston.',
-    kotiAlyImpact: 'Kotiälyn älykäs puskurisyklaus ja Quiet Mode 3 pitkittävät käyntijaksoja automaattisesti.',
+    previousValue: 'Kyllä (kokeiltu)',
+    reason: 'Panasonicin "Työsäiliö = Kyllä" on suunniteltu isoille energiavaraajille (lataa ylilämmöllä ja pysäyttää ensiökierron). 100 L 4-putkipuskuri toimii parhaiten hydraulisena erottimena asetuksella "Ei", ja fyysisesti kytketty puskurianturi palvelee Kotiälyn seurantaa ja suojauksia.',
+    kotiAlyImpact: 'Kotiälyn älykäs puskurisyklaus ja Quiet Mode pitkittävät käyntijaksoja paremmalla COP:lla kuin Panasonicin oma työsäiliölogiikka.',
     topic: 'main/Buffer_Installed',
     getCurrent: (state) => {
       const v = state ? numVal(state, 'main/Buffer_Installed') : null;
       if (v === null) return { valueText: '—', status: 'unknown' };
       return {
-        valueText: v === 1 ? 'Käytössä (Buffer ON)' : 'Pois päältä (Zone-1 odottaa anturia)',
-        status: 'match',
-        detail: v === 1 ? 'Buffer-ohjaus aktiivinen' : 'Kotiäly-syklaus ohjaa puskuria',
+        valueText: v === 1 ? 'Käytössä (Buffer ON)' : 'Pois päältä (Ei)',
+        status: v === 0 ? 'match' : 'diff',
+        detail: v === 0 ? 'Optimaalinen 100 L puskurille · Anturi kytketty' : 'Ei suositella 100 L puskurille (pätkii / ylilämmittää)',
       };
     },
   },
@@ -297,7 +297,7 @@ export function PanasonicSettingsCard({ state }: PanasonicSettingsCardProps) {
   const [filter, setFilter] = useState<'all' | 'curve' | 'heating' | 'dhw' | 'heater'>('all');
   const [notes, setNotes] = useState<string>(() => {
     try {
-      return localStorage.getItem(NOTES_KEY) || '25.9.2026: Lämm.ON ΔT = 8 °C. Lämpökäyrän leutopää asetettu 27 °C @ +15 °C. Lämmityksen kesäkatkaisu 15 °C. Puskurivaraajan Zone-1 anturia odotetaan, jolloin Kotiälyn älykäs puskurisyklaus ja Quiet Mode 3 hoitavat pätkäkäynnin eston ja puskurin latauksen.';
+      return localStorage.getItem(NOTES_KEY) || 'Lämm.ON ΔT = 8 °C. Lämpökäyrän leutopää asetettu 27 °C @ +15 °C. Lämmityksen kesäkatkaisu 15 °C. Puskurianturi on kytketty mittaukseen, mutta Panasonicin Työsäiliö-asetus pidetään pois päältä (Ei) 100 L puskurille — Kotiälyn älykäs syklaus ja Quiet Mode hoitavat pätkäkäynnin eston.';
     } catch {
       return '';
     }
@@ -507,7 +507,7 @@ export function PanasonicSettingsCard({ state }: PanasonicSettingsCardProps) {
             100 L Puskuri
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-            Zone-1 anturikytkentää odotetaan
+            Anturi kytketty · Buffer OFF (optimaalinen)
           </div>
         </div>
 
