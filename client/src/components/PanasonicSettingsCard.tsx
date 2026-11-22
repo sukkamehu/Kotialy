@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
+import { CompensationCurveChart } from './CompensationCurveChart';
 
 export interface HeatPumpSettingItem {
   id: string;
@@ -324,18 +325,6 @@ export function PanasonicSettingsCard({ state }: PanasonicSettingsCardProps) {
   const mainTarget = state ? numVal(state, 'main/Main_Target_Temp') : null;
   const mainOutlet = state ? numVal(state, 'main/Main_Outlet_Temp') : null;
   const z1Shift = state ? numVal(state, 'main/Z1_Heat_Request_Temp') : null;
-  const z1CurveTargetHigh = state ? numVal(state, 'main/Z1_Heat_Curve_Target_High_Temp') : 38;
-  const z1CurveTargetLow = state ? numVal(state, 'main/Z1_Heat_Curve_Target_Low_Temp') : 27;
-
-  // Calculate base curve formula for visualization
-  // T_water(T_out) = 27 + (15 - T_out) * ( (38 - 27) / (15 - (-20)) ) = 27 + (15 - T_out) * (11/35)
-  const calcBaseCurve = (tOut: number) => {
-    const clamped = Math.max(-20, Math.min(15, tOut));
-    const target = (z1CurveTargetLow ?? 27) + ((15 - clamped) * ((z1CurveTargetHigh ?? 38) - (z1CurveTargetLow ?? 27))) / 35;
-    return Math.round(target * 10) / 10;
-  };
-
-  const currentCalculatedBase = outsideTemp != null ? calcBaseCurve(outsideTemp) : null;
 
   return (
     <div className="card apc-card" style={{ padding: '24px', background: 'var(--card-bg, #1a1e29)' }}>
@@ -556,151 +545,7 @@ export function PanasonicSettingsCard({ state }: PanasonicSettingsCardProps) {
 
       {/* Visual Compensation Curve Diagram (Active when 'all' or 'curve' is selected) */}
       {(filter === 'all' || filter === 'curve') && (
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.35)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: 12,
-          padding: '18px 20px',
-          marginBottom: 24,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 20 }}>📈</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Lattialämmityksen Kompensaatiokäyrä & Nykyinen Toimintapiste
-              </span>
-            </div>
-
-            {outsideTemp != null && (
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 16 }}>
-                <span>Ulkolämpötila: <strong style={{ color: '#60a5fa' }}>{outsideTemp.toFixed(1)} °C</strong></span>
-                <span>Laskennallinen peruspyynti: <strong style={{ color: '#34d399' }}>{currentCalculatedBase != null ? `${currentCalculatedBase.toFixed(1)} °C` : '—'}</strong></span>
-                {mainTarget != null && (
-                  <span>Toteutuva pyynti: <strong style={{ color: '#22d3ee' }}>{mainTarget.toFixed(0)} °C</strong></span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* SVG Curve Plot */}
-          <div style={{ width: '100%', height: 160, position: 'relative' }}>
-            <svg viewBox="0 0 600 150" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
-              <defs>
-                <linearGradient id="curveGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#10b981" />
-                </linearGradient>
-              </defs>
-
-              {/* Grid Lines */}
-              <line x1="50" y1="20" x2="560" y2="20" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-              <line x1="50" y1="65" x2="560" y2="65" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-              <line x1="50" y1="110" x2="560" y2="110" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-
-              {/* Y Axis Labels */}
-              <text x="40" y="24" fill="var(--text-muted)" fontSize="10" textAnchor="end">40 °C</text>
-              <text x="40" y="69" fill="var(--text-muted)" fontSize="10" textAnchor="end">32 °C</text>
-              <text x="40" y="114" fill="var(--text-muted)" fontSize="10" textAnchor="end">25 °C</text>
-
-              {/* X Axis Coordinates: -20°C -> x=60, +15°C -> x=550. Range = 35°C, 490px */}
-              {/* Point 1: -20 °C, 38 °C (y: 20 + (40-38)*5 = 30) */}
-              {/* Point 2: +15 °C, 27 °C (y: 20 + (40-27)*5 = 85) */}
-              <line x1="60" y1="120" x2="550" y2="120" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
-              <text x="60" y="136" fill="var(--text-muted)" fontSize="10" textAnchor="middle">-20 °C</text>
-              <text x="200" y="136" fill="var(--text-muted)" fontSize="10" textAnchor="middle">-10 °C</text>
-              <text x="340" y="136" fill="var(--text-muted)" fontSize="10" textAnchor="middle">0 °C</text>
-              <text x="480" y="136" fill="var(--text-muted)" fontSize="10" textAnchor="middle">+10 °C</text>
-              <text x="550" y="136" fill="var(--text-muted)" fontSize="10" textAnchor="middle">+15 °C</text>
-
-              {/* The Recommended / Panasonic Curve Line */}
-              <line
-                x1="60"
-                y1="30"
-                x2="550"
-                y2="85"
-                stroke="url(#curveGradient)"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-              />
-
-              {/* Cold Endpoint Marker: (-20°C, 38°C) */}
-              <circle cx="60" cy="30" r="5" fill="#3b82f6" stroke="#fff" strokeWidth="1.5" />
-              <text x="60" y="18" fill="#60a5fa" fontSize="11" fontWeight="700" textAnchor="middle">
-                38 °C @ -20 °C
-              </text>
-
-              {/* Mild Endpoint Marker: (+15°C, 27°C) */}
-              <circle cx="550" cy="85" r="5" fill="#10b981" stroke="#fff" strokeWidth="1.5" />
-              <text x="550" y="75" fill="#34d399" fontSize="11" fontWeight="700" textAnchor="middle">
-                27 °C @ +15 °C
-              </text>
-
-              {/* Current Outdoor Operating Point */}
-              {outsideTemp != null && (
-                (() => {
-                  const clamped = Math.max(-20, Math.min(15, outsideTemp));
-                  const currentX = 60 + ((clamped - (-20)) / 35) * 490;
-                  const currentY = 30 + ((clamped - (-20)) / 35) * (85 - 30);
-                  const targetY = mainTarget != null ? 20 + (40 - mainTarget) * 5 : currentY;
-
-                  return (
-                    <g>
-                      {/* Vertical line from axis to curve point */}
-                      <line
-                        x1={currentX}
-                        y1="120"
-                        x2={currentX}
-                        y2={currentY}
-                        stroke="#f59e0b"
-                        strokeDasharray="2 2"
-                        strokeWidth="1.5"
-                      />
-
-                      {/* Shift delta line if active */}
-                      {z1Shift != null && z1Shift !== 0 && (
-                        <line
-                          x1={currentX}
-                          y1={currentY}
-                          x2={currentX}
-                          y2={targetY}
-                          stroke="#a855f7"
-                          strokeWidth="2"
-                        />
-                      )}
-
-                      {/* Operating Point Circle */}
-                      <circle cx={currentX} cy={targetY} r="7" fill="#f59e0b" stroke="#fff" strokeWidth="2">
-                        <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite" />
-                      </circle>
-
-                      {/* Tooltip text above point */}
-                      <rect
-                        x={Math.max(70, Math.min(470, currentX - 55))}
-                        y={Math.max(25, targetY - 32)}
-                        width="110"
-                        height="24"
-                        rx="6"
-                        fill="rgba(0,0,0,0.85)"
-                        stroke="#f59e0b"
-                        strokeWidth="1"
-                      />
-                      <text
-                        x={Math.max(70, Math.min(470, currentX - 55)) + 55}
-                        y={Math.max(25, targetY - 32) + 16}
-                        fill="#fcd34d"
-                        fontSize="11"
-                        fontWeight="700"
-                        textAnchor="middle"
-                      >
-                        Nyt: {outsideTemp.toFixed(1)} °C → {mainTarget != null ? mainTarget.toFixed(0) : currentCalculatedBase?.toFixed(0)} °C
-                      </text>
-                    </g>
-                  );
-                })()
-              )}
-            </svg>
-          </div>
-        </div>
+        <CompensationCurveChart state={state} />
       )}
 
       {/* Table of Settings */}

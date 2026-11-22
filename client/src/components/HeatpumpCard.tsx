@@ -4,6 +4,7 @@ import { numVal } from '../types/heishamon';
 import { useCommand } from '../hooks/useCommand';
 import { SegmentedControl, ToggleRow } from './SegmentedControl';
 import { ConfirmModal } from './ConfirmModal';
+import { CompensationCurveChart } from './CompensationCurveChart';
 
 const ALL_OPERATING_MODES = [
   { value: 0, label: 'Lämmitys' },
@@ -508,6 +509,9 @@ export function HeatpumpCard({ state, onOpenTrend, readOnly = false }: HeatpumpC
               : 'Venttiilin asento ohjautuu automaattisesti käyttötilan mukaan.'}
           </div>
         </div>
+
+        {/* Lattialämmityksen Kompensaatiokäyrä & Nykyinen Toimintapiste */}
+        <CompensationCurveChart state={state} compact />
 
         {/* Controls */}
         <div className="section-label" style={{ marginBottom: 10 }}>Ohjaus</div>
