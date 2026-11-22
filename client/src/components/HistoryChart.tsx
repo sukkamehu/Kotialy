@@ -400,9 +400,30 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
     return list;
   }, [rtlDevices]);
 
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([
-    'main/Outside_Temp', 'main/Main_Inlet_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp',
-  ]);
+  const STORAGE_KEY_TOPICS = 'kotialy_trend_selected_topics_v2';
+  const DEFAULT_TOPICS = ['main/Outside_Temp', 'main/Main_Inlet_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp'];
+
+  const [selectedTopics, setSelectedTopics] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_TOPICS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return DEFAULT_TOPICS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_TOPICS, JSON.stringify(selectedTopics));
+    } catch {
+      // ignore storage errors
+    }
+  }, [selectedTopics]);
+
   const [activeCategory, setActiveCategory] = useState<'vilp' | 'smartlife' | 'electricity' | 'tapo' | 'rf433' | 'all'>('vilp');
   const [preset, setPreset] = useState<QuickPreset>('24h');
   
@@ -830,9 +851,9 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
       </div>
 
       <div className="card-body">
-        {/* Quick View Presets */}
+        {/* Quick View Presets (additive toggle — preserves already selected trends) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14, background: 'rgba(255,255,255,0.02)', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Valmiit pikanäkymät:</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Lisää / poista ryhmä:</span>
           {[
             {
               id: 'vilp',
@@ -846,38 +867,53 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
             },
             {
               id: 'indoor',
-              label: '🏠 Sisälämmöt',
-              topics: ['mitsu_alakerta_temp', 'mitsu_ylakerta_temp', 'tuya_sauna_temp', 'tuya_autotalli_temp'],
+              label: '🌡️ Lämpömittarit',
+              topics: ['tuya/alakerta/temperature', 'tuya/ylakerran_tyohuone/temperature', 'tuya/autotalli/temperature', 'tuya/isovarasto/temperature'],
             },
             {
               id: 'plugs',
               label: '🔌 Pistorasiat & Kuormat',
-              topics: ['tapo_total_power', 'tapo_isovarasto_power', 'tapo_pikkuvarasto_power', 'tapo_pesukone_power'],
+              topics: ['tapo/total_power', 'tapo/isovarasto/power', 'tapo/pikkuvarasto/power', 'tapo/pesukone/power'],
             },
-          ].map((pv) => (
-            <button
-              key={pv.id}
-              onClick={() => {
-                setSelectedTopics(pv.topics);
-                if (pv.id === 'vilp') setActiveCategory('vilp');
-                else if (pv.id === 'electricity') setActiveCategory('electricity');
-                else if (pv.id === 'indoor') setActiveCategory('smartlife');
-                else if (pv.id === 'plugs') setActiveCategory('tapo');
-              }}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 7,
-                fontSize: 11.5,
-                fontWeight: 600,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-              }}
-            >
-              {pv.label}
-            </button>
-          ))}
+          ].map((pv) => {
+            const allSelected = pv.topics.every((t) => selectedTopics.includes(t));
+            const someSelected = !allSelected && pv.topics.some((t) => selectedTopics.includes(t));
+            return (
+              <button
+                key={pv.id}
+                onClick={() => {
+                  setSelectedTopics((prev) => {
+                    if (pv.topics.every((t) => prev.includes(t))) {
+                      const removeSet = new Set(pv.topics);
+                      return prev.filter((k) => !removeSet.has(k));
+                    }
+                    return Array.from(new Set([...prev, ...pv.topics]));
+                  });
+                }}
+                title={allSelected ? 'Klikkaa poistaaksesi tämän ryhmän kohteet' : 'Klikkaa lisätäksesi tämän ryhmän kohteet nykyisten rinnalle'}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 7,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  background: allSelected
+                    ? 'rgba(59, 130, 246, 0.22)'
+                    : someSelected
+                      ? 'rgba(59, 130, 246, 0.09)'
+                      : 'rgba(255,255,255,0.05)',
+                  border: allSelected
+                    ? '1px solid rgba(59, 130, 246, 0.6)'
+                    : someSelected
+                      ? '1px solid rgba(59, 130, 246, 0.3)'
+                      : '1px solid rgba(255,255,255,0.12)',
+                  color: allSelected ? '#60a5fa' : 'var(--text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                {allSelected ? '✓ ' : '+ '}{pv.label}
+              </button>
+            );
+          })}
           <button
             onClick={() => setSelectedTopics([])}
             style={{
@@ -948,29 +984,51 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4, fontWeight: 600 }}>Kategoriat:</span>
           {[
             { id: 'vilp', label: '🔥 VILP & Lämmitys' },
-            { id: 'smartlife', label: '📱 Smart Life -anturit' },
-            { id: 'rf433', label: `📻 433 MHz RF-anturit${rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length > 0 ? ` (${rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length})` : ''}` },
+            { id: 'smartlife', label: '🌡️ Lämpömittarit & ILP' },
+            ...(rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length > 0
+              ? [{ id: 'rf433', label: `📻 433 MHz RF-anturit (${rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length})` }]
+              : []),
             { id: 'electricity', label: '⚡ Sähkö & Pörssihinta' },
             { id: 'tapo', label: '🔌 Tapo-pistorasiat' },
             { id: 'all', label: 'Kaikki kohteet' },
-          ].map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id as any)}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontSize: 11,
-                fontWeight: 600,
-                border: activeCategory === cat.id ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
-                background: activeCategory === cat.id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
-                color: activeCategory === cat.id ? '#60a5fa' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              {cat.label}
-            </button>
-          ))}
+          ].map(cat => {
+            const catCount = cat.id === 'all'
+              ? selectedTopics.length
+              : chartTopics.filter(t => t.category === cat.id && selectedTopics.includes(t.key)).length;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id as any)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  border: activeCategory === cat.id ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
+                  background: activeCategory === cat.id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
+                  color: activeCategory === cat.id ? '#60a5fa' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+              >
+                <span>{cat.label}</span>
+                {catCount > 0 && (
+                  <span style={{
+                    fontSize: 10,
+                    padding: '0px 5px',
+                    borderRadius: 99,
+                    background: 'rgba(59, 130, 246, 0.35)',
+                    color: '#93c5fd',
+                    fontWeight: 700,
+                  }}>
+                    {catCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
           
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
             <button
