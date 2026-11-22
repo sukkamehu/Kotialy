@@ -15,6 +15,9 @@ export interface DailyCost {
   savings_eur: number;
   is_final: number;
   updated_at: number;
+  avg_outdoor_temp?: number | null;
+  min_outdoor_temp?: number | null;
+  max_outdoor_temp?: number | null;
 }
 
 export interface CostSettings {

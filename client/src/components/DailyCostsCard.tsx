@@ -127,6 +127,17 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
   const avgCop = totalConsumption > 0 ? Number((totalProduction / totalConsumption).toFixed(2)) : null;
   const periodAvgPrice = totalConsumption > 0 ? Number(((totalCost / totalConsumption) * 100).toFixed(1)) : null;
 
+  const daysWithTemp = dailyCosts.filter((d) => d.avg_outdoor_temp != null);
+  const periodAvgTemp = daysWithTemp.length > 0
+    ? Number((daysWithTemp.reduce((s, d) => s + (d.avg_outdoor_temp as number), 0) / daysWithTemp.length).toFixed(1))
+    : null;
+  const periodMinTemp = daysWithTemp.length > 0
+    ? Math.min(...daysWithTemp.map((d) => d.min_outdoor_temp ?? (d.avg_outdoor_temp as number)))
+    : null;
+  const periodMaxTemp = daysWithTemp.length > 0
+    ? Math.max(...daysWithTemp.map((d) => d.max_outdoor_temp ?? (d.avg_outdoor_temp as number)))
+    : null;
+
   // Max daily cost for scaling the mini-bar visualization
   const maxCost = Math.max(...dailyCosts.map((d) => d.total_cost_eur), 1);
 
@@ -542,18 +553,29 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 11 }}>
                   <th style={{ padding: '8px 6px' }}>Päivä</th>
+                  <th style={{ padding: '8px 6px', textAlign: 'right' }}>Ulkolämpö (ka · min/max)</th>
                   <th style={{ padding: '8px 6px', textAlign: 'right' }}>Kulutus (kWh)</th>
                   <th style={{ padding: '8px 6px', textAlign: 'right' }}>Tuotto (kWh)</th>
                   <th style={{ padding: '8px 6px', textAlign: 'center' }}>COP</th>
                   <th style={{ padding: '8px 6px', textAlign: 'right' }}>Keskihinta</th>
                   <th style={{ padding: '8px 6px', textAlign: 'right' }}>Kustannus (€)</th>
                   <th style={{ padding: '8px 6px', textAlign: 'right' }}>Säästö (€)</th>
-                  <th style={{ padding: '8px 6px', width: '22%' }}>Osuus</th>
+                  <th style={{ padding: '8px 6px', width: '18%' }}>Osuus</th>
                 </tr>
               </thead>
               <tbody>
                 {dailyCosts.map((day) => {
                   const barWidth = Math.max(4, Math.min(100, Math.round((day.total_cost_eur / maxCost) * 100)));
+                  const avgT = day.avg_outdoor_temp;
+                  const minT = day.min_outdoor_temp;
+                  const maxT = day.max_outdoor_temp;
+                  const tempColor = avgT == null
+                    ? 'var(--text-muted)'
+                    : avgT < 0
+                      ? '#60a5fa'
+                      : avgT <= 5
+                        ? '#38bdf8'
+                        : '#fbbf24';
                   return (
                     <tr
                       key={day.date}
@@ -562,8 +584,27 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
                         transition: 'background 0.2s',
                       }}
                     >
-                      <td style={{ padding: '8px 6px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '8px 6px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                         {day.date}
+                      </td>
+                      <td
+                        style={{ padding: '8px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}
+                        title={avgT != null ? `Vrk keskilämpötila: ${avgT.toFixed(1)} °C · Alin: ${minT != null ? `${minT.toFixed(1)} °C` : '—'} · Ylin: ${maxT != null ? `${maxT.toFixed(1)} °C` : '—'}` : 'Ei lämpötilatietoa'}
+                      >
+                        {avgT != null ? (
+                          <span>
+                            <span style={{ fontWeight: 700, color: tempColor }}>
+                              {avgT > 0 ? `+${avgT.toFixed(1)}` : avgT.toFixed(1)} °C
+                            </span>
+                            {minT != null && maxT != null && (
+                              <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--text-muted)' }}>
+                                ({minT > 0 ? `+${Math.round(minT)}` : Math.round(minT)} / {maxT > 0 ? `+${Math.round(maxT)}` : Math.round(maxT)}°)
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
                       </td>
                       <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-primary)' }}>
                         {day.total_consumption_kwh.toFixed(1)}
@@ -622,6 +663,22 @@ export function DailyCostsCard({ readOnly = false }: { readOnly?: boolean } = {}
                   >
                     <td style={{ padding: '10px 6px', color: 'var(--text-primary)' }}>
                       Yhteensä ({dailyCosts.length} pv)
+                    </td>
+                    <td style={{ padding: '10px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {periodAvgTemp != null ? (
+                        <span>
+                          <span style={{ color: periodAvgTemp < 0 ? '#60a5fa' : periodAvgTemp <= 5 ? '#38bdf8' : '#fbbf24' }}>
+                            {periodAvgTemp > 0 ? `+${periodAvgTemp.toFixed(1)}` : periodAvgTemp.toFixed(1)} °C
+                          </span>
+                          {periodMinTemp != null && periodMaxTemp != null && (
+                            <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>
+                              ({periodMinTemp > 0 ? `+${Math.round(periodMinTemp)}` : Math.round(periodMinTemp)} / {periodMaxTemp > 0 ? `+${Math.round(periodMaxTemp)}` : Math.round(periodMaxTemp)}°)
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
                     </td>
                     <td style={{ padding: '10px 6px', textAlign: 'right', color: 'var(--text-primary)' }}>
                       {totalConsumption.toFixed(1)}

@@ -174,6 +174,10 @@ function calculateDay(dateStr) {
   const avgPriceCentsKwh = totalConsumptionKwh > 0 ? Number(((totalCostEur / totalConsumptionKwh) * 100).toFixed(2)) : null;
   const savingsEur = Number(Math.max(0, totalDirectElectricCostEur - totalCostEur).toFixed(2));
 
+  const outdoorStats = db.getDailyOutdoorTempStats
+    ? db.getDailyOutdoorTempStats(start, effectiveEnd, dateStr)
+    : { avg_outdoor_temp: null, min_outdoor_temp: null, max_outdoor_temp: null };
+
   const result = {
     date: dateStr,
     heat_consumption_kwh: Number(totalHeatConsKwh.toFixed(3)),
@@ -191,6 +195,9 @@ function calculateDay(dateStr) {
     savings_eur: savingsEur,
     is_final: isPastDay ? 1 : 0,
     updated_at: Date.now(),
+    avg_outdoor_temp: outdoorStats.avg_outdoor_temp,
+    min_outdoor_temp: outdoorStats.min_outdoor_temp,
+    max_outdoor_temp: outdoorStats.max_outdoor_temp,
   };
 
   db.upsertDailyCost(result);
@@ -278,8 +285,12 @@ function getCostSummary() {
  * Start periodic scheduler (every 10 minutes)
  */
 function startScheduler() {
-  // Initial run on startup: calculate recent days & today
+  // Initial run on startup: backfill outdoor temps & calculate recent days & today
   try {
+    if (db.backfillDailyOutdoorTemps) {
+      const n = db.backfillDailyOutdoorTemps();
+      if (n > 0) console.log(`[COST-CALC] Backfilled outdoor temps for ${n} daily_costs rows`);
+    }
     recalculateRecentDays(7);
   } catch (err) {
     console.error('[COST-CALC] Initial calculation error:', err.message);

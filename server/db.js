@@ -236,6 +236,21 @@ try {
 } catch {
   // column already exists
 }
+try {
+  db.exec(`ALTER TABLE daily_costs ADD COLUMN avg_outdoor_temp REAL;`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE daily_costs ADD COLUMN min_outdoor_temp REAL;`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE daily_costs ADD COLUMN max_outdoor_temp REAL;`);
+} catch {
+  // column already exists
+}
 
 // ─── Prepared Statements ─────────────────────────────────────────────────────
 // node:sqlite uses ? placeholders and positional arguments
@@ -297,8 +312,11 @@ const stmtUpsertDailyCost = db.prepare(`
     avg_price_cents_kwh,
     savings_eur,
     is_final,
-    updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    updated_at,
+    avg_outdoor_temp,
+    min_outdoor_temp,
+    max_outdoor_temp
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(date) DO UPDATE SET
     heat_consumption_kwh = excluded.heat_consumption_kwh,
     dhw_consumption_kwh = excluded.dhw_consumption_kwh,
@@ -314,7 +332,10 @@ const stmtUpsertDailyCost = db.prepare(`
     avg_price_cents_kwh = excluded.avg_price_cents_kwh,
     savings_eur = excluded.savings_eur,
     is_final = excluded.is_final,
-    updated_at = excluded.updated_at
+    updated_at = excluded.updated_at,
+    avg_outdoor_temp = COALESCE(excluded.avg_outdoor_temp, daily_costs.avg_outdoor_temp),
+    min_outdoor_temp = COALESCE(excluded.min_outdoor_temp, daily_costs.min_outdoor_temp),
+    max_outdoor_temp = COALESCE(excluded.max_outdoor_temp, daily_costs.max_outdoor_temp)
 `);
 
 const stmtGetDailyCosts = db.prepare(`
@@ -665,8 +686,87 @@ function upsertDailyCost(cost) {
     cost.avg_price_cents_kwh != null ? cost.avg_price_cents_kwh : null,
     cost.savings_eur || 0,
     cost.is_final ? 1 : 0,
-    cost.updated_at || Date.now()
+    cost.updated_at || Date.now(),
+    cost.avg_outdoor_temp != null ? cost.avg_outdoor_temp : null,
+    cost.min_outdoor_temp != null ? cost.min_outdoor_temp : null,
+    cost.max_outdoor_temp != null ? cost.max_outdoor_temp : null
   );
+}
+
+const stmtOutdoorTempStats = db.prepare(`
+  SELECT
+    ROUND(AVG(value), 1) AS avg_temp,
+    ROUND(MIN(value), 1) AS min_temp,
+    ROUND(MAX(value), 1) AS max_temp,
+    COUNT(*) AS cnt
+  FROM sensor_history
+  WHERE topic = 'main/Outside_Temp' AND recorded_at >= ? AND recorded_at <= ?
+`);
+
+const stmtHerrforsTempStats = db.prepare(`
+  SELECT
+    ROUND(AVG(temperature), 1) AS avg_temp,
+    ROUND(MIN(temperature), 1) AS min_temp,
+    ROUND(MAX(temperature), 1) AS max_temp,
+    COUNT(*) AS cnt
+  FROM herrfors_readings
+  WHERE date_str = ? AND temperature IS NOT NULL
+`);
+
+const stmtUpdateDailyOutdoorTemp = db.prepare(`
+  UPDATE daily_costs
+  SET avg_outdoor_temp = ?, min_outdoor_temp = ?, max_outdoor_temp = ?
+  WHERE date = ?
+`);
+
+/**
+ * Get outdoor temperature stats (avg, min, max) for a day from main/Outside_Temp history,
+ * falling back to herrfors_readings if sensor_history has no points for that date.
+ */
+function getDailyOutdoorTempStats(startMs, endMs, dateStr) {
+  const row = stmtOutdoorTempStats.get(startMs, endMs);
+  if (row && row.cnt > 0 && row.avg_temp != null) {
+    return {
+      avg_outdoor_temp: Number(row.avg_temp),
+      min_outdoor_temp: Number(row.min_temp),
+      max_outdoor_temp: Number(row.max_temp),
+    };
+  }
+  if (dateStr) {
+    const hRow = stmtHerrforsTempStats.get(dateStr);
+    if (hRow && hRow.cnt > 0 && hRow.avg_temp != null) {
+      return {
+        avg_outdoor_temp: Number(hRow.avg_temp),
+        min_outdoor_temp: Number(hRow.min_temp),
+        max_outdoor_temp: Number(hRow.max_temp),
+      };
+    }
+  }
+  return { avg_outdoor_temp: null, min_outdoor_temp: null, max_outdoor_temp: null };
+}
+
+/**
+ * Backfill missing outdoor temperature stats in daily_costs from sensor_history / herrfors_readings.
+ */
+function backfillDailyOutdoorTemps() {
+  const missing = db.prepare(`SELECT date FROM daily_costs WHERE avg_outdoor_temp IS NULL`).all();
+  let updated = 0;
+  for (const row of missing) {
+    const [y, m, d] = row.date.split('-').map(Number);
+    const startMs = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+    const endMs = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+    const stats = getDailyOutdoorTempStats(startMs, endMs, row.date);
+    if (stats.avg_outdoor_temp != null) {
+      stmtUpdateDailyOutdoorTemp.run(
+        stats.avg_outdoor_temp,
+        stats.min_outdoor_temp,
+        stats.max_outdoor_temp,
+        row.date
+      );
+      updated++;
+    }
+  }
+  return updated;
 }
 
 /**
@@ -2003,6 +2103,8 @@ module.exports = {
   getTopicHistory,
   getMultiTopicHistory,
   upsertDailyCost,
+  getDailyOutdoorTempStats,
+  backfillDailyOutdoorTemps,
   getDailyCosts,
   getDailyCost,
   getMonthlySummaries,
