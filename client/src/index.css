@@ -1391,3 +1391,165 @@ table th,
   }
 }
 
+/* ─── Electricity Price Modal (Mobile-first & Portrait Friendly) ─ */
+.price-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  padding: 16px;
+}
+
+.price-modal-dialog {
+  background: linear-gradient(165deg, #131d33 0%, #0a0f1d 100%);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.9), 0 0 50px rgba(56, 189, 248, 0.12);
+  max-width: 960px;
+  width: 100%;
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalFadeIn 0.16s ease-out;
+}
+
+.price-modal-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+.price-modal-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+.price-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.price-kpi-card {
+  border-radius: 13px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.price-kpi-value {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.price-chart-panel {
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.price-inspector-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 50px;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s ease;
+}
+
+.price-chart-canvas {
+  width: 100%;
+  height: 330px;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+}
+
+@media (max-width: 820px) {
+  .price-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .price-kpi-windows {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .price-modal-overlay {
+    padding: 6px;
+    align-items: flex-end;
+  }
+  .price-modal-dialog {
+    border-radius: 16px;
+    max-height: 95dvh;
+  }
+  .price-modal-header {
+    padding: 12px 14px;
+  }
+  .price-modal-body {
+    padding: 12px 12px 16px;
+    gap: 12px;
+  }
+  .price-kpi-card {
+    padding: 9px 11px;
+    border-radius: 11px;
+  }
+  .price-kpi-value {
+    font-size: 18px;
+  }
+  .price-kpi-sub {
+    display: none;
+  }
+  .price-chart-panel {
+    padding: 12px;
+    border-radius: 13px;
+    gap: 10px;
+  }
+  .price-inspector-bar {
+    padding: 8px 11px;
+    min-height: 46px;
+  }
+  .price-chart-canvas {
+    height: 245px;
+  }
+}
+

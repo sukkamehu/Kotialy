@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { apiFetch } from '../lib/api';
 import type { NordpoolPrice, NordpoolStats, NordpoolWindow } from '../types/nordpool';
@@ -20,29 +20,85 @@ interface ElectricityPriceModalProps {
   onOpenApc?: () => void;
 }
 
-type PriceTimeframe = 'today_tomorrow' | '24h' | '48h' | '7d';
+type PriceTimeframe = 'today' | 'tomorrow' | 'today_tomorrow' | '7d';
+type PriceResolution = '1h' | '15m';
+type PriceViewMode = 'chart' | 'list';
 
-interface HourlyPriceItem {
+interface PriceSlotItem {
   timestamp: number;
+  endTimestamp: number;
   dateStr: string;
-  hourStr: string;
+  timeRangeStr: string;
+  tickLabel: string;
   priceCents: number;
+  minCents?: number;
+  maxCents?: number;
   level: 'cheap' | 'normal' | 'expensive';
   isCurrent: boolean;
   isPast: boolean;
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function formatHm(ts: number): string {
+  const d = new Date(ts);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function getLevelMeta(level: 'cheap' | 'normal' | 'expensive') {
+  if (level === 'cheap') return { color: '#4ade80', barFill: '#22c55e', label: 'Edullinen' };
+  if (level === 'expensive') return { color: '#f43f5e', barFill: '#f43f5e', label: 'Kallis huippu' };
+  return { color: '#facc15', barFill: '#facc15', label: 'Normaali' };
+}
+
+/**
+ * Syncs Recharts hover, tap, and touch-scrubbing events to the pinned readout bar above
+ * the chart without ever rendering a floating tooltip over the bars.
+ */
+const TooltipSync: React.FC<{
+  active?: boolean;
+  payload?: Array<{ payload?: PriceSlotItem }>;
+  onSelect: (ts: number) => void;
+}> = ({ active, payload, onSelect }) => {
+  const ts = active && payload?.[0]?.payload?.timestamp ? payload[0].payload.timestamp : null;
+  useEffect(() => {
+    if (ts !== null) {
+      onSelect(ts);
+    }
+  }, [ts, onSelect]);
+  return null;
+};
+
 export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const [timeframe, setTimeframe] = useState<PriceTimeframe>('today_tomorrow');
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+  const [timeframe, setTimeframe] = useState<PriceTimeframe>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'today' : 'today_tomorrow'
+  );
+  const [resolution, setResolution] = useState<PriceResolution>('1h');
+  const [viewMode, setViewMode] = useState<PriceViewMode>('chart');
   const [prices, setPrices] = useState<NordpoolPrice[]>([]);
   const [stats, setStats] = useState<NordpoolStats | null>(null);
   const [currentPriceEur, setCurrentPriceEur] = useState<number | null>(null);
   const [cheapest3h, setCheapest3h] = useState<NordpoolWindow | null>(null);
   const [cheapest6h, setCheapest6h] = useState<NordpoolWindow | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Inspected / tapped slot displayed in the non-overlapping pinned bar above the chart
+  const [inspectedTs, setInspectedTs] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -54,6 +110,11 @@ export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Reset inspected slot when switching timeframe/resolution
+  useEffect(() => {
+    setInspectedTs(null);
+  }, [timeframe, resolution]);
+
   // Fetch prices and statistics
   useEffect(() => {
     if (!isOpen) return;
@@ -61,7 +122,6 @@ export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
     setLoading(true);
 
     const nowTs = Date.now();
-    // 7 days ago to 2 days future
     const fromMs = nowTs - 7 * 24 * 3600_000;
     const toMs = nowTs + 54 * 3600_000;
 
@@ -80,21 +140,11 @@ export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
         const cheap6Json = cheap6Res.ok ? await cheap6Res.json() : null;
         const pricesJson = pricesRes.ok ? await pricesRes.json() : null;
 
-        if (curJson && typeof curJson.price === 'number') {
-          setCurrentPriceEur(curJson.price);
-        }
-        if (statsJson && typeof statsJson.count === 'number') {
-          setStats(statsJson);
-        }
-        if (cheap3Json && cheap3Json.start) {
-          setCheapest3h(cheap3Json);
-        }
-        if (cheap6Json && cheap6Json.start) {
-          setCheapest6h(cheap6Json);
-        }
-        if (pricesJson && Array.isArray(pricesJson.prices)) {
-          setPrices(pricesJson.prices);
-        }
+        if (curJson && typeof curJson.price === 'number') setCurrentPriceEur(curJson.price);
+        if (statsJson && typeof statsJson.count === 'number') setStats(statsJson);
+        if (cheap3Json && cheap3Json.start) setCheapest3h(cheap3Json);
+        if (cheap6Json && cheap6Json.start) setCheapest6h(cheap6Json);
+        if (pricesJson && Array.isArray(pricesJson.prices)) setPrices(pricesJson.prices);
       })
       .catch((err) => {
         console.error('Failed to fetch electricity prices in modal:', err);
@@ -113,453 +163,682 @@ export const ElectricityPriceModal: React.FC<ElectricityPriceModalProps> = ({
   const minPriceCents = stats?.min != null ? stats.min / 10 : null;
   const maxPriceCents = stats?.max != null ? stats.max / 10 : null;
 
-  // Filtered dataset for charts
-  const filteredData = useMemo(() => {
-    const nowTs = Date.now();
-    const currentHourStart = new Date(nowTs).setMinutes(0, 0, 0);
-
-    let startMs = nowTs;
-    let endMs = nowTs;
-
-    if (timeframe === 'today_tomorrow') {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      startMs = todayStart.getTime();
-      endMs = nowTs + 48 * 3600_000;
-    } else if (timeframe === '24h') {
-      startMs = currentHourStart - 4 * 3600_000;
-      endMs = currentHourStart + 20 * 3600_000;
-    } else if (timeframe === '48h') {
-      startMs = currentHourStart - 6 * 3600_000;
-      endMs = currentHourStart + 42 * 3600_000;
-    } else if (timeframe === '7d') {
-      startMs = nowTs - 7 * 24 * 3600_000;
-      endMs = nowTs + 36 * 3600_000;
+  // Detect whether Nord Pool feed has 15-minute slots
+  const has15MinData = useMemo(() => {
+    if (prices.length < 2) return false;
+    const sorted = [...prices].sort((a, b) => a.start_time - b.start_time);
+    for (let i = 1; i < Math.min(sorted.length, 20); i++) {
+      const diff = sorted[i].start_time - sorted[i - 1].start_time;
+      if (diff > 0 && diff <= 20 * 60_000) return true;
     }
+    return false;
+  }, [prices]);
 
-    const items: HourlyPriceItem[] = [];
+  // Check if tomorrow's prices are already published
+  const hasTomorrowData = useMemo(() => {
+    const tomorrowStart = new Date();
+    tomorrowStart.setHours(24, 0, 0, 0);
+    return prices.some((p) => p.start_time >= tomorrowStart.getTime());
+  }, [prices]);
 
-    for (const p of prices) {
-      const ts = p.start_time;
-      if (ts < startMs || ts > endMs) continue;
+  // Effective resolution: 7d is always 1h (otherwise 672 bars!)
+  const effectiveResolution: PriceResolution =
+    timeframe === '7d' || !has15MinData ? '1h' : resolution;
 
-      const priceCents = p.price / 10;
-      const isCurrent = ts <= nowTs && nowTs < ts + 3600_000;
-      const isPast = ts + 3600_000 <= nowTs;
-
-      // Price level classification
-      let level: 'cheap' | 'normal' | 'expensive' = 'normal';
+  const classifyLevel = useCallback(
+    (priceCents: number): 'cheap' | 'normal' | 'expensive' => {
       if (minPriceCents != null && maxPriceCents != null && maxPriceCents > minPriceCents) {
         const rel = (priceCents - minPriceCents) / (maxPriceCents - minPriceCents);
-        if (rel <= 0.33) level = 'cheap';
-        else if (rel >= 0.67) level = 'expensive';
-      } else {
-        if (priceCents < 5) level = 'cheap';
-        else if (priceCents > 12) level = 'expensive';
+        if (rel <= 0.33) return 'cheap';
+        if (rel >= 0.67) return 'expensive';
+        return 'normal';
       }
+      if (priceCents < 5) return 'cheap';
+      if (priceCents > 12) return 'expensive';
+      return 'normal';
+    },
+    [minPriceCents, maxPriceCents]
+  );
 
-      const d = new Date(ts);
-      const dateStr = d.toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' });
-      const hourStr = `${String(d.getHours()).padStart(2, '0')}:00`;
+  // Filtered & optionally hourly-aggregated dataset
+  const filteredData = useMemo<PriceSlotItem[]>(() => {
+    const nowTs = Date.now();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartMs = todayStart.getTime();
+    const tomorrowStartMs = todayStartMs + 24 * 3600_000;
+    const tomorrowEndMs = todayStartMs + 48 * 3600_000;
 
-      items.push({
-        timestamp: ts,
-        dateStr,
-        hourStr,
-        priceCents,
-        level,
-        isCurrent,
-        isPast,
-      });
+    let startMs = todayStartMs;
+    let endMs = tomorrowEndMs;
+
+    if (timeframe === 'today') {
+      startMs = todayStartMs;
+      endMs = tomorrowStartMs - 1;
+    } else if (timeframe === 'tomorrow') {
+      startMs = tomorrowStartMs;
+      endMs = tomorrowEndMs - 1;
+    } else if (timeframe === 'today_tomorrow') {
+      startMs = todayStartMs;
+      endMs = tomorrowEndMs - 1;
+    } else if (timeframe === '7d') {
+      startMs = nowTs - 7 * 24 * 3600_000;
+      endMs = tomorrowEndMs - 1;
     }
 
-    return items.sort((a, b) => a.timestamp - b.timestamp);
-  }, [prices, timeframe, minPriceCents, maxPriceCents]);
+    const inRange = prices
+      .filter((p) => p.start_time >= startMs && p.start_time <= endMs)
+      .sort((a, b) => a.start_time - b.start_time);
+
+    if (inRange.length === 0) return [];
+
+    // Aggregate to 1h buckets when in hourly mode
+    if (effectiveResolution === '1h') {
+      const buckets = new Map<number, number[]>();
+      for (const p of inRange) {
+        const d = new Date(p.start_time);
+        d.setMinutes(0, 0, 0);
+        const hourTs = d.getTime();
+        const arr = buckets.get(hourTs) || [];
+        arr.push(p.price / 10);
+        buckets.set(hourTs, arr);
+      }
+
+      const items: PriceSlotItem[] = [];
+      for (const [hourTs, vals] of Array.from(buckets.entries()).sort((a, b) => a[0] - b[0])) {
+        const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+        const minV = Math.min(...vals);
+        const maxV = Math.max(...vals);
+        const endTs = hourTs + 3600_000;
+        const d = new Date(hourTs);
+        const dateStr = d.toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' });
+        items.push({
+          timestamp: hourTs,
+          endTimestamp: endTs,
+          dateStr,
+          timeRangeStr: `${formatHm(hourTs)}–${formatHm(endTs)}`,
+          tickLabel: timeframe === '7d' ? `${d.getDate()}.${d.getMonth() + 1}.` : `${pad2(d.getHours())}:00`,
+          priceCents: avg,
+          minCents: vals.length > 1 ? minV : undefined,
+          maxCents: vals.length > 1 ? maxV : undefined,
+          level: classifyLevel(avg),
+          isCurrent: hourTs <= nowTs && nowTs < endTs,
+          isPast: endTs <= nowTs,
+        });
+      }
+      return items;
+    }
+
+    // 15-minute resolution (exact slot duration)
+    const slotDurationMs = 15 * 60_000;
+    return inRange.map((p) => {
+      const ts = p.start_time;
+      const endTs = ts + slotDurationMs;
+      const priceCents = p.price / 10;
+      const d = new Date(ts);
+      const dateStr = d.toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' });
+      return {
+        timestamp: ts,
+        endTimestamp: endTs,
+        dateStr,
+        timeRangeStr: `${formatHm(ts)}–${formatHm(endTs)}`,
+        tickLabel: `${pad2(d.getHours())}:${pad2(d.getMinutes())}`,
+        priceCents,
+        level: classifyLevel(priceCents),
+        isCurrent: ts <= nowTs && nowTs < endTs,
+        isPast: endTs <= nowTs,
+      };
+    });
+  }, [prices, timeframe, effectiveResolution, classifyLevel]);
+
+  // Currently displayed item in the pinned inspector bar above the chart
+  const activeItem = useMemo<PriceSlotItem | null>(() => {
+    if (filteredData.length === 0) return null;
+    if (inspectedTs !== null) {
+      const found = filteredData.find((d) => d.timestamp === inspectedTs);
+      if (found) return found;
+    }
+    return filteredData.find((d) => d.isCurrent) || filteredData[0];
+  }, [filteredData, inspectedTs]);
+
+  // Horizontal scroll min-width on mobile when showing dense bar series (48h / 15m / 7d)
+  const chartMinWidth = useMemo(() => {
+    if (!isMobile) return undefined;
+    if (filteredData.length <= 28) return undefined; // Fits comfortably on portrait phone without scrolling!
+    const pxPerBar = effectiveResolution === '15m' ? 7 : 12;
+    return Math.min(1400, Math.max(420, filteredData.length * pxPerBar));
+  }, [isMobile, filteredData.length, effectiveResolution]);
+
+  // Keep Recharts tooltip cursor active while updating the pinned readout bar (never rendering an overlapping box)
+  const handleChartPointer = useCallback((state: any) => {
+    const payloadItem = state?.activePayload?.[0]?.payload as PriceSlotItem | undefined;
+    if (payloadItem?.timestamp) {
+      setInspectedTs(payloadItem.timestamp);
+    }
+  }, []);
 
   if (!isOpen) return null;
 
+  const activeMeta = activeItem ? getLevelMeta(activeItem.level) : null;
+
   return createPortal(
-    <div
-      className="modal-overlay"
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.82)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 999999,
-        padding: '16px',
-      }}
-    >
-      <div
-        className="modal-dialog"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'linear-gradient(165deg, #131d33 0%, #0a0f1d 100%)',
-          border: '1px solid rgba(56, 189, 248, 0.35)',
-          borderRadius: '20px',
-          boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.9), 0 0 50px rgba(56, 189, 248, 0.12)',
-          maxWidth: '960px',
-          width: '100%',
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          animation: 'fadeIn 0.2s ease-out',
-        }}
-      >
-        {/* Modal Header */}
-        <div
-          style={{
-            padding: '18px 24px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'rgba(255, 255, 255, 0.02)',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div className="price-modal-overlay" onClick={onClose}>
+      <div className="price-modal-dialog" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="price-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <div
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                background: 'rgba(56, 189, 248, 0.15)',
-                border: '1px solid rgba(56, 189, 248, 0.35)',
+                width: isMobile ? 34 : 40,
+                height: isMobile ? 34 : 40,
+                borderRadius: 11,
+                background: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.32)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 22,
-                boxShadow: '0 0 20px rgba(56, 189, 248, 0.25)',
+                fontSize: isMobile ? 17 : 20,
+                flexShrink: 0,
               }}
             >
               ⚡
             </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-                Pörssisähkön Hinnankehitys & Ennuste
-              </h3>
-            </div>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: isMobile ? '1rem' : '1.2rem',
+                fontWeight: 800,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.015em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Pörssisähkö & Ennuste
+            </h3>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            style={{
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '50%',
-              width: 36,
-              height: 36,
-              color: 'var(--text-secondary)',
-              fontSize: 16,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-            title="Sulje modaali (Esc)"
+            className="modal-close-btn"
+            style={{ borderRadius: '50%', flexShrink: 0 }}
+            title="Sulje (Esc)"
           >
             ✕
           </button>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div
-          style={{
-            padding: '20px 24px',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 20,
-            flex: 1,
-          }}
-        >
-          {/* Top KPI Cards Grid */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-              gap: 12,
-            }}
-          >
+        {/* Scrollable Body */}
+        <div className="price-modal-body">
+          {/* Top KPI Cards */}
+          <div className="price-kpi-grid">
             {/* Current Price */}
             <div
+              className="price-kpi-card"
               style={{
                 background: 'linear-gradient(145deg, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0.9) 100%)',
                 border: '1px solid rgba(56, 189, 248, 0.35)',
-                borderRadius: 14,
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
               }}
             >
               <div style={{ fontSize: 11, color: '#38bdf8', fontWeight: 600 }}>Hinta nyt</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-                {currentPriceCents !== null ? `${currentPriceCents.toFixed(2)}` : '--'}
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 4 }}>snt/kWh</span>
+              <div className="price-kpi-value" style={{ color: 'var(--text-primary)' }}>
+                {currentPriceCents !== null ? currentPriceCents.toFixed(2) : '--'}
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>snt</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                Tämänhetkinen pörssitunti
+              <div className="price-kpi-sub" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                Tämänhetkinen jakso
               </div>
             </div>
 
-            {/* Average Price */}
+            {/* Average */}
             <div
+              className="price-kpi-card"
               style={{
                 background: 'rgba(255, 255, 255, 0.03)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: 14,
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
               }}
             >
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Päivän keskiarvo</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#c4b5fd', letterSpacing: '-0.02em' }}>
-                {avgPriceCents !== null ? `${avgPriceCents.toFixed(2)}` : '--'}
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 4 }}>snt/kWh</span>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Päivän ka.</div>
+              <div className="price-kpi-value" style={{ color: '#c4b5fd' }}>
+                {avgPriceCents !== null ? avgPriceCents.toFixed(2) : '--'}
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>snt</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                24h painottamaton ka.
+              <div className="price-kpi-sub" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                24h keskiarvo
               </div>
             </div>
 
-            {/* Min Price */}
+            {/* Min */}
             <div
+              className="price-kpi-card"
               style={{
                 background: 'rgba(34, 197, 94, 0.08)',
                 border: '1px solid rgba(34, 197, 94, 0.25)',
-                borderRadius: 14,
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
               }}
             >
               <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>Päivän alin</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#4ade80', letterSpacing: '-0.02em' }}>
-                {minPriceCents !== null ? `${minPriceCents.toFixed(2)}` : '--'}
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(74, 222, 128, 0.7)', marginLeft: 4 }}>snt/kWh</span>
+              <div className="price-kpi-value" style={{ color: '#4ade80' }}>
+                {minPriceCents !== null ? minPriceCents.toFixed(2) : '--'}
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(74, 222, 128, 0.7)', marginLeft: 3 }}>snt</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                Vuorokauden halvin tunti
+              <div className="price-kpi-sub" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                Vuorokauden halvin
               </div>
             </div>
 
-            {/* Max Price */}
+            {/* Max */}
             <div
+              className="price-kpi-card"
               style={{
                 background: 'rgba(244, 63, 94, 0.08)',
                 border: '1px solid rgba(244, 63, 94, 0.25)',
-                borderRadius: 14,
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
               }}
             >
               <div style={{ fontSize: 11, color: '#f43f5e', fontWeight: 600 }}>Päivän ylin</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#f43f5e', letterSpacing: '-0.02em' }}>
-                {maxPriceCents !== null ? `${maxPriceCents.toFixed(2)}` : '--'}
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(244, 63, 94, 0.7)', marginLeft: 4 }}>snt/kWh</span>
+              <div className="price-kpi-value" style={{ color: '#f43f5e' }}>
+                {maxPriceCents !== null ? maxPriceCents.toFixed(2) : '--'}
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(244, 63, 94, 0.7)', marginLeft: 3 }}>snt</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              <div className="price-kpi-sub" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
                 Hintahuippu
               </div>
             </div>
 
-            {/* Cheapest Windows (3h & 6h) */}
+            {/* Cheapest Windows */}
             <div
+              className="price-kpi-card price-kpi-windows"
               style={{
                 background: 'rgba(250, 204, 21, 0.08)',
                 border: '1px solid rgba(250, 204, 21, 0.25)',
-                borderRadius: 14,
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
                 justifyContent: 'space-between',
-                gap: 4,
               }}
             >
               <div style={{ fontSize: 11, color: '#facc15', fontWeight: 600 }}>Halvimmat jaksot</div>
-              <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>
-                3h: {cheapest3h ? `${(cheapest3h.avgPrice / 10).toFixed(1)} snt (klo ${new Date(cheapest3h.start).getHours()}:00)` : '--'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                6h: {cheapest6h ? `${(cheapest6h.avgPrice / 10).toFixed(1)} snt (klo ${new Date(cheapest6h.start).getHours()}:00)` : '--'}
+              <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: isMobile ? 12 : 2, flexWrap: 'wrap', fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{ fontSize: 12.5, color: 'var(--text-primary)', fontWeight: 700 }}>
+                  3h: {cheapest3h ? `${(cheapest3h.avgPrice / 10).toFixed(1)} snt (klo ${new Date(cheapest3h.start).getHours()}:00)` : '--'}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  6h: {cheapest6h ? `${(cheapest6h.avgPrice / 10).toFixed(1)} snt (klo ${new Date(cheapest6h.start).getHours()}:00)` : '--'}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Interactive Price Chart Toolbar */}
-          <div
-            style={{
-              background: 'rgba(0, 0, 0, 0.35)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: 16,
-              padding: '18px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 20 }}>📊</span>
-                <div>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Tuntihintojen Jakautuminen & Ennuste
-                  </span>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Vihreä = Edullinen (APC varaustunti) · Keltainen = Normaali · Punainen = Kallis (Huippu)
-                  </div>
-                </div>
-              </div>
-
-              {/* Timeframe selector */}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[
-                  { id: 'today_tomorrow' as PriceTimeframe, label: 'Tänään & Huominen' },
-                  { id: '24h' as PriceTimeframe, label: '24h' },
-                  { id: '48h' as PriceTimeframe, label: '48h' },
-                  { id: '7d' as PriceTimeframe, label: '7 vrk' },
-                ].map((t) => {
+          {/* Chart & List Panel */}
+          <div className="price-chart-panel">
+            {/* Controls Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              {/* Timeframe Buttons */}
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                {(
+                  [
+                    { id: 'today' as PriceTimeframe, label: 'Tänään' },
+                    ...(hasTomorrowData ? [{ id: 'tomorrow' as PriceTimeframe, label: 'Huominen' }] : []),
+                    { id: 'today_tomorrow' as PriceTimeframe, label: isMobile ? '48h' : 'Tänään & Huominen' },
+                    { id: '7d' as PriceTimeframe, label: '7 vrk' },
+                  ] as { id: PriceTimeframe; label: string }[]
+                ).map((t) => {
                   const isActive = timeframe === t.id;
                   return (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => setTimeframe(t.id)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        border: isActive ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                        background: isActive ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.03)',
-                        color: isActive ? '#38bdf8' : 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
+                      className={`btn btn-xs ${isActive ? 'btn-primary' : 'btn-secondary'}`}
+                      style={
+                        isActive
+                          ? { background: 'rgba(56, 189, 248, 0.22)', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.55)' }
+                          : undefined
+                      }
                     >
                       {t.label}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Right controls: Resolution (1h / 15m) + View mode (Chart / List) */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {has15MinData && timeframe !== '7d' && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 8,
+                      padding: 2,
+                      gap: 2,
+                    }}
+                  >
+                    {(['1h', '15m'] as PriceResolution[]).map((res) => (
+                      <button
+                        key={res}
+                        type="button"
+                        onClick={() => setResolution(res)}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: effectiveResolution === res ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+                          color: effectiveResolution === res ? '#38bdf8' : 'var(--text-muted)',
+                        }}
+                      >
+                        {res === '1h' ? '1h' : '15 min'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8,
+                    padding: 2,
+                    gap: 2,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('chart')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: viewMode === 'chart' ? 'rgba(255,255,255,0.14)' : 'transparent',
+                      color: viewMode === 'chart' ? 'var(--text-primary)' : 'var(--text-muted)',
+                    }}
+                  >
+                    📊 Kaavio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: viewMode === 'list' ? 'rgba(255,255,255,0.14)' : 'transparent',
+                      color: viewMode === 'list' ? 'var(--text-primary)' : 'var(--text-muted)',
+                    }}
+                  >
+                    📋 Lista
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Recharts Bar Chart */}
-            <div style={{ width: '100%', height: 380, position: 'relative' }}>
-              {loading && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 8, zIndex: 10 }}>
-                  <span style={{ fontSize: 13, color: '#38bdf8', fontWeight: 600 }}>Ladataan pörssihintoja...</span>
-                </div>
-              )}
-
-              {filteredData.length === 0 && !loading ? (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                  Ei hintatietoja saatavilla valitulta aikaväliltä.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={filteredData} margin={{ top: 15, right: 10, left: -10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis
-                      dataKey="timestamp"
-                      tickFormatter={(ts) => {
-                        const d = new Date(ts);
-                        if (timeframe === '7d') {
-                          return `${d.getDate()}.${d.getMonth() + 1}.`;
-                        }
-                        return `${String(d.getHours()).padStart(2, '0')}:00`;
+            {/* Pinned Non-Overlapping Inspector Readout Bar (replaces blocking hover tooltip!) */}
+            {viewMode === 'chart' && activeItem && activeMeta && (
+              <div
+                className="price-inspector-bar"
+                style={{ borderColor: `${activeMeta.color}55` }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: activeItem.isCurrent ? '#38bdf8' : activeMeta.color,
+                      boxShadow: `0 0 8px ${activeItem.isCurrent ? '#38bdf8' : activeMeta.color}`,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                    {activeItem.dateStr} · klo {activeItem.timeRangeStr}
+                  </span>
+                  {activeItem.isCurrent && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        padding: '1px 6px',
+                        borderRadius: 6,
+                        background: 'rgba(56, 189, 248, 0.22)',
+                        color: '#38bdf8',
+                        border: '1px solid rgba(56, 189, 248, 0.4)',
                       }}
-                      stroke="var(--text-muted)"
-                      fontSize={11}
-                    />
-                    <YAxis
-                      stroke="var(--text-muted)"
-                      fontSize={11}
-                      domain={[0, 'auto']}
-                      tickFormatter={(v) => `${v} snt`}
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const p = payload[0].payload as HourlyPriceItem;
-                          const dateObj = new Date(p.timestamp);
-                          const dateStr = dateObj.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'numeric' });
-                          const hourStr = `${String(dateObj.getHours()).padStart(2, '0')}:00 – ${String((dateObj.getHours() + 1) % 24).padStart(2, '0')}:00`;
+                    >
+                      NYT
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      padding: '1px 7px',
+                      borderRadius: 6,
+                      background: `${activeMeta.color}1c`,
+                      color: activeMeta.color,
+                    }}
+                  >
+                    {activeMeta.label}
+                  </span>
+                </div>
 
-                          const color = p.level === 'cheap' ? '#4ade80' : p.level === 'expensive' ? '#f43f5e' : '#facc15';
-                          const levelLabel = p.level === 'cheap' ? 'Edullinen tunti' : p.level === 'expensive' ? 'Kallis huipputunti' : 'Normaalihintainen';
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginLeft: 'auto', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: isMobile ? 17 : 19, fontWeight: 800, color: activeMeta.color }}>
+                    {activeItem.priceCents.toFixed(2)}{' '}
+                    <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>snt/kWh</span>
+                  </span>
+                  {activeItem.minCents !== undefined && activeItem.maxCents !== undefined && activeItem.maxCents - activeItem.minCents >= 0.05 && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      (15 min: {activeItem.minCents.toFixed(1)}–{activeItem.maxCents.toFixed(1)})
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
-                          return (
-                            <div
-                              style={{
-                                background: 'rgba(15, 23, 42, 0.96)',
-                                border: `1px solid ${color}`,
-                                borderRadius: 10,
-                                padding: '10px 14px',
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-                              }}
-                            >
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'capitalize' }}>
-                                {dateStr}
-                              </div>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-                                klo {hourStr} {p.isCurrent && <span style={{ color: '#38bdf8', marginLeft: 4 }}>• NYT</span>}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                                <span style={{ fontSize: 18, fontWeight: 800, color }}>
-                                  {p.priceCents.toFixed(2)} snt/kWh
-                                </span>
-                              </div>
-                              <div style={{ fontSize: 11, color, fontWeight: 600, marginTop: 4 }}>
-                                {levelLabel}
-                              </div>
-                              <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 4 }}>
-                                1 kW kuorman hinta: <strong>{p.priceCents.toFixed(2)} snt/h</strong>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
+            {/* Chart View */}
+            {viewMode === 'chart' ? (
+              <div
+                style={{
+                  width: '100%',
+                  overflowX: chartMinWidth ? 'auto' : 'hidden',
+                  WebkitOverflowScrolling: 'touch',
+                }}
+              >
+                <div
+                  className="price-chart-canvas"
+                  style={chartMinWidth ? { minWidth: chartMinWidth } : undefined}
+                >
+                  {loading && filteredData.length === 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(0,0,0,0.4)',
+                        borderRadius: 8,
+                        zIndex: 10,
                       }}
-                    />
-                    {avgPriceCents !== null && (
-                      <ReferenceLine
-                        y={avgPriceCents}
-                        stroke="#c4b5fd"
-                        strokeDasharray="4 4"
-                        label={{
-                          value: `Ka. ${avgPriceCents.toFixed(1)} snt`,
-                          fill: '#c4b5fd',
-                          fontSize: 11,
-                          position: 'top',
+                    >
+                      <span style={{ fontSize: 13, color: '#38bdf8', fontWeight: 600 }}>Ladataan pörssihintoja...</span>
+                    </div>
+                  )}
+
+                  {filteredData.length === 0 && !loading ? (
+                    <div
+                      style={{
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-muted)',
+                        fontSize: 13,
+                      }}
+                    >
+                      Ei hintatietoja saatavilla valitulta aikaväliltä.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={filteredData}
+                        margin={{ top: 14, right: 6, left: -16, bottom: 2 }}
+                        onMouseMove={handleChartPointer}
+                        onClick={handleChartPointer}
+                        onMouseLeave={() => {
+                          if (!isMobile) setInspectedTs(null);
                         }}
-                      />
-                    )}
-                    <Bar dataKey="priceCents" radius={[4, 4, 0, 0]}>
-                      {filteredData.map((entry) => {
-                        let fill = entry.level === 'cheap' ? '#22c55e' : entry.level === 'expensive' ? '#f43f5e' : '#facc15';
-                        if (entry.isCurrent) fill = '#38bdf8';
-                        const opacity = entry.isPast && !entry.isCurrent ? 0.45 : 0.95;
-                        return <Cell key={`cell-${entry.timestamp}`} fill={fill} fillOpacity={opacity} stroke={entry.isCurrent ? '#ffffff' : undefined} strokeWidth={entry.isCurrent ? 2 : 0} />;
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                        <XAxis
+                          dataKey="timestamp"
+                          tickFormatter={(ts) => {
+                            const d = new Date(ts);
+                            if (timeframe === '7d') return `${d.getDate()}.${d.getMonth() + 1}.`;
+                            return `${pad2(d.getHours())}:00`;
+                          }}
+                          minTickGap={isMobile ? 22 : 28}
+                          stroke="var(--text-muted)"
+                          fontSize={isMobile ? 10 : 11}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          stroke="var(--text-muted)"
+                          fontSize={isMobile ? 10 : 11}
+                          width={46}
+                          domain={[0, 'auto']}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => `${v}`}
+                        />
+                        {/* Render cursor highlight ONLY — readout lives in the non-overlapping bar above */}
+                        <Tooltip
+                          cursor={{ fill: 'rgba(255, 255, 255, 0.08)' }}
+                          content={<TooltipSync onSelect={setInspectedTs} />}
+                        />
+                        {avgPriceCents !== null && (
+                          <ReferenceLine
+                            y={avgPriceCents}
+                            stroke="#c4b5fd"
+                            strokeDasharray="4 4"
+                            label={{
+                              value: `Ka. ${avgPriceCents.toFixed(1)}`,
+                              fill: '#c4b5fd',
+                              fontSize: 10.5,
+                              position: 'insideTopRight',
+                            }}
+                          />
+                        )}
+                        <Bar
+                          dataKey="priceCents"
+                          radius={effectiveResolution === '15m' ? [2, 2, 0, 0] : [4, 4, 0, 0]}
+                          isAnimationActive={false}
+                        >
+                          {filteredData.map((entry) => {
+                            const meta = getLevelMeta(entry.level);
+                            const isInspected = activeItem?.timestamp === entry.timestamp;
+                            let fill = meta.barFill;
+                            if (entry.isCurrent) fill = '#38bdf8';
+                            const opacity = isInspected ? 1 : entry.isPast && !entry.isCurrent ? 0.42 : 0.88;
+                            return (
+                              <Cell
+                                key={`cell-${entry.timestamp}`}
+                                fill={fill}
+                                fillOpacity={opacity}
+                                stroke={isInspected || entry.isCurrent ? '#ffffff' : undefined}
+                                strokeWidth={isInspected ? 2 : entry.isCurrent ? 1.5 : 0}
+                              />
+                            );
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Compact Scrollable Price List View (great for quick scanning on portrait phones) */
+              <div
+                style={{
+                  maxHeight: isMobile ? 300 : 340,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  paddingRight: 2,
+                }}
+              >
+                {(() => {
+                  const maxBar = Math.max(...filteredData.map((d) => d.priceCents), 1);
+                  return filteredData.map((item) => {
+                    const meta = getLevelMeta(item.level);
+                    const pct = Math.max(4, Math.min(100, (item.priceCents / maxBar) * 100));
+                    return (
+                      <div
+                        key={item.timestamp}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '94px 1fr 78px',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          background: item.isCurrent ? 'rgba(56, 189, 248, 0.14)' : 'rgba(255, 255, 255, 0.025)',
+                          border: item.isCurrent
+                            ? '1px solid rgba(56, 189, 248, 0.45)'
+                            : '1px solid rgba(255, 255, 255, 0.05)',
+                          opacity: item.isPast && !item.isCurrent ? 0.55 : 1,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: item.isCurrent ? 800 : 600, color: item.isCurrent ? '#38bdf8' : 'var(--text-primary)' }}>
+                          {item.timeRangeStr}
+                          {timeframe !== 'today' && timeframe !== 'tomorrow' && (
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>{item.dateStr}</div>
+                          )}
+                        </div>
+                        <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${pct}%`,
+                              height: '100%',
+                              borderRadius: 99,
+                              background: item.isCurrent ? '#38bdf8' : meta.barFill,
+                            }}
+                          />
+                        </div>
+                        <div style={{ textAlign: 'right', fontSize: 12.5, fontWeight: 800, color: item.isCurrent ? '#38bdf8' : meta.color }}>
+                          {item.priceCents.toFixed(2)} <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>snt</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+
+            {/* Compact Legend & Hint Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, fontSize: 10.5, color: 'var(--text-muted)' }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <span>🟢 Edullinen</span>
+                <span>🟡 Normaali</span>
+                <span>🔴 Kallis</span>
+                <span>🔵 Nyt</span>
+              </div>
+              {viewMode === 'chart' && (
+                <span>
+                  {chartMinWidth ? '← Pyyhkäise sivulle · ' : ''}
+                  {isMobile ? 'Napauta pylvästä nähdäksesi hinnan ylhäällä' : 'Vie kursori pylväiden päälle'}
+                </span>
               )}
             </div>
           </div>
