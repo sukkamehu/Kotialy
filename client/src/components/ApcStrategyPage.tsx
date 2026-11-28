@@ -4,6 +4,11 @@ import { apiFetch } from '../lib/api';
 import type { ApcMode, CompressorExerciseStatus } from '../types/apc';
 import type { CostSettings } from '../types/costs';
 import { ApcDecisionLogCard } from './ApcDecisionLogCard';
+import { PageHeader } from './PageHeader';
+import { SubTabBar } from './SubTabBar';
+
+type ApcSubTab = 'strategy' | 'parameters' | 'logs';
+const APC_SUBTAB_KEY = 'kotialy_apc_active_tab';
 
 interface ApcStrategyPageProps {
   readOnly?: boolean;
@@ -149,6 +154,24 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const [margin, setMargin] = useState<string>('0.286');
   const [savingCosts, setSavingCosts] = useState(false);
   const [costsSuccess, setCostsSuccess] = useState(false);
+  const [apcTab, setApcTab] = useState<ApcSubTab>(() => {
+    try {
+      const saved = localStorage.getItem(APC_SUBTAB_KEY) as ApcSubTab | null;
+      if (saved === 'strategy' || saved === 'parameters' || saved === 'logs') return saved;
+    } catch {
+      // ignore
+    }
+    return 'strategy';
+  });
+
+  const handleSelectApcTab = (tab: ApcSubTab) => {
+    setApcTab(tab);
+    try {
+      localStorage.setItem(APC_SUBTAB_KEY, tab);
+    } catch {
+      // ignore
+    }
+  };
 
   const fetchCostSettings = async () => {
     try {
@@ -422,66 +445,51 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
   const isEnabled = status?.enabled ?? true;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1200, margin: '0 auto' }}>
-      {/* Top Banner */}
-      <div className="card apc-card" style={{ padding: '24px', background: 'var(--card-bg, #1a1e29)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{
-              width: 52,
-              height: 52,
-              borderRadius: 14,
-              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(59, 130, 246, 0.2))',
-              border: '1px solid rgba(245, 158, 11, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 26,
-            }}>
-              ⚡
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  APC Älykäs Pörssiohjaus & Sähkösopimus
-                </h1>
-                <span style={{
-                  padding: '3px 10px',
-                  borderRadius: 100,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  background: isEnabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
-                  color: isEnabled ? '#10b981' : '#f43f5e',
-                  border: isEnabled ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(244, 63, 94, 0.4)',
-                }}>
-                  {isEnabled ? '● Aktiivinen' : '○ Pois päältä'}
-                </span>
-              </div>
-              <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-                Optatoi Panasonic Aquarea -lämpöpumpun toimintaa Nord Pool -pörssisähkön, sähkön siirtohintojen ja sääennusteen mukaan.
-              </p>
-            </div>
-          </div>
-
-          {!readOnly && (
+    <div className="page-stack">
+      <PageHeader
+        icon="⚡"
+        title="APC Älykäs Pörssiohjaus"
+        subtitle="Optimoi Panasonic Aquarea -lämpöpumpun ja laitteiden toimintaa Nord Pool -pörssisähkön, siirtohintojen ja sääennusteen mukaan"
+        badge={
+          <span
+            className="badge"
+            style={{
+              background: isEnabled ? 'rgba(16, 185, 129, 0.18)' : 'rgba(244, 63, 94, 0.18)',
+              color: isEnabled ? '#10b981' : '#f43f5e',
+              border: isEnabled ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(244, 63, 94, 0.4)',
+            }}
+          >
+            {isEnabled ? '● Aktiivinen' : '○ Pois päältä'}
+          </span>
+        }
+        actions={
+          !readOnly ? (
             <button
+              type="button"
               onClick={() => toggleEnabled()}
               disabled={saving}
-              className={`btn ${isEnabled ? 'btn-ghost' : 'btn-primary'}`}
-              style={{
-                padding: '8px 18px',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 10,
-                cursor: 'pointer',
-              }}
+              className={`btn btn-sm ${isEnabled ? 'btn-secondary' : 'btn-primary'}`}
             >
               {isEnabled ? '⏸️ Kytke APC pois päältä' : '▶️ Ota APC käyttöön'}
             </button>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
+      <SubTabBar<ApcSubTab>
+        activeTab={apcTab}
+        onSelect={handleSelectApcTab}
+        ariaLabel="APC-strategian näkymät"
+        tabs={[
+          { id: 'strategy', label: 'Strategia & Sähkösopimus', icon: '⚡', accentColor: '#10b981' },
+          { id: 'parameters', label: 'Parametrit, Pumput & Laitteet', icon: '⚙️', accentColor: '#f59e0b' },
+          { id: 'logs', label: 'Päätösloki', icon: '📋', accentColor: '#38bdf8' },
+        ]}
+      />
+
+      {/* TAB 1: STRATEGY & ELECTRICITY CONTRACT */}
+      {apcTab === 'strategy' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Section 1: Sähkösopimus & Siirtohinnat */}
       <div className="card" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
@@ -803,8 +811,11 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
           })}
         </div>
       </div>
+        </div>
+      )}
 
-      {/* Section 3: Detailed Parameters Editor */}
+      {/* TAB 2: DETAILED PARAMETERS & DEVICES */}
+      {apcTab === 'parameters' && (
       <div className="card" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
           <div>
@@ -2860,9 +2871,10 @@ export function ApcStrategyPage({ readOnly = false }: ApcStrategyPageProps) {
           )}
         </form>
       </div>
+      )}
 
-      {/* Section 4: Live Decision Log Table */}
-      <ApcDecisionLogCard maxEntries={25} />
+      {/* TAB 3: LIVE DECISION LOG */}
+      {apcTab === 'logs' && <ApcDecisionLogCard maxEntries={40} />}
     </div>
   );
 }

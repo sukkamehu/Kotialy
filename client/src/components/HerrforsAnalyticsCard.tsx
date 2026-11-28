@@ -1260,6 +1260,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       stroke="#a855f7"
                       fill="url(#colorHouse)"
                       hide={hiddenSeries['house_power_kw']}
+                      isAnimationActive={false}
                     />
                     <Line
                       yAxisId="left"
@@ -1270,6 +1271,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       strokeWidth={2}
                       dot={false}
                       hide={hiddenSeries['heatpump_power_kw']}
+                      isAnimationActive={false}
                     />
                     <Line
                       yAxisId="left"
@@ -1280,6 +1282,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       strokeWidth={2}
                       dot={false}
                       hide={hiddenSeries['sauna_power_kw']}
+                      isAnimationActive={false}
                     />
                     <Line
                       yAxisId="left"
@@ -1290,6 +1293,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                       strokeWidth={2}
                       dot={false}
                       hide={hiddenSeries['tapo_power_kw']}
+                      isAnimationActive={false}
                     />
                   </>
                 )}
@@ -1320,6 +1324,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   strokeDasharray="4 4"
                   dot={false}
                   hide={hiddenSeries['temperature']}
+                  isAnimationActive={false}
                 />
 
                 {/* Electricity Price Line on Right Axis */}
@@ -1332,6 +1337,7 @@ export function HerrforsAnalyticsCard({ readOnly = false }: HerrforsAnalyticsCar
                   strokeWidth={1.5}
                   dot={false}
                   hide={hiddenSeries['full_price_cents']}
+                  isAnimationActive={false}
                 />
               </ComposedChart>
             </ResponsiveContainer>

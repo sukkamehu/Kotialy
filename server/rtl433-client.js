@@ -403,8 +403,19 @@ function getDevices() {
     });
   }
 
-  // Sort by lastSeen descending
-  return list.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  // Deterministic stable sort (never sort by lastSeen so UI lists & chart colors stay rock-solid):
+  // 1. Active before ignored, 2. Outdoor sensors first, 3. Natural Finnish name order, 4. Device ID
+  return list.sort((a, b) => {
+    const ignoredDiff = Number(Boolean(a.isIgnored)) - Number(Boolean(b.isIgnored));
+    if (ignoredDiff !== 0) return ignoredDiff;
+    const outdoorDiff = Number(Boolean(b.isOutdoor)) - Number(Boolean(a.isOutdoor));
+    if (outdoorDiff !== 0) return outdoorDiff;
+    const nameA = (a.customName && a.customName.trim()) || `${a.model} #${a.rawId || a.id}`;
+    const nameB = (b.customName && b.customName.trim()) || `${b.model} #${b.rawId || b.id}`;
+    const nameDiff = nameA.localeCompare(nameB, 'fi', { numeric: true, sensitivity: 'base' });
+    if (nameDiff !== 0) return nameDiff;
+    return String(a.id).localeCompare(String(b.id));
+  });
 }
 
 function getDevice(id) {

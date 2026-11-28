@@ -7,7 +7,7 @@ import { OutdoorCard } from './OutdoorCard';
 import { CameraCard } from './CameraCard';
 import { MitsubishiCard } from './MitsubishiCard';
 import { UnifiedForecastCard } from './UnifiedForecastCard';
-import { ApcDecisionLogCard } from './ApcDecisionLogCard';
+import { PageHeader } from './PageHeader';
 import { ErrorBoundary } from './ErrorBoundary';
 import type { TrendTopicTarget } from './VariableTrendModal';
 
@@ -27,20 +27,14 @@ export const HeatingPage: React.FC<HeatingPageProps> = ({
   readOnly = false,
 }) => {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 36 }}>
-      {/* Category Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span>🔥</span> Lämmitysjärjestelmä
-          </h2>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            Panasonic 12 kW T-CAP VILP, 284L käyttövesivaraaja, 100L puskurivaraaja ja teknisen tilan valvonta
-          </div>
-        </div>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        icon="🔥"
+        title="Lämmitysjärjestelmä"
+        subtitle="Panasonic 12 kW T-CAP VILP, 284 L käyttövesivaraaja, 100 L puskurivaraaja, Mitsubishi ILP ja teknisen tilan valvonta"
+      />
 
-      {/* Row 1: Primary heat pump & tank status cards (Top 3 widgets) */}
+      {/* Row 1: Primary heat pump & tank status cards */}
       <div className="dashboard-grid dashboard-grid-main">
         <ErrorBoundary>
           <HeatpumpCard state={state} onOpenTrend={onOpenTrend} readOnly={readOnly} />
@@ -68,26 +62,15 @@ export const HeatingPage: React.FC<HeatingPageProps> = ({
         </ErrorBoundary>
       </div>
 
-      {/* Row 2.5: Mitsubishi Air-to-Air Heat Pumps (ILP) */}
-      <div>
-        <ErrorBoundary>
-          <MitsubishiCard readOnly={readOnly} />
-        </ErrorBoundary>
-      </div>
+      {/* Row 3: Mitsubishi Air-to-Air Heat Pumps (ILP) */}
+      <ErrorBoundary>
+        <MitsubishiCard readOnly={readOnly} />
+      </ErrorBoundary>
 
-      {/* Row 3: Spot price forecast & APC heating directive */}
-      <div>
-        <ErrorBoundary>
-          <UnifiedForecastCard onOpenApc={onOpenApc} />
-        </ErrorBoundary>
-      </div>
-
-      {/* Row 4: APC Decision Log & Live Real-time Operations */}
-      <div>
-        <ErrorBoundary>
-          <ApcDecisionLogCard onOpenApc={onOpenApc} maxEntries={10} />
-        </ErrorBoundary>
-      </div>
+      {/* Row 4: Spot price forecast, weather & APC heating directive */}
+      <ErrorBoundary>
+        <UnifiedForecastCard onOpenApc={onOpenApc} />
+      </ErrorBoundary>
     </div>
   );
 };

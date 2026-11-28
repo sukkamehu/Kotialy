@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api';
+import { stableSortRtlDevices } from '../lib/sensorUtils';
 import type { Rtl433Device, Rtl433Status, Rtl433DevicesResponse } from '../types/rtl433';
 
 export function useRtl433() {
@@ -18,7 +19,7 @@ export function useRtl433() {
       const res = await apiFetch('/api/rtl433/devices');
       if (res.ok) {
         const data: Rtl433DevicesResponse = await res.json();
-        setDevices(data.devices || []);
+        setDevices(stableSortRtlDevices(data.devices || []));
         if (data.status) setStatus(data.status);
         setError(null);
       }
@@ -39,14 +40,14 @@ export function useRtl433() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'snapshot' && msg.rtl433) {
-          if (Array.isArray(msg.rtl433.devices)) setDevices(msg.rtl433.devices);
+          if (Array.isArray(msg.rtl433.devices)) setDevices(stableSortRtlDevices(msg.rtl433.devices));
           setStatus((prev) => ({
             ...prev,
             connected: Boolean(msg.rtl433.connected),
             lastReceivedAt: msg.rtl433.lastReceivedAt ?? prev.lastReceivedAt,
           }));
         } else if (msg.type === 'rtl433_devices') {
-          if (Array.isArray(msg.devices)) setDevices(msg.devices);
+          if (Array.isArray(msg.devices)) setDevices(stableSortRtlDevices(msg.devices));
         } else if (msg.type === 'rtl433_status') {
           setStatus((prev) => ({ ...prev, connected: msg.connected }));
         } else if (msg.type === 'rtl433_update') {
@@ -103,7 +104,7 @@ export function useRtl433() {
           const data = await res.json();
           if (data.device) {
             setDevices((prev) =>
-              prev.map((d) => (d.id === id ? { ...d, ...data.device } : d))
+              stableSortRtlDevices(prev.map((d) => (d.id === id ? { ...d, ...data.device } : d)))
             );
           }
           return { ok: true, device: data.device };

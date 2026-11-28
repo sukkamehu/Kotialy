@@ -1,6 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
 import { useRtl433 } from '../hooks/useRtl433';
+import {
+  getRtlDeviceDisplayName,
+  getRtlStructureKey,
+  getStableSensorColor,
+  stableSortRtlDevices,
+} from '../lib/sensorUtils';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -354,23 +360,25 @@ interface HistoryChartProps {
 
 export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = {}) {
   const { devices: rtlDevices } = useRtl433();
+  const rtlDevicesRef = useRef(rtlDevices);
+  rtlDevicesRef.current = rtlDevices;
 
-  const chartTopics = useMemo<ChartTopicConfig[]>(() => {
+  // Structural fingerprint: only changes when sensor identity, name, outdoor/ignored flag,
+  // or available metric types change — NEVER when live temperature values or lastSeen tick.
+  const rtlStructureKey = useMemo(() => getRtlStructureKey(rtlDevices), [rtlDevices]);
+
+  const { chartTopics, rfSensorCount } = useMemo(() => {
     const list: ChartTopicConfig[] = [...CHART_TOPICS];
 
-    // Filter active, non-ignored RTL433 devices that have reported temperature or humidity
-    const activeRtl = rtlDevices.filter(
+    // Stably sorted active, non-ignored RTL433 devices with temperature or humidity
+    const activeRtl = stableSortRtlDevices(rtlDevicesRef.current).filter(
       (d) => !d.isIgnored && (typeof d.properties?.temperature === 'number' || typeof d.properties?.humidity === 'number')
     );
 
-    const colors = [
-      '#10b981', '#06b6d4', '#8b5cf6', '#f59e0b', '#ec4899',
-      '#3b82f6', '#14b8a6', '#f97316', '#a855f7', '#84cc16'
-    ];
-
-    activeRtl.forEach((d, idx) => {
-      const devName = d.customName || `${d.model} #${d.rawId || d.id}`;
-      const color = colors[idx % colors.length];
+    activeRtl.forEach((d) => {
+      const devName = getRtlDeviceDisplayName(d);
+      // Deterministic hash-based color per immutable device ID — never shifts when list changes!
+      const color = getStableSensorColor(`rtl433/${d.id}`);
       const prefix = d.isOutdoor ? '🌲 Ulko · ' : '📻 ';
 
       if (typeof d.properties?.temperature === 'number') {
@@ -397,8 +405,9 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
       }
     });
 
-    return list;
-  }, [rtlDevices]);
+    return { chartTopics: list, rfSensorCount: activeRtl.length };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rtlStructureKey]);
 
   const STORAGE_KEY_TOPICS = 'kotialy_trend_selected_topics_v2';
   const DEFAULT_TOPICS = ['main/Outside_Temp', 'main/Main_Inlet_Temp', 'main/Main_Outlet_Temp', 'main/DHW_Temp', 'main/Buffer_Temp'];
@@ -498,6 +507,13 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
     return { fromMs: from, toMs: to, rangeDurationHours: durationH, formattedRangeLabel: label };
   }, [preset, selectedDay, startDate, endDate, todayStr]);
 
+  const hasLeftAxis = useMemo(() => {
+    return selectedTopics.some((k) => {
+      const topic = chartTopics.find((t) => t.key === k);
+      return !topic || topic.yAxisId === 'left';
+    });
+  }, [selectedTopics, chartTopics]);
+
   const hasRightAxis = useMemo(() => {
     return selectedTopics.some((k) => {
       const topic = chartTopics.find((t) => t.key === k);
@@ -523,10 +539,11 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
 
     if (sensorTopics.length > 0) {
       // Expand any rtl433 topic with alias topic if present
+      const currentRtl = rtlDevicesRef.current;
       const expandedTopics = Array.from(new Set(sensorTopics.flatMap((top) => {
         if (top.startsWith('rtl433/')) {
           const parts = top.split('/');
-          const dev = rtlDevices.find((d) => d.id === parts[1]);
+          const dev = currentRtl.find((d) => d.id === parts[1]);
           if (dev?.customName) {
             const aliasSlug = dev.customName.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').trim();
             return [top, `rtl433/${aliasSlug}/${parts[2]}`];
@@ -594,7 +611,7 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
             for (const top of sensorTopics) {
               if (top.startsWith('rtl433/')) {
                 const parts = top.split('/');
-                const dev = rtlDevices.find((d) => d.id === parts[1]);
+                const dev = rtlDevicesRef.current.find((d) => d.id === parts[1]);
                 if (dev?.customName) {
                   const aliasSlug = dev.customName.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').trim();
                   const aliasKey = `rtl433/${aliasSlug}/${parts[2]}`;
@@ -985,8 +1002,8 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
           {[
             { id: 'vilp', label: '🔥 VILP & Lämmitys' },
             { id: 'smartlife', label: '🌡️ Lämpömittarit & ILP' },
-            ...(rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length > 0
-              ? [{ id: 'rf433', label: `📻 433 MHz RF-anturit (${rtlDevices.filter(d => !d.isIgnored && (d.properties?.temperature != null || d.properties?.humidity != null)).length})` }]
+            ...(rfSensorCount > 0
+              ? [{ id: 'rf433', label: `📻 433 MHz RF-anturit (${rfSensorCount})` }]
               : []),
             { id: 'electricity', label: '⚡ Sähkö & Pörssihinta' },
             { id: 'tapo', label: '🔌 Tapo-pistorasiat' },
@@ -1151,23 +1168,29 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
                   minTickGap={40}
                 />
                 {/* Left Y Axis for Temperatures */}
-                <YAxis
-                  yAxisId="left"
-                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={38}
-                  tickFormatter={(v) => `${Math.round(v)}°`}
-                />
+                {hasLeftAxis && (
+                  <YAxis
+                    yAxisId="left"
+                    domain={['auto', 'auto']}
+                    padding={{ top: 14, bottom: 14 }}
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={42}
+                    tickFormatter={(v) => `${Math.round(v * 10) / 10}°`}
+                  />
+                )}
                 {/* Right Y Axis for Price (c/kWh), Power (kW), Compressor Freq (Hz) */}
                 {hasRightAxis && (
                   <YAxis
                     yAxisId="right"
                     orientation="right"
+                    domain={['auto', 'auto']}
+                    padding={{ top: 14, bottom: 14 }}
                     tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
-                    width={38}
+                    width={42}
                   />
                 )}
                 <Tooltip content={<CustomTooltip chartTopics={chartTopics} />} />
@@ -1198,6 +1221,7 @@ export function HistoryChart({ onOpenTrend: _onOpenTrend }: HistoryChartProps = 
                     strokeDasharray={dash}
                     dot={false}
                     connectNulls
+                    isAnimationActive={false}
                     activeDot={{ r: 4, fill: color, stroke: 'none' }}
                   />
                 ))}

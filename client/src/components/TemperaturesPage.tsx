@@ -3,7 +3,9 @@ import { useTuya } from '../hooks/useTuya';
 import { useMitsubishi } from '../hooks/useMitsubishi';
 import { useRtl433 } from '../hooks/useRtl433';
 import { Rtl433ManagerModal } from './Rtl433ManagerModal';
+import { PageHeader } from './PageHeader';
 import { apiFetch } from '../lib/api';
+import { stableSortRtlDevices, stableSortTuyaDevices } from '../lib/sensorUtils';
 import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import {
@@ -69,9 +71,14 @@ interface TemperaturesPageProps {
   state?: HeishamonState;
   readOnly?: boolean;
   onNavigateTab?: (tab: string) => void;
+  onOpenInTrends?: (topicKey: string) => void;
 }
 
-export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNavigateTab: _onNavigateTab }) => {
+export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({
+  state,
+  onNavigateTab: _onNavigateTab,
+  onOpenInTrends,
+}) => {
   const { devices, loading, refreshing, refreshDevices } = useTuya();
   const { status: mitsuStatus, refresh: refreshMitsu } = useMitsubishi();
   const { devices: rtlDevices, status: rtlStatus, refresh: refreshRtl } = useRtl433();
@@ -87,10 +94,10 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
 
   const todayStr = useMemo(() => toLocalDateString(), []);
 
-  // Categorize Tuya devices
-  const climateSensors = useMemo(() => devices.filter((d) => d.type === 'climate'), [devices]);
-  const waterLeakSensors = useMemo(() => devices.filter((d) => d.type === 'water_leak'), [devices]);
-  const doorSensors = useMemo(() => devices.filter((d) => d.type === 'door'), [devices]);
+  // Categorize Tuya devices (stably sorted)
+  const climateSensors = useMemo(() => stableSortTuyaDevices(devices.filter((d) => d.type === 'climate')), [devices]);
+  const waterLeakSensors = useMemo(() => stableSortTuyaDevices(devices.filter((d) => d.type === 'water_leak')), [devices]);
+  const doorSensors = useMemo(() => stableSortTuyaDevices(devices.filter((d) => d.type === 'door')), [devices]);
 
   // Mitsubishi units
   const mitsuAlakerta = mitsuStatus?.units.find((u) => u.id === 'mitsubishi_alakerta');
@@ -202,8 +209,8 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
       });
     }
 
-    // 4. rtl_433 433 MHz RF climate sensors
-    for (const d of rtlDevices) {
+    // 4. rtl_433 433 MHz RF climate sensors (stably sorted)
+    for (const d of stableSortRtlDevices(rtlDevices)) {
       if (d.isIgnored) continue;
       const devTemp = d.properties.temperature ?? null;
       const devHum = d.properties.humidity ?? null;
@@ -575,65 +582,39 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 40 }}>
-      {/* Category Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span>🌡️</span> Lämpömittarit & Sisäilma
-          </h2>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 3 }}>
-            Päärakennuksen ja ulkorakennusten lämpötila- ja kosteusvalvonta, Mitsubishi ILP -integraatio ja reaaliaikainen mittaushistoria
-          </div>
-        </div>
+    <div className="page-stack">
+      <PageHeader
+        icon="🌡️"
+        title="Lämpömittarit & Sisäilma"
+        subtitle="Päärakennuksen ja ulkorakennusten lämpötila- ja kosteusvalvonta, Mitsubishi ILP -integraatio ja mittaushistoria"
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setRtlModalOpen(true)}
+              style={{
+                borderColor: rtlStatus.connected ? 'rgba(56, 189, 248, 0.4)' : undefined,
+                background: rtlStatus.connected ? 'rgba(56, 189, 248, 0.12)' : undefined,
+                color: rtlStatus.connected ? '#38bdf8' : undefined,
+              }}
+            >
+              <span>📻</span>
+              <span>433 MHz Laitteet ({rtlDevices.filter((d) => !d.isIgnored).length})</span>
+            </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={() => setRtlModalOpen(true)}
-            style={{
-              padding: '6px 14px',
-              fontSize: 12,
-              borderRadius: 10,
-              border: `1px solid ${rtlStatus.connected ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.12)'}`,
-              background: rtlStatus.connected ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-              color: rtlStatus.connected ? '#38bdf8' : 'var(--text-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontWeight: 600,
-            }}
-          >
-            <span>📻</span>
-            <span>433 MHz Laitteet ({rtlDevices.filter((d) => !d.isIgnored).length})</span>
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={handleRefresh}
-            disabled={refreshing || loading}
-            style={{
-              padding: '6px 14px',
-              fontSize: 12,
-              borderRadius: 10,
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              background: 'rgba(255, 255, 255, 0.05)',
-              color: 'var(--text-primary)',
-              cursor: refreshing ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontWeight: 600,
-            }}
-          >
-            <span>{refreshing ? '⏳' : '🔄'}</span>
-            <span>{refreshing ? 'Päivitetään...' : 'Päivitä anturit'}</span>
-          </button>
-        </div>
-      </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+            >
+              <span>{refreshing ? '⏳' : '🔄'}</span>
+              <span>{refreshing ? 'Päivitetään...' : 'Päivitä anturit'}</span>
+            </button>
+          </>
+        }
+      />
 
       {/* Hero Overview Cards: Main house average, Mitsubishi ILPs & key spots */}
       <div
@@ -1241,6 +1222,16 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                       </option>
                     ))}
                   </select>
+                  {onOpenInTrends && selectedSensor.tempTopic && (
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-secondary"
+                      onClick={() => onOpenInTrends(selectedSensor.tempTopic)}
+                      title="Avaa tämä anturi Trendit & Kulutus -vertailukuvaajassa"
+                    >
+                      📈 Vertaile Trendeissä ↗
+                    </button>
+                  )}
                   {historyLoading && historyData.length > 0 && (
                     <span style={{ fontSize: 11, color: '#38bdf8', opacity: 0.85, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#38bdf8' }} />
@@ -1554,6 +1545,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                       stroke={selectedSensor.source === 'mitsubishi' ? '#38bdf8' : '#fb923c'}
                       strokeWidth={2.5}
                       dot={false}
+                      isAnimationActive={false}
                       name={selectedSensor.source === 'mitsubishi' ? 'Huonelämpötila (°C)' : 'Lämpötila (°C)'}
                     />
                     {selectedSensor.source === 'mitsubishi' ? (
@@ -1566,6 +1558,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                         strokeDasharray="4 3"
                         dot={false}
                         connectNulls={true}
+                        isAnimationActive={false}
                         name="Asetuspyynti (°C)"
                       />
                     ) : (
@@ -1577,6 +1570,7 @@ export const TemperaturesPage: React.FC<TemperaturesPageProps> = ({ state, onNav
                         strokeWidth={2}
                         strokeDasharray="4 2"
                         dot={false}
+                        isAnimationActive={false}
                         name="Kosteus (%)"
                       />
                     )}

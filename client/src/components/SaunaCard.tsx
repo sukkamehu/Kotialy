@@ -162,7 +162,15 @@ export function SaunaCard({ readOnly = false }: SaunaCardProps) {
 
     const loadData = (showSpinner = false) => {
       if (showSpinner) setHistoryLoading(true);
-      apiFetch(`/api/history/multi?topics=${encodeURIComponent(topics)}&from=${fromMs}&to=${toMs}`)
+      const isLiveRange = historyPreset === '1h' || historyPreset === '2h' || historyPreset === 'today' || (historyPreset === 'day' && selectedDate === todayStr);
+      const effectiveToMs = isLiveRange ? Date.now() : toMs;
+      const effectiveFromMs =
+        historyPreset === '1h'
+          ? effectiveToMs - 1 * 3600 * 1000
+          : historyPreset === '2h'
+          ? effectiveToMs - 2 * 3600 * 1000
+          : fromMs;
+      apiFetch(`/api/history/multi?topics=${encodeURIComponent(topics)}&from=${effectiveFromMs}&to=${effectiveToMs}`)
         .then((res) => res.json())
         .then((json) => {
           if (!isMounted) return;

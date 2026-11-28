@@ -54,9 +54,9 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
   const [data, setData] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Compute fromMs and toMs
+  // Compute fromMs and toMs (bucketed to 5 minutes so modal never unnecessarily refetches)
   const { fromMs, toMs, rangeDurationHours, formattedRangeLabel } = useMemo(() => {
-    const now = Date.now();
+    const now = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
     let from = now - 24 * 3600 * 1000;
     let to = now;
     let label = 'Viimeiset 24 tuntia';
@@ -501,7 +501,7 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
 
           {/* Chart Area */}
           <div style={{ height: 280, width: '100%', position: 'relative' }}>
-            {loading ? (
+            {loading && data.length === 0 ? (
               <div
                 style={{
                   position: 'absolute',
@@ -533,6 +533,10 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
                 </span>
               </div>
             ) : (
+              <>
+              {loading && (
+                <div className="loading-pill">● Päivitetään...</div>
+              )}
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
@@ -589,6 +593,7 @@ export function VariableTrendModal({ target, onClose }: VariableTrendModalProps)
                   />
                 </AreaChart>
               </ResponsiveContainer>
+              </>
             )}
           </div>
         </div>

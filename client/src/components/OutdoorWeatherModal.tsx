@@ -5,6 +5,7 @@ import type { HeishamonState } from '../types/heishamon';
 import { numVal } from '../types/heishamon';
 import type { WeatherForecast, DailyWeather } from '../types/weather';
 import { useOutdoorConsensus } from '../hooks/useOutdoorConsensus';
+import { stableSortRtlDevices } from '../lib/sensorUtils';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -148,12 +149,14 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
   // 433 MHz Outdoor Consensus
   const { data: outdoorConsensus } = useOutdoorConsensus();
 
-  // Active, fresh outdoor sensors only (strictly exclude stale >30min or ignored)
+  // Active, fresh outdoor sensors only (strictly exclude stale >30min or ignored), stably sorted
   const activeOutdoorSensors = useMemo(() => {
     if (!outdoorConsensus?.outdoorSensors) return [];
     const cutoff = Date.now() - 30 * 60 * 1000;
-    return outdoorConsensus.outdoorSensors.filter(
-      (dev) => !dev.isIgnored && !dev.isStale && dev.lastSeen && dev.lastSeen >= cutoff
+    return stableSortRtlDevices(
+      outdoorConsensus.outdoorSensors.filter(
+        (dev) => !dev.isIgnored && !dev.isStale && dev.lastSeen && dev.lastSeen >= cutoff
+      )
     );
   }, [outdoorConsensus]);
 
@@ -167,9 +170,9 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Compute History timeframe
+  // Compute History timeframe (bucketed to 5 minutes so re-renders never cause jitter)
   const { historyFromMs, historyToMs, historyDurationHours, formattedHistoryLabel } = useMemo(() => {
-    const now = Date.now();
+    const now = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
     let from = now - 24 * 3600 * 1000;
     let to = now;
     let label = 'Viimeiset 24 tuntia';
@@ -323,9 +326,16 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
     };
   }, [isOpen, activeTab, combinedPastHours, historyFromMs, historyToMs, historyDurationHours, includePipeTemp]);
 
+  // Stable 5-minute bucketed anchor for combined chart & "Nyt" line so WS updates never jitter the chart
+  const chartNowMs = useMemo(
+    () => Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isOpen, combinedPreset, historyData.length]
+  );
+
   // Combined timeline data assembly
   const combinedTimelineData = useMemo(() => {
-    const now = Date.now();
+    const now = chartNowMs;
     const pastCutoff = now - combinedPastHours * 3600 * 1000;
     const futureCutoff = now + combinedFutureHours * 3600 * 1000;
 
@@ -348,9 +358,9 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
       }
     }
 
-    // Connect the seam at 'now': set forecastTemp on the last history point to the current temperature
+    // Connect the seam at 'now': set forecastTemp on the last history point to the last measured temp
     const latestPt = points.length > 0 ? points[points.length - 1] : null;
-    const seamTemp = latestPt?.consensusTemp ?? latestPt?.measuredTemp ?? currentHeatpumpTemp;
+    const seamTemp = latestPt?.consensusTemp ?? latestPt?.measuredTemp ?? null;
     if (latestPt && seamTemp !== null) {
       latestPt.forecastTemp = seamTemp;
     }
@@ -373,7 +383,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
     }
 
     return points.sort((a, b) => a.time - b.time);
-  }, [historyData, weatherForecast, combinedPastHours, combinedFutureHours, currentHeatpumpTemp]);
+  }, [historyData, weatherForecast, combinedPastHours, combinedFutureHours, chartNowMs]);
 
   // Stats calculation for history
   const historyStats = useMemo(() => {
@@ -1046,7 +1056,7 @@ export function OutdoorWeatherModal({ isOpen, onClose, state }: OutdoorWeatherMo
                       
                       {/* Now Reference Line */}
                       <ReferenceLine
-                        x={Date.now()}
+                        x={chartNowMs}
                         yAxisId="temp"
                         stroke="rgba(255,255,255,0.6)"
                         strokeDasharray="4 4"

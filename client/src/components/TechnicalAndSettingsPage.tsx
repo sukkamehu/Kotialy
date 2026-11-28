@@ -1,135 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { HeishamonState } from '../types/heishamon';
 import { HydraulicDiagramPage } from './HydraulicDiagramPage';
 import { PanasonicSettingsCard } from './PanasonicSettingsCard';
 import { BatteryDiagramPage } from './BatteryDiagramPage';
+import { PageHeader } from './PageHeader';
+import { SubTabBar } from './SubTabBar';
 import { ErrorBoundary } from './ErrorBoundary';
+
+export type TechnicalSubTab = 'hydraulics' | 'battery' | 'settings';
 
 interface TechnicalAndSettingsPageProps {
   state: HeishamonState;
+  initialSubTab?: TechnicalSubTab;
   readOnly?: boolean;
 }
 
+const STORAGE_KEY = 'kotialy_technical_active_tab';
+
 export const TechnicalAndSettingsPage: React.FC<TechnicalAndSettingsPageProps> = ({
   state,
+  initialSubTab,
   readOnly = false,
 }) => {
-  const getInitialSubTab = (): 'hydraulics' | 'battery' | 'settings' => {
+  const [subTab, setSubTab] = useState<TechnicalSubTab>(() => {
+    if (initialSubTab) return initialSubTab;
     if (typeof window !== 'undefined') {
       const h = (window.location.hash || '').toLowerCase();
       if (h.includes('setting') || h.includes('asetus')) return 'settings';
       if (h.includes('battery') || h.includes('akku')) return 'battery';
     }
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY) as TechnicalSubTab | null;
+      if (saved === 'hydraulics' || saved === 'battery' || saved === 'settings') return saved;
+    } catch {
+      // ignore
+    }
     return 'hydraulics';
+  });
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
+  const handleSelectTab = (tab: TechnicalSubTab) => {
+    setSubTab(tab);
+    try {
+      localStorage.setItem(STORAGE_KEY, tab);
+    } catch {
+      // ignore
+    }
   };
 
-  const [subTab, setSubTab] = useState<'hydraulics' | 'battery' | 'settings'>(getInitialSubTab);
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 36 }}>
-      {/* Category Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span>🛠️</span> Tekninen tila & Kaaviot
-          </h2>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            Putkiston hydraulikaavio, 3-vaiheinen akkujärjestelmän sähkökaavio ja Panasonic-asetukset
-          </div>
-        </div>
+    <div className="page-stack">
+      <PageHeader
+        icon="🛠️"
+        title="Tekniikka & Akku"
+        subtitle="Putkiston hydraulikaavio, 3-vaiheinen akkujärjestelmän sähkökaavio ja Panasonic-asetusmuistio"
+      />
 
-        {/* Subtab Segmented Switcher */}
-        <div
-          style={{
-            display: 'flex',
-            background: 'rgba(0, 0, 0, 0.4)',
-            padding: '4px',
-            borderRadius: 12,
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            gap: 4,
-            flexWrap: 'wrap',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubTab('hydraulics')}
-            style={{
-              padding: '7px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              border: 'none',
-              background: subTab === 'hydraulics' ? 'rgba(6, 182, 212, 0.25)' : 'transparent',
-              color: subTab === 'hydraulics' ? '#22d3ee' : 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <span>🛠️</span> Hydraulikaavio
-          </button>
+      <SubTabBar<TechnicalSubTab>
+        activeTab={subTab}
+        onSelect={handleSelectTab}
+        ariaLabel="Teknisen tilan näkymät"
+        tabs={[
+          { id: 'hydraulics', label: 'Hydraulikaavio', icon: '🛠️', accentColor: '#22d3ee' },
+          { id: 'battery', label: 'Sähkö- ja akkukaavio', icon: '🔋', accentColor: '#10b981' },
+          { id: 'settings', label: 'Asetusmuistio', icon: '⚙️', accentColor: '#c084fc' },
+        ]}
+      />
 
-          <button
-            type="button"
-            onClick={() => setSubTab('battery')}
-            style={{
-              padding: '7px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              border: 'none',
-              background: subTab === 'battery' ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
-              color: subTab === 'battery' ? '#10b981' : 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <span>🔋</span> Sähkö- ja akkukaavio
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubTab('settings')}
-            style={{
-              padding: '7px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              border: 'none',
-              background: subTab === 'settings' ? 'rgba(168, 85, 247, 0.25)' : 'transparent',
-              color: subTab === 'settings' ? '#c084fc' : 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <span>⚙️</span> Asetusmuistio
-          </button>
-        </div>
-      </div>
-
-      {/* View 1: Interactive Hydraulic Diagram */}
       {subTab === 'hydraulics' && (
         <ErrorBoundary>
           <HydraulicDiagramPage state={state} readOnly={readOnly} />
         </ErrorBoundary>
       )}
 
-      {/* View 2: Interactive Battery & Electrical Schematic */}
       {subTab === 'battery' && (
         <ErrorBoundary>
           <BatteryDiagramPage />
         </ErrorBoundary>
       )}
 
-      {/* View 3: Panasonic Settings Memo */}
       {subTab === 'settings' && (
         <ErrorBoundary>
           <PanasonicSettingsCard state={state} />

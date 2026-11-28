@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api';
+import { stableSortTuyaDevices } from '../lib/sensorUtils';
 import type { TuyaDevice, SaunaState, TuyaStatusResponse } from '../types/tuya';
 
 export function useTuya() {
@@ -16,7 +17,7 @@ export function useTuya() {
       const res = await apiFetch('/api/tuya/devices');
       if (res.ok) {
         const data: TuyaStatusResponse = await res.json();
-        setDevices(data.devices || []);
+        setDevices(stableSortTuyaDevices(data.devices || []));
         setSauna(data.sauna || null);
         setConfigured(data.configured ?? true);
         setError(null);
@@ -39,10 +40,10 @@ export function useTuya() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'snapshot' && msg.tuya) {
-          if (msg.tuya.devices) setDevices(msg.tuya.devices);
+          if (msg.tuya.devices) setDevices(stableSortTuyaDevices(msg.tuya.devices));
           if (msg.tuya.sauna) setSauna(msg.tuya.sauna);
         } else if (msg.type === 'tuya_devices') {
-          if (msg.devices) setDevices(msg.devices);
+          if (msg.devices) setDevices(stableSortTuyaDevices(msg.devices));
           if (msg.sauna) setSauna(msg.sauna);
         } else if (msg.type === 'sauna_status') {
           if (msg.sauna) setSauna(msg.sauna);
@@ -143,7 +144,7 @@ export function useTuya() {
       const res = await apiFetch('/api/tuya/refresh', { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
-        if (data.devices) setDevices(data.devices);
+        if (data.devices) setDevices(stableSortTuyaDevices(data.devices));
         if (data.sauna) setSauna(data.sauna);
       }
     } catch (err: any) {

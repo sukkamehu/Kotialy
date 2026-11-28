@@ -805,6 +805,7 @@ export function ElectricityCalendarCard() {
                     stroke="#f59e0b"
                     strokeWidth={2}
                     dot={false}
+                    isAnimationActive={false}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -924,6 +925,7 @@ export function ElectricityCalendarCard() {
                   stroke="#60a5fa"
                   strokeWidth={2}
                   dot={false}
+                  isAnimationActive={false}
                 />
               </ComposedChart>
             </ResponsiveContainer>
